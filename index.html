@@ -1,0 +1,314 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Check-in Educacional</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <meta name="theme-color" content="#0f3d2e" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">CE</div>
+      <div>
+        <div class="title">Check-in Educacional</div>
+        <div class="subtitle">Controle de presença por QR</div>
+      </div>
+    </div>
+    <div class="session">
+      <div id="sessionRole" class="pill">Deslogado</div>
+      <button id="btnPrintPanel" class="ghost">Painel de impressao</button>
+      <button id="btnLogPanel" class="ghost">Log</button>
+      <button id="btnInvitePanel" class="ghost">Convites</button>
+      <button id="btnLogout" class="ghost">Sair</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card" id="authCard">
+      <h2>Entrar</h2>
+      <label class="field">
+        Email
+        <input id="loginEmail" type="email" placeholder="exemplo@email.com" />
+      </label>
+      <label class="field">
+        Senha
+        <input id="loginPassword" type="password" placeholder="Senha" />
+      </label>
+      <button id="btnLogin" class="primary">Entrar</button>
+      <p class="muted auth-signup-text">
+        Ainda não tem cadastro?
+        <button id="btnOpenSignup" class="link-button" type="button">Clique aqui!</button>
+      </p>
+    </section>
+
+    <section class="card" id="roomCard">
+      <div class="card-header">
+        <h2>Salas (Eventos)</h2>
+        <span id="roomStatus" class="pill">Nenhuma sala aberta</span>
+      </div>
+      <div class="room-form">
+        <label class="field">Nome do evento
+          <input id="roomName" placeholder="Ex: Culto Kids" />
+        </label>
+        <div class="grid-2">
+          <label class="field">Data
+            <input id="roomDate" type="date" />
+          </label>
+          <label class="field">Horario
+            <input id="roomTime" type="time" />
+          </label>
+          <label class="field">Turma
+            <select id="roomClass">
+              <option value="">Selecione a turma</option>
+              <option value="Maternal">Maternal</option>
+              <option value="Kids">Kids</option>
+              <option value="Juniors">Juniors</option>
+              <option value="Teens">Teens</option>
+            </select>
+          </label>
+          <label class="field">Recorrencia
+            <select id="roomRecurrence">
+              <option value="none">Nao recorrente</option>
+              <option value="weekly">Semanal (4 semanas)</option>
+            </select>
+          </label>
+        </div>
+        <button id="btnCreateRoom" class="primary">Criar evento</button>
+      </div>
+      <div id="roomCurrent" class="room-current"></div>
+      <div class="actions">
+        <button id="btnOpenRoomDialog" class="primary">Abrir sala</button>
+      </div>
+      <div class="actions">
+        <button id="btnRoomViewOpen" class="primary">Salas ativas</button>
+        <button id="btnRoomViewClosed" class="ghost">Salas fechadas</button>
+      </div>
+      <label class="field">Sala ativa
+        <select id="roomActive"></select>
+      </label>
+      <div class="room-list" id="roomList"></div>
+    </section>
+
+    <section class="card" id="studentCard">
+      <div class="card-header">
+        <h2>Alunos</h2>
+        <div class="actions" id="studentActions">
+          <button id="btnAddStudent" class="primary">Cadastrar novo</button>
+          <button id="btnParentCheckin" class="ghost">Check-in (QR)</button>
+        </div>
+      </div>
+      <div id="studentEmpty" class="summary"></div>
+      <div class="filters" id="studentFilters">
+        <input id="studentSearch" placeholder="Buscar por nome, turma ou responsável" />
+        <select id="studentClassFilter">
+          <option value="none">Alunos</option>
+          <option value="all">Todos os alunos</option>
+          <option value="Maternal">Maternal</option>
+          <option value="Kids">Kids</option>
+          <option value="Juniors">Juniors</option>
+          <option value="Teens">Teens</option>
+        </select>
+      </div>
+      <div class="actions" id="bulkActions">
+        <label class="field checkbox-field">
+          <span>Selecionar todos</span>
+          <input id="selectAllStudents" type="checkbox" />
+        </label>
+        <button id="btnBulkCheckin" class="primary">Check-in em massa</button>
+        <button id="btnBulkCheckout" class="ghost">Atualizar</button>
+      </div>
+      <div id="studentList" class="list"></div>
+    </section>
+
+
+    <section class="card" id="logCard">
+      <div class="card-header">
+        <h2>Log</h2>
+        <div class="actions">
+          <button id="btnLogSummary" class="ghost">Resumo do dia</button>
+          <button id="btnExport" class="ghost">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="filters">
+        <label class="field">De
+          <input id="logStart" type="date" />
+        </label>
+        <label class="field">Ate
+          <input id="logEnd" type="date" />
+        </label>
+      </div>
+      <div id="logSummary" class="summary"></div>
+      <div id="logCounts" class="summary"></div>
+      <div id="logList" class="list"></div>
+    </section>
+
+    <section class="card" id="inviteCard">
+      <div class="card-header">
+        <h2>Convites</h2>
+      </div>
+      <p class="muted">Envio de convite para cadastro com perfil DNMS Kids.</p>
+      <label class="field">
+        Email do convite
+        <input id="inviteEmail" type="email" placeholder="equipe@email.com" />
+      </label>
+      <div class="actions">
+        <button id="btnSendInvite" class="primary">Enviar convite</button>
+      </div>
+      <div id="inviteStatus" class="summary"></div>
+    </section>
+  </main>
+
+  <dialog id="studentDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3 id="studentDialogTitle">Novo aluno</h3>
+      <input type="hidden" id="studentId" />
+      <label class="field">ID do aluno
+        <input id="studentIdDisplay" readonly />
+      </label>
+      <div class="grid-2">
+        <label class="field">Nome completo
+          <input id="studentName" required />
+        </label>
+        <label class="field">Data de nascimento
+          <input id="studentBirth" type="date" required />
+        </label>
+        <label class="field" id="studentGuardianField">Responsável principal
+          <input id="studentGuardian" required />
+        </label>
+        <label class="field" id="studentOtherField">Outros responsáveis
+          <input id="studentOther" />
+        </label>
+        <label class="field" id="studentPhoneField">Telefone
+          <input id="studentPhone" required />
+        </label>
+        <label class="field" id="studentAddressField">Endereço
+          <input id="studentAddress" required />
+        </label>
+      </div>
+      <label class="field">Observações
+        <textarea id="studentNotes"></textarea>
+      </label>
+      <label class="field checkbox-field" id="studentVisitorField">
+        <span>Visitante</span>
+        <input id="studentIsVisitor" type="checkbox" />
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnSaveStudent" value="default" class="primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="labelDialog" class="dialog">
+    <div class="dialog-body">
+      <h3>Etiqueta gerada</h3>
+      <div id="labelPreview" class="label"></div>
+      <div class="dialog-actions">
+        <button id="btnPrintLabel" class="primary">Imprimir</button>
+        <button id="btnCloseLabel" class="ghost">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="roomOpenDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Abrir sala</h3>
+      <div id="roomOpenList" class="room-open-list"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnOpenSelectedRooms" value="default" class="primary">Abrir selecionadas</button>
+        <button id="btnOpenAllRooms" value="default" class="ghost">Abrir todas</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="qrDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Check-in por QR</h3>
+      <label class="field"><span id="qrDialogLabel">QR Code (simulado)</span>
+        <input id="qrDialogInput" placeholder="Cole o ID do aluno" />
+      </label>
+      <div id="qrDialogStatus" class="summary"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnQrDialogCheckin" value="default" class="primary">Confirmar check-in</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="parentCheckinDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Check-in dos filhos</h3>
+      <div id="parentCheckinList" class="room-open-list"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnParentCheckinSelected" value="default" class="primary">Check-in selecionados</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="checkoutDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Checkout</h3>
+      <div id="checkoutSummary" class="summary"></div>
+      <input type="hidden" id="checkoutCheckinId" />
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnConfirmCheckout" value="default" class="primary">Confirmar checkout</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="signupDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3 id="signupDialogTitle">Cadastro de Responsável</h3>
+      <input type="hidden" id="signupInviteToken" />
+      <label class="field">Nome completo
+        <input id="signupName" required />
+      </label>
+      <div class="grid-2">
+        <label class="field" id="signupBirthField">Data de nascimento
+          <input id="signupBirth" type="date" required />
+        </label>
+        <label class="field" id="signupCivilField">Estado civil
+          <select id="signupCivilStatus" required>
+            <option value="">Selecione</option>
+            <option value="solteiro">Solteiro(a)</option>
+            <option value="casado">Casado(a)</option>
+            <option value="divorciado">Divorciado(a)</option>
+            <option value="viuvo">Viuvo(a)</option>
+          </select>
+        </label>
+        <label class="field" id="signupPhoneField">Celular
+          <div class="phone-row">
+            <span class="phone-prefix">+55(</span>
+            <input id="signupPhoneDdd" type="text" inputmode="numeric" maxlength="2" placeholder="21" required />
+            <span class="phone-prefix">)</span>
+            <input id="signupPhone" type="text" inputmode="numeric" placeholder="999999999" required />
+          </div>
+        </label>
+        <label class="field">Email
+          <input id="signupEmail" type="email" required />
+        </label>
+      <label class="field">Senha
+        <input id="signupPassword" type="password" required />
+      </label>
+      <label class="field checkbox-field" id="signupVisitorField">
+        <span>Marcar como visitante</span>
+        <input id="signupIsVisitor" type="checkbox" />
+      </label>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnSubmitSignup" value="default" class="primary">Cadastrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>

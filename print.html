@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel de Impressao</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body {
+      padding: 24px;
+    }
+
+    .print-panel {
+      max-width: 520px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .print-status {
+      border: 1px dashed var(--stroke);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    .print-reprint {
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      max-height: none;
+      overflow: visible;
+    }
+
+    .print-student-list {
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .print-student-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      background: #faf9f5;
+      padding: 8px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .print-student-item.is-selected {
+      border-color: var(--accent);
+      background: rgba(15, 61, 46, 0.08);
+    }
+
+    .print-student-item input[type="checkbox"] {
+      pointer-events: none;
+    }
+
+    @media print {
+      @page {
+        size: 90mm 29mm;
+        margin: 0;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      body.print-only-label main.print-panel {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+        width: 90mm;
+        height: 29mm;
+        max-width: 90mm;
+      }
+
+      body.print-only-label main.print-panel > * {
+        display: none !important;
+      }
+
+      body.print-only-label main.print-panel #printLabel {
+        display: flex !important;
+        position: static;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="print-panel">
+    <h2>Painel de Etiquetas</h2>
+    <div id="printAuthStatus" class="print-status">Aguardando autenticacao...</div>
+    <div id="printQueueStatus" class="summary"></div>
+    <section class="print-reprint">
+      <h3>Reimprimir etiquetas</h3>
+      <label class="field checkbox-field">
+        <span>Selecionar todos</span>
+        <input id="printSelectAllStudents" type="checkbox" />
+      </label>
+      <div id="printStudentList" class="print-student-list"></div>
+      <button id="btnPrintSelected" class="primary">Reimprimir selecionados</button>
+    </section>
+    <div id="printLabel" class="label"></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="print.js"></script>
+</body>
+</html>

@@ -1,0 +1,2972 @@
+﻿﻿const STORAGE_KEY = "checkin_app_state_v1";
+
+const DEFAULT_RECURRENCE_WEEKS = 4;
+const SUPABASE_URL = "https://yaeqisvatborrbndmuxr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_vTuti3mzKSwhX8PpF1DFeg_C0J9cc_t";
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const state = loadState();
+const signupContext = { role: "responsavel", inviteToken: "" };
+
+const els = {
+  sessionRole: document.getElementById("sessionRole"),
+  btnPrintPanel: document.getElementById("btnPrintPanel"),
+  btnLogPanel: document.getElementById("btnLogPanel"),
+  btnInvitePanel: document.getElementById("btnInvitePanel"),
+  btnLogout: document.getElementById("btnLogout"),
+  btnLogin: document.getElementById("btnLogin"),
+  btnOpenSignup: document.getElementById("btnOpenSignup"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  roomStatus: document.getElementById("roomStatus"),
+  roomCurrent: document.getElementById("roomCurrent"),
+  roomList: document.getElementById("roomList"),
+  roomName: document.getElementById("roomName"),
+  roomDate: document.getElementById("roomDate"),
+  roomTime: document.getElementById("roomTime"),
+  roomClass: document.getElementById("roomClass"),
+  roomRecurrence: document.getElementById("roomRecurrence"),
+  btnCreateRoom: document.getElementById("btnCreateRoom"),
+  btnOpenRoomDialog: document.getElementById("btnOpenRoomDialog"),
+  btnRoomViewOpen: document.getElementById("btnRoomViewOpen"),
+  btnRoomViewClosed: document.getElementById("btnRoomViewClosed"),
+  roomActive: document.getElementById("roomActive"),
+  roomOpenDialog: document.getElementById("roomOpenDialog"),
+  roomOpenList: document.getElementById("roomOpenList"),
+  btnOpenSelectedRooms: document.getElementById("btnOpenSelectedRooms"),
+  btnOpenAllRooms: document.getElementById("btnOpenAllRooms"),
+  studentList: document.getElementById("studentList"),
+  studentSearch: document.getElementById("studentSearch"),
+  studentClassFilter: document.getElementById("studentClassFilter"),
+  studentFilters: document.getElementById("studentFilters"),
+  btnAddStudent: document.getElementById("btnAddStudent"),
+  btnParentCheckin: document.getElementById("btnParentCheckin"),
+  studentActions: document.getElementById("studentActions"),
+  studentEmpty: document.getElementById("studentEmpty"),
+  bulkActions: document.getElementById("bulkActions"),
+  selectAllStudents: document.getElementById("selectAllStudents"),
+  btnBulkCheckin: document.getElementById("btnBulkCheckin"),
+  btnBulkCheckout: document.getElementById("btnBulkCheckout"),
+  qrDialog: document.getElementById("qrDialog"),
+  qrDialogInput: document.getElementById("qrDialogInput"),
+  qrDialogStatus: document.getElementById("qrDialogStatus"),
+  qrDialogLabel: document.getElementById("qrDialogLabel"),
+  btnQrDialogCheckin: document.getElementById("btnQrDialogCheckin"),
+  parentCheckinDialog: document.getElementById("parentCheckinDialog"),
+  parentCheckinList: document.getElementById("parentCheckinList"),
+  btnParentCheckinSelected: document.getElementById("btnParentCheckinSelected"),
+  checkoutDialog: document.getElementById("checkoutDialog"),
+  checkoutSummary: document.getElementById("checkoutSummary"),
+  checkoutCheckinId: document.getElementById("checkoutCheckinId"),
+  btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
+  btnExport: document.getElementById("btnExport"),
+  btnLogSummary: document.getElementById("btnLogSummary"),
+  logStart: document.getElementById("logStart"),
+  logEnd: document.getElementById("logEnd"),
+  logSummary: document.getElementById("logSummary"),
+  logCounts: document.getElementById("logCounts"),
+  logList: document.getElementById("logList"),
+  inviteCard: document.getElementById("inviteCard"),
+  inviteEmail: document.getElementById("inviteEmail"),
+  btnSendInvite: document.getElementById("btnSendInvite"),
+  inviteStatus: document.getElementById("inviteStatus"),
+  studentDialog: document.getElementById("studentDialog"),
+  studentDialogTitle: document.getElementById("studentDialogTitle"),
+  studentId: document.getElementById("studentId"),
+  studentIdDisplay: document.getElementById("studentIdDisplay"),
+  studentName: document.getElementById("studentName"),
+  studentBirth: document.getElementById("studentBirth"),
+  studentGuardianField: document.getElementById("studentGuardianField"),
+  studentGuardian: document.getElementById("studentGuardian"),
+  studentOtherField: document.getElementById("studentOtherField"),
+  studentOther: document.getElementById("studentOther"),
+  studentPhoneField: document.getElementById("studentPhoneField"),
+  studentPhone: document.getElementById("studentPhone"),
+  studentAddressField: document.getElementById("studentAddressField"),
+  studentAddress: document.getElementById("studentAddress"),
+  studentNotes: document.getElementById("studentNotes"),
+  studentVisitorField: document.getElementById("studentVisitorField"),
+  studentIsVisitor: document.getElementById("studentIsVisitor"),
+  btnSaveStudent: document.getElementById("btnSaveStudent"),
+  labelDialog: document.getElementById("labelDialog"),
+  labelPreview: document.getElementById("labelPreview"),
+  btnPrintLabel: document.getElementById("btnPrintLabel"),
+  btnCloseLabel: document.getElementById("btnCloseLabel"),
+  signupDialog: document.getElementById("signupDialog"),
+  signupDialogTitle: document.getElementById("signupDialogTitle"),
+  signupInviteToken: document.getElementById("signupInviteToken"),
+  signupName: document.getElementById("signupName"),
+  signupBirthField: document.getElementById("signupBirthField"),
+  signupBirth: document.getElementById("signupBirth"),
+  signupCivilField: document.getElementById("signupCivilField"),
+  signupCivilStatus: document.getElementById("signupCivilStatus"),
+  signupPhoneField: document.getElementById("signupPhoneField"),
+  signupPhoneDdd: document.getElementById("signupPhoneDdd"),
+  signupPhone: document.getElementById("signupPhone"),
+  signupEmail: document.getElementById("signupEmail"),
+  signupPassword: document.getElementById("signupPassword"),
+  signupVisitorField: document.getElementById("signupVisitorField"),
+  signupIsVisitor: document.getElementById("signupIsVisitor"),
+  btnSubmitSignup: document.getElementById("btnSubmitSignup")
+};
+
+boot();
+
+async function boot() {
+  bindEvents();
+  handleInviteQueryParams();
+  seedRoomDefaults();
+  if (supabaseClient) {
+    await hydrateFromSupabase();
+  } else {
+    if (!state.students.length) {
+      seedData();
+    }
+    normalizeStudents();
+    render();
+  }
+  registerServiceWorker();
+}
+
+function bindEvents() {
+  els.btnLogin.addEventListener("click", handleLogin);
+  els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
+  els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
+  els.btnSendInvite?.addEventListener("click", handleSendInvite);
+  els.btnLogPanel?.addEventListener("click", toggleLogPanel);
+  els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
+  els.btnLogout.addEventListener("click", handleLogout);
+  els.btnPrintPanel.addEventListener("click", () => window.open("print.html", "_blank"));
+  els.btnCreateRoom.addEventListener("click", createRooms);
+  els.btnOpenRoomDialog.addEventListener("click", openRoomDialog);
+  els.btnOpenSelectedRooms.addEventListener("click", (event) => openSelectedRooms(event));
+  els.btnOpenAllRooms.addEventListener("click", (event) => openAllRooms(event));
+  els.btnRoomViewOpen.addEventListener("click", () => setRoomView("open"));
+  els.btnRoomViewClosed.addEventListener("click", () => setRoomView("closed"));
+  els.roomActive.addEventListener("change", handleActiveRoomChange);
+  els.btnAddStudent.addEventListener("click", () => openStudentDialog());
+  els.btnParentCheckin.addEventListener("click", openQrDialog);
+  els.btnParentCheckinSelected.addEventListener("click", handleParentCheckinSelected);
+  els.studentSearch.addEventListener("input", renderStudents);
+  els.studentClassFilter.addEventListener("change", renderStudents);
+  els.selectAllStudents.addEventListener("change", handleSelectAllStudents);
+  els.btnBulkCheckin.addEventListener("click", handleBulkCheckin);
+  els.btnBulkCheckout.addEventListener("click", handleBulkCheckout);
+  els.btnQrDialogCheckin.addEventListener("click", (event) =>
+    handleQrCheckin(els.qrDialogInput, els.qrDialogStatus, event)
+  );
+  els.btnExport.addEventListener("click", exportCsv);
+  els.btnLogSummary.addEventListener("click", renderLogSummaryToday);
+  els.logStart.addEventListener("change", renderLog);
+  els.logEnd.addEventListener("change", renderLog);
+  els.btnSaveStudent.addEventListener("click", saveStudent);
+  els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
+  els.btnPrintLabel.addEventListener("click", () => {
+    document.body.classList.add("print-label");
+    window.print();
+  });
+  els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
+  window.addEventListener("afterprint", () => document.body.classList.remove("print-label"));
+}
+
+function render() {
+  renderSession();
+  renderRoleVisibility();
+  renderRooms();
+  renderStudents();
+  renderLog();
+  saveState();
+}
+
+function renderSession() {
+  if (state.session) {
+    const sessionName = state.session.name || formatRole(state.session.role);
+    els.sessionRole.textContent = sessionName;
+    els.btnLogout.style.display = "inline-flex";
+    if (els.btnPrintPanel) {
+      els.btnPrintPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
+    if (els.btnLogPanel) {
+      els.btnLogPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
+    if (els.btnInvitePanel) {
+      els.btnInvitePanel.style.display = isAdmin() ? "inline-flex" : "none";
+    }
+  } else {
+    els.sessionRole.textContent = "Deslogado";
+    els.btnLogout.style.display = "none";
+    if (els.btnPrintPanel) {
+      els.btnPrintPanel.style.display = "none";
+    }
+    if (els.btnLogPanel) {
+      els.btnLogPanel.style.display = "none";
+    }
+    if (els.btnInvitePanel) {
+      els.btnInvitePanel.style.display = "none";
+    }
+  }
+}
+
+async function fetchProfile(userId) {
+  const { data, error } = await supabaseClient.from("profiles").select("id,name,role").eq("id", userId).single();
+  if (error) {
+    console.warn("Falha ao buscar perfil", error);
+    return null;
+  }
+  return data;
+}
+
+async function hydrateFromSupabase() {
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      console.warn("Falha na sessao", error);
+    }
+    const session = data?.session;
+    if (!session) {
+      state.session = null;
+      state.students = [];
+      state.rooms = [];
+      state.checkins = [];
+      render();
+      return;
+    }
+    let profile = await fetchProfile(session.user.id);
+    if (!profile) {
+      profile = await ensureProfileAfterEmailConfirmation(session.user);
+    }
+    if (!profile) {
+      state.session = null;
+      render();
+      return;
+    }
+    state.session = { id: profile.id, name: profile.name, role: profile.role };
+    await fetchRooms();
+    await fetchStudents();
+    await fetchCheckins();
+    normalizeStudents();
+    render();
+  } catch (err) {
+    console.warn("Falha ao carregar dados", err);
+    alert("Falha ao carregar dados do Supabase. Verifique sua conexao.");
+  }
+}
+
+async function ensureProfileAfterEmailConfirmation(user) {
+  if (!user?.id || !user?.email_confirmed_at) {
+    return null;
+  }
+  const metadata = user.user_metadata || {};
+  const role = metadata.desired_role || "responsavel";
+  const payload = {
+    id: user.id,
+    name: metadata.full_name || user.email || "Usuario",
+    role,
+    email: user.email || null,
+    birth_date: metadata.birth_date || null,
+    marital_status: metadata.marital_status || null,
+    phone: metadata.phone || null,
+    is_visitor: Boolean(metadata.is_visitor)
+  };
+  if (role === "dnms_kids") {
+    const inviteResult = await acceptInviteToken(metadata.invite_token, user.email || "");
+    if (!inviteResult.ok) {
+      return null;
+    }
+  }
+  let { error } = await supabaseClient.from("profiles").upsert(payload);
+  if (error) {
+    ({ error } = await supabaseClient
+      .from("profiles")
+      .upsert({ id: payload.id, name: payload.name, role: payload.role, email: payload.email }));
+  }
+  if (error) {
+    return null;
+  }
+  return fetchProfile(user.id);
+}
+
+async function fetchStudents() {
+  let rows = [];
+  if (state.session?.role === "responsavel") {
+    const { data: links, error: linkError } = await supabaseClient
+      .from("student_guardians")
+      .select("student_id")
+      .eq("guardian_id", state.session.id);
+    if (linkError) {
+      console.warn("Falha ao buscar vinculos de responsavel", linkError);
+    }
+    const studentIds = (links || []).map((item) => item.student_id).filter(Boolean);
+    if (studentIds.length) {
+      const { data, error } = await supabaseClient.from("students").select("*").in("id", studentIds);
+      if (error) {
+        console.warn("Falha ao buscar alunos", error);
+        return;
+      }
+      rows = data || [];
+    } else {
+      const { data, error } = await supabaseClient
+        .from("students")
+        .select("*")
+        .eq("primary_guardian_name", state.session.name);
+      if (error) {
+        console.warn("Falha ao buscar alunos do responsavel", error);
+        rows = [];
+      } else {
+        rows = data || [];
+      }
+    }
+  } else {
+    const { data, error } = await supabaseClient.from("students").select("*");
+    if (error) {
+      console.warn("Falha ao buscar alunos", error);
+      return;
+    }
+    rows = data || [];
+  }
+  state.students = rows.map((student) => ({
+    id: student.id,
+    name: student.name,
+    birth: student.birth_date,
+    className: student.class_name,
+    guardian: student.primary_guardian_name,
+    otherGuardians: "",
+    phone: student.phone,
+    address: student.address,
+    notes: student.notes || "",
+    owner: student.primary_guardian_name || "",
+    isVisitor: Boolean(student.is_visitor)
+  }));
+}
+
+async function fetchRooms() {
+  const { data, error } = await supabaseClient.from("rooms").select("*");
+  if (error) {
+    console.warn("Falha ao buscar salas", error);
+    return;
+  }
+  state.rooms = data.map((room) => {
+    const dateObj = parseInputDate(room.date);
+    const dateLabel = dateObj ? formatDate(dateObj) : room.date;
+    return {
+      id: room.id,
+      name: room.name,
+      date: dateLabel,
+      dateIso: room.date,
+      time: room.time,
+      classTarget: room.class_target,
+      status: room.status,
+      openedAt: room.opened_at ? formatTimeFromIso(room.opened_at) : "",
+      closedAt: room.closed_at ? formatTimeFromIso(room.closed_at) : ""
+    };
+  });
+}
+
+async function fetchCheckins() {
+  const { data, error } = await supabaseClient.from("checkins").select("*");
+  if (error) {
+    console.warn("Falha ao buscar check-ins", error);
+    return;
+  }
+  const roomMap = new Map(state.rooms.map((room) => [room.id, room]));
+  state.checkins = data.map((checkin) => {
+    const room = roomMap.get(checkin.room_id);
+    return {
+      id: checkin.id,
+      roomId: checkin.room_id,
+      roomName: room?.name || "-",
+      studentId: checkin.student_id,
+      className: checkin.class_name,
+      notes: checkin.notes_snapshot || "",
+      dateTime: formatDateTimeFromIso(checkin.checked_in_at),
+      checkedOutAt: checkin.checked_out_at ? formatTimeFromIso(checkin.checked_out_at) : "",
+      actor: state.session?.name || ""
+    };
+  });
+}
+
+function renderRooms() {
+  const roomsToday = getRoomsToday();
+  const openRooms = getOpenRoomsToday();
+  const activeRoom = getActiveRoom();
+  if (openRooms.length) {
+    els.roomStatus.textContent = openRooms.length > 1 ? "Salas abertas" : "Sala aberta";
+    els.roomStatus.className = "pill";
+    els.roomCurrent.textContent = activeRoom
+      ? `Ativa: ${activeRoom.date} ${activeRoom.time || ""} - ${activeRoom.name} (${activeRoom.classTarget || "-"})`.trim()
+      : "Nenhuma sala ativa selecionada.";
+  } else if (roomsToday.length) {
+    els.roomStatus.textContent = roomsToday.length > 1 ? "Salas fechadas" : "Sala fechada";
+    els.roomCurrent.textContent = roomsToday
+      .map((room) => `${room.date} ${room.time || ""} - ${room.name} (${room.status})`.trim())
+      .join(" | ");
+  } else {
+    els.roomStatus.textContent = "Nenhuma sala aberta";
+    els.roomCurrent.textContent = "Nenhuma sala cadastrada para hoje.";
+  }
+
+  const canManageRoom = isAdmin() || isEquipe();
+  els.btnCreateRoom.disabled = !canManageRoom;
+  els.btnOpenRoomDialog.disabled = !canManageRoom;
+
+  renderActiveRoomSelect(openRooms, activeRoom);
+  renderRoomOpenList(roomsToday.slice().sort(compareRooms));
+  updateRoomViewButtons();
+
+  els.roomList.innerHTML = "";
+  const sortedRooms = state.rooms.slice().sort(compareRooms);
+  const roomView = state.roomView || "open";
+  if (roomView === "closed" && !state.rooms.some((room) => room.status === "Fechada")) {
+    state.roomView = "open";
+  }
+  const filteredRooms =
+    roomView === "closed"
+      ? sortedRooms.filter((room) => room.status === "Fechada")
+      : sortedRooms.filter((room) => room.status !== "Fechada");
+
+  filteredRooms.forEach((room) => {
+      const item = document.createElement("div");
+      item.className = "list-item";
+      let actionButtons = "";
+      if (canManageRoom) {
+        if (room.status === "Fechada") {
+          actionButtons = `
+            <div class="actions">
+              <button class="primary" data-reopen="${room.id}">Reabrir</button>
+              <button class="ghost" data-delete="${room.id}">Excluir</button>
+            </div>
+          `;
+        } else {
+          actionButtons = `
+            <div class="actions">
+              <button class="ghost" data-close="${room.id}">Fechar</button>
+              <button class="ghost" data-delete="${room.id}">Excluir</button>
+            </div>
+          `;
+        }
+      }
+      item.innerHTML = `
+        <strong>${room.date} ${room.time || ""} - ${room.name}</strong>
+        <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
+        <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
+        ${actionButtons}
+      `;
+      if (canManageRoom) {
+        const btnClose = item.querySelector(`[data-close="${room.id}"]`);
+        const btnReopen = item.querySelector(`[data-reopen="${room.id}"]`);
+        const btnDelete = item.querySelector(`[data-delete="${room.id}"]`);
+        if (btnClose) {
+          btnClose.disabled = room.status !== "Aberta";
+          btnClose.addEventListener("click", () => closeRoom(room.id));
+        }
+        if (btnReopen) {
+          btnReopen.addEventListener("click", () => reopenRoom(room.id));
+        }
+        if (btnDelete) {
+          btnDelete.addEventListener("click", () => deleteRoom(room.id));
+        }
+      }
+      els.roomList.appendChild(item);
+    });
+}
+
+function renderStudents() {
+  const session = state.session;
+  const search = els.studentSearch.value.toLowerCase();
+  const canSeeAll = isEquipe() || isAdmin();
+  const isResponsavel = session?.role === "responsavel";
+  const classFilter = els.studentClassFilter.value;
+
+  let items = state.students.slice();
+  if (isResponsavel && !supabaseClient) {
+    items = items.filter((student) => student.guardian === session?.name || student.owner === session?.name);
+  }
+
+  if (!isResponsavel && classFilter === "none") {
+    items = [];
+  } else if (!isResponsavel && classFilter && classFilter !== "all") {
+    items = items.filter((student) => (student.className || getClassForBirth(student.birth)) === classFilter);
+  }
+
+  if (search) {
+    items = items.filter((student) => {
+      const className = student.className || getClassForBirth(student.birth);
+      const blob = `${student.name} ${className} ${student.guardian}`.toLowerCase();
+      return blob.includes(search);
+    });
+  }
+
+  if (els.studentEmpty) {
+    if (isResponsavel && !items.length) {
+      els.studentEmpty.textContent = "Nenhuma crianca cadastrada. Clique em Cadastrar crianca para continuar.";
+      els.studentEmpty.style.display = "block";
+    } else {
+      els.studentEmpty.textContent = "";
+      els.studentEmpty.style.display = "none";
+    }
+  }
+
+  if (els.studentActions) {
+    const canShowParentCheckin = isResponsavel && items.length > 0;
+    els.btnParentCheckin.style.display = canShowParentCheckin ? "inline-flex" : "none";
+    if (isResponsavel) {
+      els.btnAddStudent.textContent = items.length ? "Cadastrar nova crianca" : "Cadastrar crianca";
+    } else {
+      els.btnAddStudent.textContent = "Novo aluno";
+    }
+  }
+  if (els.studentFilters) {
+    els.studentFilters.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.bulkActions) {
+    els.bulkActions.style.display = canSeeAll ? "flex" : "none";
+  }
+
+  els.studentList.innerHTML = "";
+
+  items.forEach((student) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    const observationFlag = student.notes ? "Sim" : "Nao";
+    const className = student.className || getClassForBirth(student.birth);
+    const openCheckin = getOpenCheckinForStudent(student.id);
+    item.innerHTML = `
+      ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
+      <strong>${student.name}</strong>
+      <span class="muted">ID: ${student.id}</span>
+      <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
+      <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes especiais: ${observationFlag}</span>
+      <div class="actions">
+        <button class="ghost" data-edit="${student.id}">Editar</button>
+        <button class="primary" data-checkin="${student.id}">Check-in</button>
+        <button class="ghost" data-checkout="${student.id}">Checkout</button>
+      </div>
+    `;
+    const btnEdit = item.querySelector("[data-edit]");
+    const btnCheckin = item.querySelector("[data-checkin]");
+    const btnCheckout = item.querySelector("[data-checkout]");
+
+    btnEdit.addEventListener("click", () => openStudentDialog(student));
+    btnCheckin.addEventListener("click", () => handleManualCheckin(student.id));
+    btnCheckout.addEventListener("click", () => openCheckoutDialog(openCheckin));
+
+    if (isResponsavel && !isAdmin() && !isEquipe()) {
+      btnCheckout.style.display = "none";
+    }
+
+    if (!canEditStudent(student)) {
+      btnEdit.disabled = true;
+    }
+
+    if (!canCheckinStudent(student)) {
+      btnCheckin.disabled = true;
+    }
+    if (openCheckin) {
+      btnCheckin.disabled = true;
+      btnCheckin.textContent = "Check-in realizado";
+    }
+
+    if (!openCheckin || !canCheckinStudent(student)) {
+      btnCheckout.disabled = true;
+    }
+
+    els.studentList.appendChild(item);
+  });
+
+  if (els.selectAllStudents) {
+    els.selectAllStudents.checked = false;
+  }
+}
+
+function renderCheckins() {}
+
+function renderRoleVisibility() {
+  const session = state.session;
+  const roomCard = document.getElementById("roomCard");
+  const studentCard = document.getElementById("studentCard");
+  const logCard = document.getElementById("logCard");
+  const inviteCard = document.getElementById("inviteCard");
+  const authCard = document.getElementById("authCard");
+  const isResponsavel = session?.role === "responsavel";
+
+  if (authCard) {
+    authCard.style.display = session ? "none" : "flex";
+  }
+
+  if (!session) {
+    roomCard.style.display = "none";
+    studentCard.style.display = "none";
+    logCard.style.display = "none";
+    if (inviteCard) {
+      inviteCard.style.display = "none";
+    }
+    return;
+  }
+
+  if (isResponsavel) {
+    roomCard.style.display = "none";
+    logCard.style.display = "none";
+    if (inviteCard) {
+      inviteCard.style.display = "none";
+    }
+    studentCard.style.display = "flex";
+    return;
+  }
+
+  const showLogOnly = Boolean(state.ui?.showLogPanel) && (isAdmin() || isEquipe());
+  const showInviteOnly = Boolean(state.ui?.showInvitePanel) && isAdmin();
+  if (showLogOnly) {
+    roomCard.style.display = "none";
+    studentCard.style.display = "none";
+    logCard.style.display = "flex";
+    if (inviteCard) {
+      inviteCard.style.display = "none";
+    }
+    return;
+  }
+  if (showInviteOnly) {
+    roomCard.style.display = "none";
+    studentCard.style.display = "none";
+    logCard.style.display = "none";
+    if (inviteCard) {
+      inviteCard.style.display = "flex";
+    }
+    return;
+  }
+  roomCard.style.display = "flex";
+  studentCard.style.display = "flex";
+  logCard.style.display = "none";
+  if (inviteCard) {
+    inviteCard.style.display = "none";
+  }
+}
+
+function renderLog() {
+  const canSeeLog = isEquipe() || isAdmin();
+  const logCard = document.getElementById("logCard");
+  logCard.style.display = canSeeLog && state.ui?.showLogPanel ? "flex" : "none";
+  if (!canSeeLog) {
+    return;
+  }
+
+  const items = getFilteredCheckins().slice().reverse();
+  els.logList.innerHTML = "";
+  items.forEach((checkin) => {
+    const student = state.students.find((s) => s.id === checkin.studentId);
+    const item = document.createElement("div");
+    item.className = "list-item";
+    const checkoutInfo = checkin.checkedOutAt ? ` | Checkout: ${checkin.checkedOutAt}` : "";
+    item.innerHTML = `
+      <strong>${student ? student.name : "Visitante"}</strong>
+      <span class="muted">${checkin.roomName} | ${checkin.dateTime}${checkoutInfo}</span>
+      <span class="muted">Turma: ${checkin.className || "Visitante"} | Observacoes: ${checkin.notes ? "Sim" : "Nao"}</span>
+    `;
+    els.logList.appendChild(item);
+  });
+
+  if (!els.logSummary.textContent) {
+    els.logSummary.textContent = "Clique em Resumo do dia para ver o panorama.";
+    els.logCounts.textContent = "";
+  }
+
+  els.btnExport.disabled = !isAdmin();
+}
+
+function renderLogSummaryToday() {
+  const today = formatToday();
+  const items = state.checkins.filter((checkin) => checkin.dateTime.startsWith(today));
+  const counts = groupCheckinsByClass(items);
+  const total = items.length;
+  els.logSummary.textContent = `Resumo do dia (${today}): ${total} check-in(s).`;
+  els.logCounts.textContent = formatCounts(counts);
+}
+
+function toggleLogPanel() {
+  if (!state.session || !(isAdmin() || isEquipe())) {
+    return;
+  }
+  state.ui.showLogPanel = !state.ui.showLogPanel;
+  if (state.ui.showLogPanel) {
+    state.ui.showInvitePanel = false;
+  }
+  render();
+}
+
+function toggleInvitePanel() {
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  state.ui.showInvitePanel = !state.ui.showInvitePanel;
+  if (state.ui.showInvitePanel) {
+    state.ui.showLogPanel = false;
+  }
+  render();
+}
+
+function handleSelectAllStudents(event) {
+  const checked = event.target.checked;
+  const boxes = els.studentList.querySelectorAll('input[type="checkbox"][data-select-student]');
+  boxes.forEach((box) => {
+    box.checked = checked;
+  });
+}
+
+function getSelectedStudentIds() {
+  const boxes = els.studentList.querySelectorAll('input[type="checkbox"][data-select-student]:checked');
+  return Array.from(boxes).map((box) => box.dataset.selectStudent);
+}
+
+async function handleBulkCheckin() {
+  const ids = getSelectedStudentIds();
+  if (!ids.length) {
+    alert("Selecione ao menos um aluno.");
+    return;
+  }
+  let success = 0;
+  let failed = 0;
+  for (const id of ids) {
+    const result = await handleManualCheckin(id, { silent: true });
+    if (result.ok) {
+      success += 1;
+    } else {
+      failed += 1;
+    }
+  }
+  alert(`Check-in em massa concluido. Sucesso: ${success}. Falhas: ${failed}.`);
+  render();
+}
+
+async function handleBulkCheckout() {
+  const ids = getSelectedStudentIds();
+  if (supabaseClient) {
+    await fetchCheckins();
+    alert("Lista atualizada com sucesso.");
+    render();
+    return;
+  }
+  if (!ids.length) {
+    alert("Selecione ao menos um aluno.");
+    return;
+  }
+  let success = 0;
+  const checkedOutIso = new Date().toISOString();
+  for (const id of ids) {
+    const checkin = getOpenCheckinForStudent(id);
+    if (checkin) {
+      checkin.checkedOutAt = timeNow();
+      checkin.checkedOutBy = state.session?.name || "";
+      success += 1;
+    }
+  }
+  alert(`Checkout em massa concluido. Sucesso: ${success}.`);
+  render();
+}
+
+function getOpenCheckinForStudent(studentId) {
+  return (
+    state.checkins
+      .slice()
+      .reverse()
+      .find((checkin) => checkin.studentId === studentId && !checkin.checkedOutAt) || null
+  );
+}
+
+function openCheckoutDialog(checkin) {
+  if (!checkin) {
+    alert("Nao ha check-in aberto para este aluno.");
+    return;
+  }
+  const student = state.students.find((s) => s.id === checkin.studentId);
+  const name = student ? student.name : "Visitante";
+  const summary = `${name} | ${checkin.roomName} | Check-in: ${checkin.dateTime}`;
+  if (els.checkoutSummary) {
+    els.checkoutSummary.textContent = summary;
+  }
+  if (els.checkoutCheckinId) {
+    els.checkoutCheckinId.value = checkin.id;
+  }
+  els.checkoutDialog?.showModal();
+}
+
+async function confirmCheckout(event) {
+  event.preventDefault();
+  const checkinId = els.checkoutCheckinId?.value;
+  if (!checkinId) {
+    alert("Checkout invalido.");
+    return;
+  }
+  const checkin = state.checkins.find((item) => item.id === checkinId);
+  if (!checkin || checkin.checkedOutAt) {
+    alert("Checkout nao disponivel.");
+    return;
+  }
+  const checkedOutIso = new Date().toISOString();
+  if (supabaseClient) {
+    await supabaseClient
+      .from("checkins")
+      .update({ checked_out_at: checkedOutIso })
+      .eq("id", checkinId);
+    checkin.checkedOutAt = formatTimeFromIso(checkedOutIso);
+  } else {
+    checkin.checkedOutAt = timeNow();
+  }
+  checkin.checkedOutBy = state.session?.name || "";
+  els.checkoutDialog?.close();
+  render();
+}
+
+async function handleLogin(event) {
+  if (event) {
+    event.preventDefault();
+  }
+  if (!supabaseClient) {
+    alert("Supabase nao configurado.");
+    return;
+  }
+  const email = els.loginEmail.value.trim();
+  const password = els.loginPassword.value;
+  if (!email || !password) {
+    alert("Informe email e senha.");
+    return;
+  }
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      alert("Falha no login. Verifique email e senha.");
+      return;
+    }
+    await hydrateFromSupabase();
+    if (!state.session) {
+      await supabaseClient.auth.signOut();
+      alert("Perfil nao encontrado. Confirme seu email e tente novamente.");
+      return;
+    }
+  } catch (err) {
+    console.warn("Erro no login", err);
+    alert("Falha ao conectar. Use o app via http://localhost e confira o Supabase.");
+  }
+}
+
+async function handleLogout() {
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+  state.session = null;
+  state.students = [];
+  state.rooms = [];
+  state.checkins = [];
+  state.ui = { showLogPanel: false, showInvitePanel: false };
+  render();
+}
+
+function handleInviteQueryParams() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("invite");
+  if (!token) {
+    return;
+  }
+  openSignupDialog("dnms_kids", token);
+}
+
+function openSignupDialog(role, inviteToken = "") {
+  signupContext.role = role;
+  signupContext.inviteToken = inviteToken || "";
+  const isInvite = role === "dnms_kids";
+  if (els.signupDialogTitle) {
+    els.signupDialogTitle.textContent = isInvite ? "Cadastro DNMS Kids" : "Cadastro de Responsavel";
+  }
+  if (els.signupInviteToken) {
+    els.signupInviteToken.value = signupContext.inviteToken;
+  }
+  if (els.signupBirthField) {
+    els.signupBirthField.style.display = isInvite ? "none" : "flex";
+  }
+  if (els.signupCivilField) {
+    els.signupCivilField.style.display = isInvite ? "none" : "flex";
+  }
+  if (els.signupPhoneField) {
+    els.signupPhoneField.style.display = isInvite ? "none" : "flex";
+  }
+  if (els.signupVisitorField) {
+    els.signupVisitorField.style.display = isInvite ? "none" : "flex";
+  }
+  if (els.signupBirth) {
+    els.signupBirth.required = !isInvite;
+  }
+  if (els.signupCivilStatus) {
+    els.signupCivilStatus.required = !isInvite;
+  }
+  if (els.signupPhone) {
+    els.signupPhone.required = !isInvite;
+  }
+  if (els.signupPhoneDdd) {
+    els.signupPhoneDdd.required = !isInvite;
+  }
+  if (els.signupName) {
+    els.signupName.value = "";
+  }
+  if (els.signupBirth) {
+    els.signupBirth.value = "";
+  }
+  if (els.signupCivilStatus) {
+    els.signupCivilStatus.value = "";
+  }
+  if (els.signupPhoneDdd) {
+    els.signupPhoneDdd.value = "21";
+  }
+  if (els.signupPhone) {
+    els.signupPhone.value = "";
+  }
+  if (els.signupEmail) {
+    els.signupEmail.value = "";
+  }
+  if (els.signupPassword) {
+    els.signupPassword.value = "";
+  }
+  if (els.signupIsVisitor) {
+    els.signupIsVisitor.checked = false;
+  }
+  els.signupDialog?.showModal();
+}
+
+async function handleSignupSubmit(event) {
+  event.preventDefault();
+  if (!supabaseClient) {
+    alert("Cadastro disponivel apenas com Supabase.");
+    return;
+  }
+  const name = els.signupName.value.trim();
+  const birthDate = els.signupBirth.value;
+  const civilStatus = els.signupCivilStatus.value.trim();
+  const phoneDdd = (els.signupPhoneDdd?.value || "").replace(/\D/g, "").slice(0, 2);
+  const phoneNumber = (els.signupPhone.value || "").replace(/\D/g, "");
+  const phone = phoneDdd && phoneNumber ? `+55(${phoneDdd})${phoneNumber}` : "";
+  const email = els.signupEmail.value.trim().toLowerCase();
+  const password = els.signupPassword.value;
+  const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
+  const isInviteFlow = signupContext.role === "dnms_kids";
+
+  if (!name || !email || !password) {
+    alert("Preencha os campos obrigatorios.");
+    return;
+  }
+  if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneDdd.length !== 2)) {
+    alert("Preencha todos os campos obrigatorios.");
+    return;
+  }
+  if (!isValidEmail(email)) {
+    alert("Informe um email valido.");
+    return;
+  }
+  const { data: existingUsers, error: existingUsersError } = await supabaseClient
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .limit(1);
+  if (!existingUsersError && existingUsers?.length) {
+    alert("Este email ja esta cadastrado.");
+    return;
+  }
+
+  if (isInviteFlow) {
+    const inviteValid = await verifyInviteToken(signupContext.inviteToken, email);
+    if (!inviteValid.ok) {
+      alert(inviteValid.message);
+      return;
+    }
+  }
+
+  const { error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: name,
+        desired_role: signupContext.role,
+        birth_date: isInviteFlow ? null : birthDate,
+        marital_status: isInviteFlow ? null : civilStatus,
+        phone: isInviteFlow ? null : phone,
+        invite_token: isInviteFlow ? signupContext.inviteToken : null,
+        is_visitor: isInviteFlow ? false : responsibleVisitor
+      }
+    }
+  });
+  if (error) {
+    alert("Nao foi possivel concluir o cadastro.");
+    return;
+  }
+  els.signupDialog?.close();
+  alert("Cadastro criado. Confirme seu email para finalizar e depois faca login.");
+}
+
+async function verifyInviteToken(token, email) {
+  if (!token) {
+    return { ok: false, message: "Convite invalido." };
+  }
+  const { data, error } = await supabaseClient
+    .from("invites")
+    .select("id,email,role,status,expires_at")
+    .eq("token", token)
+    .single();
+  if (error || !data) {
+    return { ok: false, message: "Convite nao encontrado." };
+  }
+  if (data.status && data.status !== "pending") {
+    return { ok: false, message: "Convite ja utilizado." };
+  }
+  if (data.role !== "dnms_kids") {
+    return { ok: false, message: "Convite invalido para este cadastro." };
+  }
+  if (data.email && data.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, message: "Este convite pertence a outro email." };
+  }
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
+    return { ok: false, message: "Convite expirado." };
+  }
+  return { ok: true };
+}
+
+async function acceptInviteToken(token, email) {
+  if (!token) {
+    return { ok: false, message: "Convite invalido." };
+  }
+  const { data, error } = await supabaseClient
+    .from("invites")
+    .select("id,email,role,status,expires_at")
+    .eq("token", token)
+    .single();
+  if (error || !data) {
+    return { ok: false, message: "Convite nao encontrado." };
+  }
+  if (data.status && data.status !== "pending") {
+    return { ok: false, message: "Convite ja utilizado." };
+  }
+  if (data.role !== "dnms_kids") {
+    return { ok: false, message: "Convite invalido para este cadastro." };
+  }
+  if (data.email && data.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, message: "Este convite pertence a outro email." };
+  }
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
+    return { ok: false, message: "Convite expirado." };
+  }
+  await supabaseClient
+    .from("invites")
+    .update({ status: "accepted", accepted_at: new Date().toISOString() })
+    .eq("id", data.id);
+  return { ok: true };
+}
+
+async function handleSendInvite(event) {
+  event.preventDefault();
+  if (!supabaseClient) {
+    alert("Convites disponiveis apenas com Supabase.");
+    return;
+  }
+  if (!isAdmin()) {
+    alert("Somente administradores podem enviar convites.");
+    return;
+  }
+  const email = els.inviteEmail?.value.trim().toLowerCase();
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido.");
+    return;
+  }
+
+  const token = uid();
+  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabaseClient.from("invites").insert({
+    email,
+    role: "dnms_kids",
+    token,
+    status: "pending",
+    expires_at: expiresAt,
+    created_by: state.session?.id || null
+  });
+  if (error) {
+    alert("Falha ao salvar convite no banco.");
+    return;
+  }
+
+  let sentByEmail = false;
+  try {
+    const result = await supabaseClient.functions.invoke("send-dnms-kids-invite", {
+      body: { email, inviteUrl }
+    });
+    sentByEmail = !result.error;
+  } catch (err) {
+    sentByEmail = false;
+  }
+
+  if (els.inviteStatus) {
+    const message = sentByEmail
+      ? `Convite enviado por email para ${email}.`
+      : `Convite salvo. Compartilhe este link: ${inviteUrl}`;
+    els.inviteStatus.textContent = message;
+  }
+  if (els.inviteEmail) {
+    els.inviteEmail.value = "";
+  }
+}
+
+async function createRooms() {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem criar eventos.");
+    return;
+  }
+  const name = els.roomName.value.trim();
+  const dateValue = els.roomDate.value;
+  const timeValue = els.roomTime.value;
+  const classTarget = els.roomClass.value;
+  const recurrence = els.roomRecurrence.value;
+
+  if (!name || !dateValue || !timeValue || !classTarget) {
+    alert("Informe nome, data, horario e turma do evento.");
+    return;
+  }
+
+  const baseDate = parseInputDate(dateValue);
+  if (!baseDate) {
+    alert("Data invalida.");
+    return;
+  }
+
+  const total = recurrence === "weekly" ? DEFAULT_RECURRENCE_WEEKS : 1;
+  for (let i = 0; i < total; i += 1) {
+    const date = addDays(baseDate, recurrence === "weekly" ? i * 7 : 0);
+    const dateLabel = formatDate(date);
+    const dateIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+      date.getDate()
+    ).padStart(2, "0")}`;
+    const exists = state.rooms.some(
+      (room) =>
+        room.date === dateLabel &&
+        room.name === name &&
+        room.time === timeValue &&
+        room.classTarget === classTarget
+    );
+    if (exists) {
+      continue;
+    }
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("rooms").insert({
+        name,
+        date: dateIso,
+        time: timeValue,
+        class_target: classTarget,
+        status: "Programada",
+        created_by: state.session?.id || null
+      });
+      if (error) {
+        console.warn("Falha ao criar sala", error);
+      }
+    }
+  }
+  if (supabaseClient) {
+    await fetchRooms();
+  }
+  render();
+}
+
+function openRoomDialog() {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem abrir salas.");
+    return;
+  }
+  renderRoomOpenList(getRoomsToday().slice().sort(compareRooms));
+  if (els.roomOpenDialog) {
+    els.roomOpenDialog.showModal();
+  }
+}
+
+async function openSelectedRooms(event) {
+  if (event) {
+    event.preventDefault();
+  }
+  const ids = getSelectedRoomIds();
+  if (!ids.length) {
+    alert("Selecione ao menos uma sala.");
+    return;
+  }
+  for (const id of ids) {
+    await openRoom(id);
+  }
+  if (els.roomOpenDialog?.open) {
+    els.roomOpenDialog.close();
+  }
+}
+
+async function openAllRooms(event) {
+  if (event) {
+    event.preventDefault();
+  }
+  const ids = getAvailableRoomIds();
+  if (!ids.length) {
+    alert("Nenhuma sala programada para hoje.");
+    return;
+  }
+  for (const id of ids) {
+    await openRoom(id);
+  }
+  if (els.roomOpenDialog?.open) {
+    els.roomOpenDialog.close();
+  }
+}
+
+async function openRoom(roomId) {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem abrir salas.");
+    return;
+  }
+  const today = formatToday();
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (!room) {
+    alert("Sala nao encontrada.");
+    return;
+  }
+  if (room.date !== today) {
+    alert("Somente salas da data de hoje podem ser abertas.");
+    return;
+  }
+  if (room.status === "Aberta") {
+    alert("Esta sala ja esta aberta.");
+    return;
+  }
+  const openedAtIso = new Date().toISOString();
+  if (supabaseClient) {
+    await supabaseClient.from("rooms").update({ status: "Aberta", opened_at: openedAtIso, closed_at: null }).eq("id", room.id);
+    await fetchRooms();
+  } else {
+    room.status = "Aberta";
+    room.openedAt = timeNow();
+    room.closedAt = "";
+  }
+  setActiveRoom(room.id);
+  render();
+}
+
+async function closeRoom(roomId) {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem fechar salas.");
+    return;
+  }
+  if (!confirm("Tem certeza que deseja fechar esta sala?")) {
+    return;
+  }
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (!room) {
+    alert("Sala nao encontrada.");
+    return;
+  }
+  const closedAtIso = new Date().toISOString();
+  if (supabaseClient) {
+    await supabaseClient.from("rooms").update({ status: "Fechada", closed_at: closedAtIso }).eq("id", room.id);
+    await fetchRooms();
+  } else {
+    room.status = "Fechada";
+    room.closedAt = timeNow();
+  }
+  if (state.activeRoomId === room.id) {
+    const openRooms = getOpenRoomsToday();
+    state.activeRoomId = openRooms.length ? openRooms[0].id : "";
+  }
+  state.roomView = "closed";
+  render();
+}
+
+async function reopenRoom(roomId) {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem reabrir salas.");
+    return;
+  }
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (!room) {
+    alert("Sala nao encontrada.");
+    return;
+  }
+  const openedAtIso = new Date().toISOString();
+  if (supabaseClient) {
+    await supabaseClient.from("rooms").update({ status: "Aberta", opened_at: openedAtIso, closed_at: null }).eq("id", room.id);
+    await fetchRooms();
+  } else {
+    room.status = "Aberta";
+    room.openedAt = timeNow();
+    room.closedAt = "";
+  }
+  setActiveRoom(room.id);
+  state.roomView = "open";
+  render();
+}
+
+async function deleteRoom(roomId) {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem excluir salas.");
+    return;
+  }
+  if (!confirm("Tem certeza que deseja excluir esta sala?")) {
+    return;
+  }
+  if (supabaseClient) {
+    await supabaseClient.from("rooms").delete().eq("id", roomId);
+    await fetchRooms();
+    await fetchCheckins();
+  } else {
+    state.rooms = state.rooms.filter((room) => room.id !== roomId);
+    state.checkins = state.checkins.filter((checkin) => checkin.roomId !== roomId);
+  }
+  if (state.activeRoomId === roomId) {
+    const openRooms = getOpenRoomsToday();
+    state.activeRoomId = openRooms.length ? openRooms[0].id : "";
+  }
+  render();
+}
+
+function openStudentDialog(student) {
+  if (student && !canEditStudent(student)) {
+    alert("Voce nao pode editar este aluno.");
+    return;
+  }
+  const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
+  els.studentDialogTitle.textContent = student ? (isResponsavel ? "Editar crianca" : "Editar aluno") : (isResponsavel ? "Cadastrar crianca" : "Novo aluno");
+  const id = student?.id || (supabaseClient ? "" : uid());
+  els.studentId.value = id;
+  els.studentIdDisplay.value = id || "Gerado ao salvar";
+  els.studentName.value = student?.name || "";
+  els.studentBirth.value = student?.birth || "";
+  els.studentGuardian.value = student?.guardian || state.session?.name || "";
+  els.studentOther.value = student?.otherGuardians || "";
+  els.studentPhone.value = student?.phone || "";
+  els.studentAddress.value = student?.address || "";
+  els.studentNotes.value = student?.notes || "";
+  els.studentIsVisitor.checked = Boolean(student?.isVisitor);
+  if (els.studentGuardianField) {
+    els.studentGuardianField.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.studentOtherField) {
+    els.studentOtherField.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.studentPhoneField) {
+    els.studentPhoneField.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.studentAddressField) {
+    els.studentAddressField.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.studentVisitorField) {
+    els.studentVisitorField.style.display = isResponsavel ? "none" : "flex";
+  }
+  els.studentGuardian.required = !isResponsavel;
+  els.studentPhone.required = !isResponsavel;
+  els.studentAddress.required = !isResponsavel;
+  els.studentDialog.showModal();
+}
+
+async function saveStudent(event) {
+  event.preventDefault();
+  const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
+  const guardianName = isResponsavel ? state.session?.name || "" : els.studentGuardian.value.trim();
+  const ownerName = isAdmin() || isEquipe() ? guardianName : state.session?.name || guardianName;
+  const isVisitor = isResponsavel ? false : Boolean(els.studentIsVisitor.checked);
+  const existing = state.students.find((student) => student.id === els.studentId.value);
+  const payload = {
+    id: existing ? els.studentId.value : supabaseClient ? undefined : uid(),
+    name: els.studentName.value.trim(),
+    birth: els.studentBirth.value,
+    className: getClassForBirth(els.studentBirth.value),
+    guardian: guardianName,
+    otherGuardians: isResponsavel ? "" : els.studentOther.value.trim(),
+    phone: isResponsavel ? "-" : els.studentPhone.value.trim(),
+    address: isResponsavel ? "-" : els.studentAddress.value.trim(),
+    notes: els.studentNotes.value.trim(),
+    owner: ownerName,
+    isVisitor
+  };
+
+  const missingCommon = !payload.name || !payload.birth || !payload.className;
+  const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
+  if (missingCommon || missingAdminFields) {
+    alert("Preencha todos os campos obrigatorios.");
+    return;
+  }
+
+  if (supabaseClient) {
+    const dbPayload = {
+      name: payload.name,
+      birth_date: payload.birth,
+      class_name: payload.className,
+      primary_guardian_name: payload.guardian,
+      phone: payload.phone,
+      address: payload.address,
+      notes: payload.notes,
+      is_visitor: payload.isVisitor
+    };
+    let data = null;
+    let error = null;
+    if (existing?.id) {
+      const result = await supabaseClient.from("students").update(dbPayload).eq("id", existing.id).select().single();
+      data = result.data;
+      error = result.error;
+    } else {
+      const result = await supabaseClient.from("students").insert(dbPayload).select().single();
+      data = result.data;
+      error = result.error;
+    }
+    if (error) {
+      alert(`Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    const linked = await linkGuardianToStudent(data.id, payload.guardian);
+    if (!linked && isResponsavel) {
+      console.warn("Aluno salvo sem vinculo em student_guardians; usando fallback por nome do responsavel.");
+    }
+    await fetchStudents();
+  } else {
+    const index = state.students.findIndex((student) => student.id === payload.id);
+    if (index >= 0) {
+      if (!canEditStudent(state.students[index])) {
+        alert("Voce nao pode editar este aluno.");
+        return;
+      }
+      state.students[index] = { ...state.students[index], ...payload };
+    } else {
+      state.students.push(payload);
+    }
+  }
+
+  els.studentDialog.close();
+  render();
+}
+
+async function linkGuardianToStudent(studentId, guardianName) {
+  if (!supabaseClient || !studentId) {
+    return false;
+  }
+  let guardianId = state.session?.id || null;
+  if (isAdmin() || isEquipe()) {
+    guardianId = null;
+  }
+  if (!guardianId && guardianName) {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id")
+      .ilike("name", guardianName)
+      .limit(1);
+    guardianId = data?.[0]?.id || null;
+  }
+  if (!guardianId) {
+    return false;
+  }
+  const { error } = await supabaseClient.from("student_guardians").upsert({ student_id: studentId, guardian_id: guardianId });
+  if (!error) {
+    return true;
+  }
+  const insertResult = await supabaseClient.from("student_guardians").insert({ student_id: studentId, guardian_id: guardianId });
+  return !insertResult.error;
+}
+
+async function openQrDialog() {
+  if (!state.session) {
+    alert("Autenticacao obrigatoria.");
+    return;
+  }
+  if (state.session.role === "responsavel") {
+    const owned = state.students.slice();
+    if (!owned.length) {
+      alert("Nenhum filho cadastrado para check-in.");
+      return;
+    }
+    if (owned.length === 1) {
+      const result = await handleManualCheckin(owned[0].id, { silent: true });
+      if (!result.ok) {
+        alert(result.message);
+      } else {
+        alert(`Check-in confirmado para ${owned[0].name}.`);
+      }
+      return;
+    }
+    openParentCheckinDialog(owned);
+    return;
+  }
+  if (els.qrDialogStatus) {
+    els.qrDialogStatus.textContent = "";
+  }
+  if (els.qrDialogInput) {
+    els.qrDialogInput.value = "";
+    els.qrDialogInput.placeholder = "Cole o ID do aluno";
+  }
+  els.qrDialog?.showModal();
+}
+
+async function handleQrCheckin(inputEl, statusEl, event) {
+  if (event) {
+    event.preventDefault();
+  }
+  const rawInput = inputEl?.value.trim();
+  if (!rawInput) {
+    if (statusEl) {
+      statusEl.textContent = "Informe o ID do aluno.";
+      return;
+    }
+    alert("Informe o ID do aluno.");
+    return;
+  }
+  const result = await handleManualCheckin(rawInput, { silent: Boolean(statusEl) });
+  if (statusEl) {
+    statusEl.textContent = result.message || "Check-in concluido.";
+    if (result.ok && els.qrDialog?.open) {
+      els.qrDialog.close();
+    }
+  }
+  if (inputEl) {
+    inputEl.value = "";
+  }
+}
+
+function openParentCheckinDialog(ownedStudents) {
+  if (!els.parentCheckinList) {
+    return;
+  }
+  els.parentCheckinList.innerHTML = "";
+  ownedStudents.forEach((student) => {
+    const item = document.createElement("label");
+    item.className = "room-open-item";
+    item.innerHTML = `
+      <input type="checkbox" data-parent-checkin="${student.id}" />
+      <span>${student.name} - ${student.className || getClassForBirth(student.birth)}</span>
+    `.trim();
+    els.parentCheckinList.appendChild(item);
+  });
+  els.parentCheckinDialog?.showModal();
+}
+
+async function handleParentCheckinSelected(event) {
+  event.preventDefault();
+  const boxes = els.parentCheckinList.querySelectorAll('input[type="checkbox"][data-parent-checkin]:checked');
+  const ids = Array.from(boxes).map((box) => box.dataset.parentCheckin);
+  if (!ids.length) {
+    alert("Selecione ao menos um aluno.");
+    return;
+  }
+  let success = 0;
+  let failed = 0;
+  for (const id of ids) {
+    const result = await handleManualCheckin(id, { silent: true });
+    if (result.ok) {
+      success += 1;
+    } else {
+      failed += 1;
+    }
+  }
+  alert(`Check-in concluido. Sucesso: ${success}. Falhas: ${failed}.`);
+  els.parentCheckinDialog?.close();
+  render();
+}
+
+async function handleManualCheckin(studentId, options = {}) {
+  const fail = (message) => {
+    if (!options.silent) {
+      alert(message);
+    }
+    return { ok: false, message };
+  };
+
+  if (!state.session) {
+    return fail("Autenticacao obrigatoria.");
+  }
+  const student = state.students.find((item) => item.id === studentId);
+  if (!student) {
+    return fail("Aluno nao encontrado.");
+  }
+  if (!canCheckinStudent(student)) {
+    return fail("Sem permissao para check-in deste aluno.");
+  }
+
+  const className = student.className || getClassForBirth(student.birth);
+  const hasOpenRooms = state.rooms.some((item) => item.status === "Aberta");
+  let room = getOpenRoomForClass(className);
+  if (!hasOpenRooms) {
+    return fail("Não existem salas abertas!");
+  }
+  if (!room || room.status !== "Aberta") {
+    return fail(`Nao ha sala aberta para a turma ${className}. Abra uma sala com essa turma.`);
+  }
+
+  const already = state.checkins.find((checkin) => checkin.roomId === room.id && checkin.studentId === studentId);
+  if (already) {
+    return fail("Este aluno ja fez check-in nesta sala.");
+  }
+  let record = {
+    id: uid(),
+    roomId: room.id,
+    roomName: room.name,
+    studentId,
+    className,
+    notes: student.notes,
+    dateTime: `${room.date} ${timeNow()}`,
+    actor: state.session.name,
+    checkedOutAt: ""
+  };
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from("checkins")
+      .insert({
+        student_id: student.id,
+        room_id: room.id,
+        class_name: className,
+        actor_id: state.session?.id || null,
+        notes_snapshot: student.notes || ""
+      })
+      .select()
+      .single();
+    if (error) {
+      return fail("Falha ao registrar check-in.");
+    }
+    record = {
+      id: data.id,
+      roomId: data.room_id,
+      roomName: room.name,
+      studentId: data.student_id,
+      className: data.class_name,
+      notes: data.notes_snapshot || "",
+      dateTime: formatDateTimeFromIso(data.checked_in_at),
+      actor: state.session?.name || "",
+      checkedOutAt: data.checked_out_at ? formatTimeFromIso(data.checked_out_at) : ""
+    };
+  }
+  state.checkins.push(record);
+  showLabel(student, room, record);
+  render();
+  return { ok: true, message: `Check-in confirmado para ${student.name}.` };
+}
+
+function showLabel(person, room, checkin) {
+  const className = checkin.className || getClassForBirth(person.birth);
+  const guardian = person.guardian || "-";
+  const eventName = room?.name || "-";
+  const notes = checkin?.notes || person?.notes || "-";
+  const label = `
+    <div class="label-name">${person.name || "{{nome}}"}</div>
+    <div class="label-body">
+      <div class="label-line">Evento: ${eventName || "{{evento}}"} / Turma: ${className || "{{turma}}"}</div>
+      <div class="label-line">Responsavel: ${guardian || "{{responsavel}}"}</div>
+      <div class="label-line">Observacao especial: ${notes || "{{observacao}}"}</div>
+    </div>
+  `;
+  els.labelPreview.innerHTML = label;
+  els.labelDialog.showModal();
+  setTimeout(() => {
+    try {
+      document.body.classList.add("print-label");
+      window.print();
+    } catch (err) {
+      console.warn("Falha ao iniciar impressao automatica", err);
+    }
+  }, 300);
+}
+
+function exportCsv() {
+  if (!isAdmin()) {
+    alert("Somente administradores podem exportar.");
+    return;
+  }
+  const header = ["Evento", "DataHora", "Aluno", "Turma", "Observacao", "Responsavel"];
+  const rows = getFilteredCheckins().map((checkin) => {
+    const student = state.students.find((s) => s.id === checkin.studentId);
+    return [
+      checkin.roomName,
+      checkin.dateTime,
+      student ? student.name : "Visitante",
+      checkin.className,
+      checkin.notes ? "Sim" : "Nao",
+      student ? student.guardian : "-"
+    ];
+  });
+  const csv = [header, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "checkins.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  render();
+}
+
+function canEditStudent(student) {
+  if (!state.session) {
+    return false;
+  }
+  if (isAdmin() || isEquipe()) {
+    return true;
+  }
+  return student.guardian === state.session.name || student.owner === state.session.name;
+}
+
+function canCheckinStudent(student) {
+  if (!state.session) {
+    return false;
+  }
+  if (isEquipe() || isAdmin()) {
+    return true;
+  }
+  return student.guardian === state.session.name || student.owner === state.session.name;
+}
+
+function getRoomsToday() {
+  const today = formatToday();
+  return state.rooms.filter((room) => room.date === today);
+}
+
+function isEquipe() {
+  return state.session?.role === "dnms_kids";
+}
+
+function isAdmin() {
+  return state.session?.role === "admin";
+}
+
+function formatRole(role) {
+  if (role === "responsavel") return "Responsavel";
+  if (role === "dnms_kids") return "DNMS Kids";
+  if (role === "admin") return "Administrador";
+  return "-";
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function timeNow() {
+  return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatTimeFromIso(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateTimeFromIso(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `${day}/${month}/${year} ${time}`;
+}
+
+function formatToday() {
+  const date = new Date();
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function formatDate(date) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function parseInputDate(value) {
+  if (!value) {
+    return null;
+  }
+  const [year, month, day] = value.split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
+function parseRoomDate(value) {
+  if (!value) {
+    return null;
+  }
+  const [day, month, year] = value.split("/").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function getAgeFromBirth(birth) {
+  if (!birth) {
+    return null;
+  }
+  const [year, month, day] = birth.split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return null;
+  }
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const hasHadBirthday =
+    today.getMonth() > month - 1 || (today.getMonth() === month - 1 && today.getDate() >= day);
+  if (!hasHadBirthday) {
+    age -= 1;
+  }
+  return age;
+}
+
+function getClassForBirth(birth) {
+  const age = getAgeFromBirth(birth);
+  if (age === null) {
+    return "Indefinida";
+  }
+  if (age >= 2 && age <= 3) return "Maternal";
+  if (age >= 4 && age <= 6) return "Kids";
+  if (age >= 7 && age <= 10) return "Juniors";
+  if (age >= 11 && age <= 14) return "Teens";
+  return "Fora da faixa";
+}
+
+function groupCheckinsByClass(checkins) {
+  return checkins.reduce((acc, checkin) => {
+    const key = checkin.className || "Indefinida";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function formatCounts(counts) {
+  const entries = Object.entries(counts);
+  if (!entries.length) {
+    return "Nenhum check-in registrado.";
+  }
+  return entries.map(([key, value]) => `${key}: ${value}`).join(" | ");
+}
+
+function normalizeStudents() {
+  state.students = state.students.map((student) => ({
+    ...student,
+    className: getClassForBirth(student.birth)
+  }));
+}
+
+function seedRoomDefaults() {
+  const today = new Date();
+  const day = String(today.getDate()).padStart(2, "0");
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const year = today.getFullYear();
+  if (els.roomDate && !els.roomDate.value) {
+    els.roomDate.value = `${year}-${month}-${day}`;
+  }
+  if (els.roomTime && !els.roomTime.value) {
+    const hours = String(today.getHours()).padStart(2, "0");
+    const minutes = String(today.getMinutes()).padStart(2, "0");
+    els.roomTime.value = `${hours}:${minutes}`;
+  }
+}
+
+function getFilteredCheckins() {
+  const startValue = els.logStart.value;
+  const endValue = els.logEnd.value;
+  const startDate = parseInputDate(startValue);
+  const endDate = parseInputDate(endValue);
+
+  return state.checkins.filter((checkin) => {
+    const datePart = checkin.dateTime.split(" ")[0];
+    const checkinDate = parseRoomDate(datePart);
+    if (!checkinDate) {
+      return false;
+    }
+    if (startDate && checkinDate < startDate) {
+      return false;
+    }
+    if (endDate) {
+      const endOfDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
+      if (checkinDate > endOfDay) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function getOpenRoomsToday() {
+  return getRoomsToday().filter((room) => room.status === "Aberta");
+}
+
+function getOpenRoomForClass(className) {
+  const openRooms = getOpenRoomsToday();
+  if (!openRooms.length) {
+    return null;
+  }
+  const activeRoom = getActiveRoom();
+  if (activeRoom && activeRoom.classTarget === className) {
+    return activeRoom;
+  }
+  return openRooms.find((room) => room.classTarget === className) || null;
+}
+
+function getActiveRoom() {
+  const openRooms = getOpenRoomsToday();
+  if (!openRooms.length) {
+    return null;
+  }
+  const active = openRooms.find((room) => room.id === state.activeRoomId);
+  return active || openRooms[0];
+}
+
+function setRoomView(view) {
+  state.roomView = view;
+  render();
+}
+
+function updateRoomViewButtons() {
+  const current = state.roomView || "open";
+  if (els.btnRoomViewOpen) {
+    els.btnRoomViewOpen.className = current === "open" ? "primary" : "ghost";
+  }
+  if (els.btnRoomViewClosed) {
+    els.btnRoomViewClosed.className = current === "closed" ? "primary" : "ghost";
+  }
+}
+
+function setActiveRoom(roomId) {
+  state.activeRoomId = roomId || "";
+  render();
+}
+
+function renderActiveRoomSelect(openRooms, activeRoom) {
+  if (!els.roomActive) {
+    return;
+  }
+  const canManageRoom = isAdmin() || isEquipe();
+  els.roomActive.disabled = !openRooms.length && !canManageRoom;
+  els.roomActive.innerHTML = "";
+  if (!openRooms.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Nenhuma sala aberta";
+    els.roomActive.appendChild(option);
+    return;
+  }
+  openRooms.forEach((room) => {
+    const option = document.createElement("option");
+    option.value = room.id;
+    option.textContent = `${room.name} - ${room.time || ""} (${room.classTarget || "-"})`.trim();
+    if (room.id === activeRoom?.id) {
+      option.selected = true;
+    }
+    els.roomActive.appendChild(option);
+  });
+}
+
+function renderRoomOpenList(roomsToday) {
+  if (!els.roomOpenList) {
+    return;
+  }
+  const availableRooms = roomsToday.filter((room) => room.status !== "Aberta");
+  els.roomOpenList.innerHTML = "";
+  if (!availableRooms.length) {
+    const empty = document.createElement("div");
+    empty.className = "summary";
+    empty.textContent = "Nenhuma sala programada para hoje.";
+    els.roomOpenList.appendChild(empty);
+    els.btnOpenSelectedRooms.disabled = true;
+    els.btnOpenAllRooms.disabled = true;
+    return;
+  }
+
+  availableRooms.forEach((room) => {
+    const item = document.createElement("label");
+    item.className = "room-open-item";
+    item.innerHTML = `
+      <input type="checkbox" data-room-id="${room.id}" />
+      <span>${room.name} - ${room.time || ""} (${room.classTarget || "-"})</span>
+    `.trim();
+    els.roomOpenList.appendChild(item);
+  });
+
+  els.btnOpenSelectedRooms.disabled = false;
+  els.btnOpenAllRooms.disabled = false;
+}
+
+function getSelectedRoomIds() {
+  if (!els.roomOpenList) {
+    return [];
+  }
+  return Array.from(els.roomOpenList.querySelectorAll('input[type="checkbox"]:checked')).map(
+    (input) => input.dataset.roomId
+  );
+}
+
+function getAvailableRoomIds() {
+  if (!els.roomOpenList) {
+    return [];
+  }
+  return Array.from(els.roomOpenList.querySelectorAll('input[type="checkbox"]')).map(
+    (input) => input.dataset.roomId
+  );
+}
+
+function handleActiveRoomChange(event) {
+  const roomId = event.target.value;
+  if (!roomId) {
+    return;
+  }
+  setActiveRoom(roomId);
+}
+
+function compareRooms(a, b) {
+  const dateA = parseRoomDate(a.date);
+  const dateB = parseRoomDate(b.date);
+  if (dateA && dateB && dateA.getTime() !== dateB.getTime()) {
+    return dateA.getTime() - dateB.getTime();
+  }
+  if (dateA && !dateB) {
+    return -1;
+  }
+  if (!dateA && dateB) {
+    return 1;
+  }
+  const timeA = a.time || "";
+  const timeB = b.time || "";
+  if (timeA !== timeB) {
+    return timeA.localeCompare(timeB);
+  }
+  return (a.name || "").localeCompare(b.name || "");
+}
+
+function escapeCsv(value) {
+  const safe = String(value ?? "");
+  if (safe.includes(",") || safe.includes("\n") || safe.includes("\"")) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function seedData() {
+  state.students.push(
+    {
+      id: uid(),
+      name: "Beatriz Souza",
+      birth: "2019-05-10",
+      className: getClassForBirth("2019-05-10"),
+      guardian: "Ana Paula",
+      otherGuardians: "",
+      phone: "(11) 98888-1234",
+      address: "Rua das Flores, 120",
+      notes: "Alergia a lactose",
+      owner: "Ana Paula"
+    },
+    {
+      id: uid(),
+      name: "Lucas Silva",
+      birth: "2018-09-02",
+      className: getClassForBirth("2018-09-02"),
+      guardian: "Carlos Silva",
+      otherGuardians: "",
+      phone: "(11) 97777-4321",
+      address: "Av. Central, 55",
+      notes: "",
+      owner: "Carlos Silva"
+    },
+    {
+      id: uid(),
+      name: "Mariana Lopes",
+      birth: "2021-03-14",
+      className: getClassForBirth("2021-03-14"),
+      guardian: "Fernanda Lopes",
+      otherGuardians: "",
+      phone: "(11) 95555-1010",
+      address: "Rua do Sol, 88",
+      notes: "",
+      owner: "Fernanda Lopes"
+    },
+    {
+      id: uid(),
+      name: "Rafael Mendes",
+      birth: "2017-07-22",
+      className: getClassForBirth("2017-07-22"),
+      guardian: "Paulo Mendes",
+      otherGuardians: "",
+      phone: "(11) 95555-2020",
+      address: "Av. Horizonte, 310",
+      notes: "",
+      owner: "Paulo Mendes"
+    },
+    {
+      id: uid(),
+      name: "Laura Rocha",
+      birth: "2016-11-05",
+      className: getClassForBirth("2016-11-05"),
+      guardian: "Juliana Rocha",
+      otherGuardians: "",
+      phone: "(11) 95555-3030",
+      address: "Rua das Palmeiras, 15",
+      notes: "",
+      owner: "Juliana Rocha"
+    },
+    {
+      id: uid(),
+      name: "Tiago Alves",
+      birth: "2015-01-18",
+      className: getClassForBirth("2015-01-18"),
+      guardian: "Renato Alves",
+      otherGuardians: "",
+      phone: "(11) 95555-4040",
+      address: "Rua das Acacias, 45",
+      notes: "",
+      owner: "Renato Alves"
+    },
+    {
+      id: uid(),
+      name: "Isabela Costa",
+      birth: "2014-09-30",
+      className: getClassForBirth("2014-09-30"),
+      guardian: "Carla Costa",
+      otherGuardians: "",
+      phone: "(11) 95555-5050",
+      address: "Rua do Lago, 70",
+      notes: "",
+      owner: "Carla Costa"
+    },
+    {
+      id: uid(),
+      name: "Pedro Nunes",
+      birth: "2013-06-12",
+      className: getClassForBirth("2013-06-12"),
+      guardian: "Luciana Nunes",
+      otherGuardians: "",
+      phone: "(11) 95555-6060",
+      address: "Av. Primavera, 210",
+      notes: "",
+      owner: "Luciana Nunes"
+    },
+    {
+      id: uid(),
+      name: "Camila Barros",
+      birth: "2012-02-08",
+      className: getClassForBirth("2012-02-08"),
+      guardian: "Roberta Barros",
+      otherGuardians: "",
+      phone: "(11) 95555-7070",
+      address: "Rua da Serra, 66",
+      notes: "",
+      owner: "Roberta Barros"
+    },
+    {
+      id: uid(),
+      name: "Henrique Lima",
+      birth: "2011-12-19",
+      className: getClassForBirth("2011-12-19"),
+      guardian: "Marco Lima",
+      otherGuardians: "",
+      phone: "(11) 95555-8080",
+      address: "Rua da Praia, 19",
+      notes: "",
+      owner: "Marco Lima"
+    },
+    {
+      id: uid(),
+      name: "Sofia Araujo",
+      birth: "2010-10-27",
+      className: getClassForBirth("2010-10-27"),
+      guardian: "Natalia Araujo",
+      otherGuardians: "",
+      phone: "(11) 95555-9090",
+      address: "Av. Brasil, 500",
+      notes: "",
+      owner: "Natalia Araujo"
+    },
+    {
+      id: uid(),
+      name: "Gabriel Farias",
+      birth: "2019-08-11",
+      className: getClassForBirth("2019-08-11"),
+      guardian: "Patricia Farias",
+      otherGuardians: "",
+      phone: "(11) 94444-1010",
+      address: "Rua do Campo, 12",
+      notes: "",
+      owner: "Patricia Farias"
+    },
+    {
+      id: uid(),
+      name: "Helena Pires",
+      birth: "2020-04-03",
+      className: getClassForBirth("2020-04-03"),
+      guardian: "Marina Pires",
+      otherGuardians: "",
+      phone: "(11) 94444-2020",
+      address: "Rua do Porto, 33",
+      notes: "",
+      owner: "Marina Pires"
+    },
+    {
+      id: uid(),
+      name: "Joao Victor",
+      birth: "2018-01-26",
+      className: getClassForBirth("2018-01-26"),
+      guardian: "Silvia Ramos",
+      otherGuardians: "",
+      phone: "(11) 94444-3030",
+      address: "Av. Leste, 88",
+      notes: "",
+      owner: "Silvia Ramos"
+    },
+    {
+      id: uid(),
+      name: "Vitoria Castro",
+      birth: "2017-03-09",
+      className: getClassForBirth("2017-03-09"),
+      guardian: "Beatriz Castro",
+      otherGuardians: "",
+      phone: "(11) 94444-4040",
+      address: "Rua Central, 70",
+      notes: "",
+      owner: "Beatriz Castro"
+    },
+    {
+      id: uid(),
+      name: "Matheus Vieira",
+      birth: "2016-05-21",
+      className: getClassForBirth("2016-05-21"),
+      guardian: "Adriana Vieira",
+      otherGuardians: "",
+      phone: "(11) 94444-5050",
+      address: "Rua Aurora, 27",
+      notes: "",
+      owner: "Adriana Vieira"
+    },
+    {
+      id: uid(),
+      name: "Lorena Santos",
+      birth: "2015-07-30",
+      className: getClassForBirth("2015-07-30"),
+      guardian: "Priscila Santos",
+      otherGuardians: "",
+      phone: "(11) 94444-6060",
+      address: "Av. Norte, 99",
+      notes: "",
+      owner: "Priscila Santos"
+    },
+    {
+      id: uid(),
+      name: "Bruno Moreira",
+      birth: "2014-03-16",
+      className: getClassForBirth("2014-03-16"),
+      guardian: "Daniel Moreira",
+      otherGuardians: "",
+      phone: "(11) 94444-7070",
+      address: "Rua das Oliveiras, 14",
+      notes: "",
+      owner: "Daniel Moreira"
+    },
+    {
+      id: uid(),
+      name: "Livia Moraes",
+      birth: "2013-11-24",
+      className: getClassForBirth("2013-11-24"),
+      guardian: "Elaine Moraes",
+      otherGuardians: "",
+      phone: "(11) 94444-8080",
+      address: "Rua Novo Horizonte, 3",
+      notes: "",
+      owner: "Elaine Moraes"
+    },
+    {
+      id: uid(),
+      name: "Arthur Duarte",
+      birth: "2012-08-07",
+      className: getClassForBirth("2012-08-07"),
+      guardian: "Claudia Duarte",
+      otherGuardians: "",
+      phone: "(11) 94444-9090",
+      address: "Av. dos Lagos, 44",
+      notes: "",
+      owner: "Claudia Duarte"
+    },
+    {
+      id: uid(),
+      name: "Isadora Freitas",
+      birth: "2011-04-28",
+      className: getClassForBirth("2011-04-28"),
+      guardian: "Renata Freitas",
+      otherGuardians: "",
+      phone: "(11) 93333-1111",
+      address: "Rua Cedro, 9",
+      notes: "",
+      owner: "Renata Freitas"
+    },
+    {
+      id: uid(),
+      name: "Felipe Barbosa",
+      birth: "2010-02-13",
+      className: getClassForBirth("2010-02-13"),
+      guardian: "Marcos Barbosa",
+      otherGuardians: "",
+      phone: "(11) 93333-2222",
+      address: "Av. Oeste, 410",
+      notes: "",
+      owner: "Marcos Barbosa"
+    },
+    {
+      id: uid(),
+      name: "Lara Campos",
+      birth: "2019-02-01",
+      className: getClassForBirth("2019-02-01"),
+      guardian: "Rita Campos",
+      otherGuardians: "",
+      phone: "(11) 93333-3333",
+      address: "Rua Jardim, 72",
+      notes: "",
+      owner: "Rita Campos"
+    },
+    {
+      id: uid(),
+      name: "Enzo Martins",
+      birth: "2018-04-19",
+      className: getClassForBirth("2018-04-19"),
+      guardian: "Marina Martins",
+      otherGuardians: "",
+      phone: "(11) 93333-4444",
+      address: "Av. Norte, 112",
+      notes: "",
+      owner: "Marina Martins"
+    },
+    {
+      id: uid(),
+      name: "Miguel Reis",
+      birth: "2017-12-08",
+      className: getClassForBirth("2017-12-08"),
+      guardian: "Julio Reis",
+      otherGuardians: "",
+      phone: "(11) 93333-5555",
+      address: "Rua Azul, 33",
+      notes: "",
+      owner: "Julio Reis"
+    },
+    {
+      id: uid(),
+      name: "Alice Neves",
+      birth: "2016-06-27",
+      className: getClassForBirth("2016-06-27"),
+      guardian: "Sonia Neves",
+      otherGuardians: "",
+      phone: "(11) 93333-6666",
+      address: "Av. Sul, 520",
+      notes: "",
+      owner: "Sonia Neves"
+    },
+    {
+      id: uid(),
+      name: "Theo Santana",
+      birth: "2015-10-15",
+      className: getClassForBirth("2015-10-15"),
+      guardian: "Carina Santana",
+      otherGuardians: "",
+      phone: "(11) 93333-7777",
+      address: "Rua das Flores, 212",
+      notes: "",
+      owner: "Carina Santana"
+    },
+    {
+      id: uid(),
+      name: "Valentina Nascimento",
+      birth: "2014-01-23",
+      className: getClassForBirth("2014-01-23"),
+      guardian: "Denise Nascimento",
+      otherGuardians: "",
+      phone: "(11) 93333-8888",
+      address: "Av. Central, 44",
+      notes: "",
+      owner: "Denise Nascimento"
+    },
+    {
+      id: uid(),
+      name: "Samuel Moraes",
+      birth: "2013-05-06",
+      className: getClassForBirth("2013-05-06"),
+      guardian: "Hugo Moraes",
+      otherGuardians: "",
+      phone: "(11) 93333-9999",
+      address: "Rua do Sol, 9",
+      notes: "",
+      owner: "Hugo Moraes"
+    },
+    {
+      id: uid(),
+      name: "Julia Vieira",
+      birth: "2012-09-17",
+      className: getClassForBirth("2012-09-17"),
+      guardian: "Patricia Vieira",
+      otherGuardians: "",
+      phone: "(11) 92222-1010",
+      address: "Av. Oeste, 88",
+      notes: "",
+      owner: "Patricia Vieira"
+    },
+    {
+      id: uid(),
+      name: "Gustavo Prado",
+      birth: "2011-03-12",
+      className: getClassForBirth("2011-03-12"),
+      guardian: "Leandro Prado",
+      otherGuardians: "",
+      phone: "(11) 92222-2020",
+      address: "Rua Aurora, 18",
+      notes: "",
+      owner: "Leandro Prado"
+    },
+    {
+      id: uid(),
+      name: "Rafaela Lima",
+      birth: "2010-11-30",
+      className: getClassForBirth("2010-11-30"),
+      guardian: "Renata Lima",
+      otherGuardians: "",
+      phone: "(11) 92222-3030",
+      address: "Rua Verde, 37",
+      notes: "",
+      owner: "Renata Lima"
+    },
+    {
+      id: uid(),
+      name: "Nicolas Bastos",
+      birth: "2019-07-07",
+      className: getClassForBirth("2019-07-07"),
+      guardian: "Beatriz Bastos",
+      otherGuardians: "",
+      phone: "(11) 92222-4040",
+      address: "Av. Primavera, 66",
+      notes: "",
+      owner: "Beatriz Bastos"
+    },
+    {
+      id: uid(),
+      name: "Manuela Pinto",
+      birth: "2018-12-25",
+      className: getClassForBirth("2018-12-25"),
+      guardian: "Paula Pinto",
+      otherGuardians: "",
+      phone: "(11) 92222-5050",
+      address: "Rua dos Lagos, 12",
+      notes: "",
+      owner: "Paula Pinto"
+    },
+    {
+      id: uid(),
+      name: "Heitor Fonseca",
+      birth: "2017-02-20",
+      className: getClassForBirth("2017-02-20"),
+      guardian: "Luiz Fonseca",
+      otherGuardians: "",
+      phone: "(11) 92222-6060",
+      address: "Rua do Porto, 54",
+      notes: "",
+      owner: "Luiz Fonseca"
+    },
+    {
+      id: uid(),
+      name: "Antonella Souza",
+      birth: "2016-08-04",
+      className: getClassForBirth("2016-08-04"),
+      guardian: "Sabrina Souza",
+      otherGuardians: "",
+      phone: "(11) 92222-7070",
+      address: "Av. Leste, 210",
+      notes: "",
+      owner: "Sabrina Souza"
+    },
+    {
+      id: uid(),
+      name: "Davi Fagundes",
+      birth: "2015-04-11",
+      className: getClassForBirth("2015-04-11"),
+      guardian: "Ronaldo Fagundes",
+      otherGuardians: "",
+      phone: "(11) 92222-8080",
+      address: "Rua das Oliveiras, 90",
+      notes: "",
+      owner: "Ronaldo Fagundes"
+    },
+    {
+      id: uid(),
+      name: "Maria Clara",
+      birth: "2014-07-29",
+      className: getClassForBirth("2014-07-29"),
+      guardian: "Claudia Alves",
+      otherGuardians: "",
+      phone: "(11) 92222-9090",
+      address: "Rua do Campo, 40",
+      notes: "",
+      owner: "Claudia Alves"
+    },
+    {
+      id: uid(),
+      name: "Eduardo Ramos",
+      birth: "2013-10-02",
+      className: getClassForBirth("2013-10-02"),
+      guardian: "Silvio Ramos",
+      otherGuardians: "",
+      phone: "(11) 91111-1010",
+      address: "Av. Brasil, 560",
+      notes: "",
+      owner: "Silvio Ramos"
+    },
+    {
+      id: uid(),
+      name: "Lorena Ribeiro",
+      birth: "2012-05-14",
+      className: getClassForBirth("2012-05-14"),
+      guardian: "Lucia Ribeiro",
+      otherGuardians: "",
+      phone: "(11) 91111-2020",
+      address: "Rua dos Cravos, 7",
+      notes: "",
+      owner: "Lucia Ribeiro"
+    },
+    {
+      id: uid(),
+      name: "Caua Ribeiro",
+      birth: "2011-09-09",
+      className: getClassForBirth("2011-09-09"),
+      guardian: "Lucia Ribeiro",
+      otherGuardians: "",
+      phone: "(11) 91111-3030",
+      address: "Rua dos Cravos, 7",
+      notes: "",
+      owner: "Lucia Ribeiro"
+    },
+    {
+      id: uid(),
+      name: "Bianca Cruz",
+      birth: "2010-12-01",
+      className: getClassForBirth("2010-12-01"),
+      guardian: "Elisa Cruz",
+      otherGuardians: "",
+      phone: "(11) 91111-4040",
+      address: "Rua Horizonte, 28",
+      notes: "",
+      owner: "Elisa Cruz"
+    },
+    {
+      id: uid(),
+      name: "Isac Gomes",
+      birth: "2019-10-10",
+      className: getClassForBirth("2019-10-10"),
+      guardian: "Regina Gomes",
+      otherGuardians: "",
+      phone: "(11) 91111-5050",
+      address: "Av. Mar, 18",
+      notes: "",
+      owner: "Regina Gomes"
+    },
+    {
+      id: uid(),
+      name: "Eloah Nogueira",
+      birth: "2018-06-18",
+      className: getClassForBirth("2018-06-18"),
+      guardian: "Cintia Nogueira",
+      otherGuardians: "",
+      phone: "(11) 91111-6060",
+      address: "Rua do Norte, 64",
+      notes: "",
+      owner: "Cintia Nogueira"
+    },
+    {
+      id: uid(),
+      name: "Gael Cardoso",
+      birth: "2017-09-05",
+      className: getClassForBirth("2017-09-05"),
+      guardian: "Cesar Cardoso",
+      otherGuardians: "",
+      phone: "(11) 91111-7070",
+      address: "Av. dos Lagos, 88",
+      notes: "",
+      owner: "Cesar Cardoso"
+    },
+    {
+      id: uid(),
+      name: "Heloisa Brito",
+      birth: "2016-02-24",
+      className: getClassForBirth("2016-02-24"),
+      guardian: "Marta Brito",
+      otherGuardians: "",
+      phone: "(11) 91111-8080",
+      address: "Rua do Sol, 16",
+      notes: "",
+      owner: "Marta Brito"
+    },
+    {
+      id: uid(),
+      name: "Benjamin Silva",
+      birth: "2015-11-08",
+      className: getClassForBirth("2015-11-08"),
+      guardian: "Fernanda Silva",
+      otherGuardians: "",
+      phone: "(11) 91111-9090",
+      address: "Av. Central, 102",
+      notes: "",
+      owner: "Fernanda Silva"
+    },
+    {
+      id: uid(),
+      name: "Leticia Azevedo",
+      birth: "2014-04-30",
+      className: getClassForBirth("2014-04-30"),
+      guardian: "Julia Azevedo",
+      otherGuardians: "",
+      phone: "(11) 90000-1111",
+      address: "Rua das Artes, 55",
+      notes: "",
+      owner: "Julia Azevedo"
+    },
+    {
+      id: uid(),
+      name: "Pedro Henrique",
+      birth: "2013-08-22",
+      className: getClassForBirth("2013-08-22"),
+      guardian: "Elaine Henrique",
+      otherGuardians: "",
+      phone: "(11) 90000-2222",
+      address: "Rua das Acacias, 120",
+      notes: "",
+      owner: "Elaine Henrique"
+    },
+    {
+      id: uid(),
+      name: "Ana Beatriz",
+      birth: "2012-01-09",
+      className: getClassForBirth("2012-01-09"),
+      guardian: "Sueli Lima",
+      otherGuardians: "",
+      phone: "(11) 90000-3333",
+      address: "Rua Bela Vista, 7",
+      notes: "",
+      owner: "Sueli Lima"
+    },
+    {
+      id: uid(),
+      name: "Bruna Cardoso",
+      birth: "2011-06-03",
+      className: getClassForBirth("2011-06-03"),
+      guardian: "Camila Cardoso",
+      otherGuardians: "",
+      phone: "(11) 90000-4444",
+      address: "Av. Norte, 210",
+      notes: "",
+      owner: "Camila Cardoso"
+    },
+    {
+      id: uid(),
+      name: "Ryan Fernandes",
+      birth: "2010-08-26",
+      className: getClassForBirth("2010-08-26"),
+      guardian: "Paulo Fernandes",
+      otherGuardians: "",
+      phone: "(11) 90000-5555",
+      address: "Rua do Lago, 19",
+      notes: "",
+      owner: "Paulo Fernandes"
+    },
+    {
+      id: uid(),
+      name: "Luana Medeiros",
+      birth: "2019-03-13",
+      className: getClassForBirth("2019-03-13"),
+      guardian: "Aline Medeiros",
+      otherGuardians: "",
+      phone: "(11) 90000-6666",
+      address: "Rua do Parque, 11",
+      notes: "",
+      owner: "Aline Medeiros"
+    },
+    {
+      id: uid(),
+      name: "Caio Henrique",
+      birth: "2018-05-28",
+      className: getClassForBirth("2018-05-28"),
+      guardian: "Rafael Henrique",
+      otherGuardians: "",
+      phone: "(11) 90000-7777",
+      address: "Av. do Sol, 77",
+      notes: "",
+      owner: "Rafael Henrique"
+    },
+    {
+      id: uid(),
+      name: "Mariana Rosa",
+      birth: "2017-01-31",
+      className: getClassForBirth("2017-01-31"),
+      guardian: "Daniela Rosa",
+      otherGuardians: "",
+      phone: "(11) 90000-8888",
+      address: "Rua da Serra, 101",
+      notes: "",
+      owner: "Daniela Rosa"
+    },
+    {
+      id: uid(),
+      name: "Vitor Hugo",
+      birth: "2016-03-07",
+      className: getClassForBirth("2016-03-07"),
+      guardian: "Marcio Hugo",
+      otherGuardians: "",
+      phone: "(11) 90000-9999",
+      address: "Av. do Lago, 31",
+      notes: "",
+      owner: "Marcio Hugo"
+    },
+    {
+      id: uid(),
+      name: "Isabelly Teixeira",
+      birth: "2015-08-12",
+      className: getClassForBirth("2015-08-12"),
+      guardian: "Paula Teixeira",
+      otherGuardians: "",
+      phone: "(11) 91111-0000",
+      address: "Rua das Pedras, 8",
+      notes: "",
+      owner: "Paula Teixeira"
+    },
+    {
+      id: uid(),
+      name: "Felipe Araujo",
+      birth: "2014-10-26",
+      className: getClassForBirth("2014-10-26"),
+      guardian: "Rita Araujo",
+      otherGuardians: "",
+      phone: "(11) 91111-1111",
+      address: "Rua Nova, 14",
+      notes: "",
+      owner: "Rita Araujo"
+    },
+    {
+      id: uid(),
+      name: "Sabrina Costa",
+      birth: "2013-02-15",
+      className: getClassForBirth("2013-02-15"),
+      guardian: "Vanessa Costa",
+      otherGuardians: "",
+      phone: "(11) 91111-2222",
+      address: "Rua do Centro, 90",
+      notes: "",
+      owner: "Vanessa Costa"
+    },
+    {
+      id: uid(),
+      name: "Cecilia Barros",
+      birth: "2012-06-06",
+      className: getClassForBirth("2012-06-06"),
+      guardian: "Priscila Barros",
+      otherGuardians: "",
+      phone: "(11) 91111-3333",
+      address: "Av. dos Estados, 210",
+      notes: "",
+      owner: "Priscila Barros"
+    },
+    {
+      id: uid(),
+      name: "Vinicius Rocha",
+      birth: "2011-11-21",
+      className: getClassForBirth("2011-11-21"),
+      guardian: "Eduardo Rocha",
+      otherGuardians: "",
+      phone: "(11) 91111-4444",
+      address: "Rua do Povo, 3",
+      notes: "",
+      owner: "Eduardo Rocha"
+    },
+    {
+      id: uid(),
+      name: "Marcela Dias",
+      birth: "2010-07-04",
+      className: getClassForBirth("2010-07-04"),
+      guardian: "Ivana Dias",
+      otherGuardians: "",
+      phone: "(11) 91111-5555",
+      address: "Av. do Aeroporto, 10",
+      notes: "",
+      owner: "Ivana Dias"
+    },
+    {
+      id: uid(),
+      name: "Otavio Pacheco",
+      birth: "2019-11-19",
+      className: getClassForBirth("2019-11-19"),
+      guardian: "Carmen Pacheco",
+      otherGuardians: "",
+      phone: "(11) 92222-1111",
+      address: "Rua do Bosque, 26",
+      notes: "",
+      owner: "Carmen Pacheco"
+    },
+    {
+      id: uid(),
+      name: "Beatriz Lima",
+      birth: "2018-09-08",
+      className: getClassForBirth("2018-09-08"),
+      guardian: "Luciana Lima",
+      otherGuardians: "",
+      phone: "(11) 92222-2222",
+      address: "Av. Paulista, 500",
+      notes: "",
+      owner: "Luciana Lima"
+    },
+    {
+      id: uid(),
+      name: "Murilo Dantas",
+      birth: "2017-04-23",
+      className: getClassForBirth("2017-04-23"),
+      guardian: "Bianca Dantas",
+      otherGuardians: "",
+      phone: "(11) 92222-3333",
+      address: "Rua das Flores, 19",
+      notes: "",
+      owner: "Bianca Dantas"
+    },
+    {
+      id: uid(),
+      name: "Helena Duarte",
+      birth: "2016-12-02",
+      className: getClassForBirth("2016-12-02"),
+      guardian: "Sandra Duarte",
+      otherGuardians: "",
+      phone: "(11) 92222-4444",
+      address: "Av. Brasil, 120",
+      notes: "",
+      owner: "Sandra Duarte"
+    },
+    {
+      id: uid(),
+      name: "Ravi Monteiro",
+      birth: "2015-03-18",
+      className: getClassForBirth("2015-03-18"),
+      guardian: "Iris Monteiro",
+      otherGuardians: "",
+      phone: "(11) 92222-5555",
+      address: "Rua do Porto, 6",
+      notes: "",
+      owner: "Iris Monteiro"
+    },
+    {
+      id: uid(),
+      name: "Ana Luiza",
+      birth: "2014-12-14",
+      className: getClassForBirth("2014-12-14"),
+      guardian: "Sonia Loureiro",
+      otherGuardians: "",
+      phone: "(11) 92222-6666",
+      address: "Av. Central, 44",
+      notes: "",
+      owner: "Sonia Loureiro"
+    },
+    {
+      id: uid(),
+      name: "Guilherme Souza",
+      birth: "2013-01-05",
+      className: getClassForBirth("2013-01-05"),
+      guardian: "Priscila Souza",
+      otherGuardians: "",
+      phone: "(11) 92222-7777",
+      address: "Rua do Norte, 21",
+      notes: "",
+      owner: "Priscila Souza"
+    },
+    {
+      id: uid(),
+      name: "Giovanna Alves",
+      birth: "2012-10-20",
+      className: getClassForBirth("2012-10-20"),
+      guardian: "Sueli Alves",
+      otherGuardians: "",
+      phone: "(11) 92222-8888",
+      address: "Av. das Palmeiras, 200",
+      notes: "",
+      owner: "Sueli Alves"
+    },
+    {
+      id: uid(),
+      name: "Lorenzo Vidal",
+      birth: "2011-05-27",
+      className: getClassForBirth("2011-05-27"),
+      guardian: "Mariana Vidal",
+      otherGuardians: "",
+      phone: "(11) 92222-9999",
+      address: "Rua do Oeste, 88",
+      notes: "",
+      owner: "Mariana Vidal"
+    },
+    {
+      id: uid(),
+      name: "Agatha Silva",
+      birth: "2010-09-16",
+      className: getClassForBirth("2010-09-16"),
+      guardian: "Leticia Silva",
+      otherGuardians: "",
+      phone: "(11) 93333-0000",
+      address: "Av. Horizonte, 400",
+      notes: "",
+      owner: "Leticia Silva"
+    }
+  );
+
+}
+
+function loadState() {
+  if (!supabaseClient) {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        const rooms = Array.isArray(parsed.rooms)
+          ? parsed.rooms.map((room) => ({ ...room, classTarget: room.classTarget || "" }))
+          : [];
+        const ui = { showLogPanel: false, showInvitePanel: false, ...(parsed.ui || {}) };
+        return { activeRoomId: "", roomView: "open", ...parsed, rooms, ui };
+      } catch (err) {
+        console.warn("Falha ao ler storage", err);
+      }
+    }
+  }
+  return {
+    session: null,
+    activeRoomId: "",
+    roomView: "open",
+    students: [],
+    rooms: [],
+    checkins: [],
+    visitors: [],
+    ui: {
+      showLogPanel: false,
+      showInvitePanel: false
+    }
+  };
+}
+
+function saveState() {
+  if (!supabaseClient) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+}
+
+function registerServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch((err) => {
+      console.warn("SW falhou", err);
+    });
+  }
+}
