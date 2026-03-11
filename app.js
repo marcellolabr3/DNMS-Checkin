@@ -3188,9 +3188,17 @@ function saveState() {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch((err) => {
-      console.warn("SW falhou", err);
-    });
+    navigator.serviceWorker
+      .register("sw.js")
+      .then((registration) => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+        registration.update().catch(() => {});
+      })
+      .catch((err) => {
+        console.warn("SW falhou", err);
+      });
   }
 }
 
