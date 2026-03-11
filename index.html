@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
   <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <div class="logo">CE</div>
+      <div class="logo">
+        <img src="icon-192.png" alt="Logo" />
+      </div>
       <div>
         <div class="title">Check-in Educacional</div>
         <div class="subtitle">Controle de presença por QR</div>
@@ -44,7 +48,7 @@
       </p>
     </section>
 
-    <section class="card" id="roomCard">
+    <section class="card" id="roomCard" style="display:none">
       <div class="card-header">
         <h2>Salas (Eventos)</h2>
         <span id="roomStatus" class="pill">Nenhuma sala aberta</span>
@@ -92,7 +96,7 @@
       <div class="room-list" id="roomList"></div>
     </section>
 
-    <section class="card" id="studentCard">
+    <section class="card" id="studentCard" style="display:none">
       <div class="card-header">
         <h2>Alunos</h2>
         <div class="actions" id="studentActions">
@@ -124,7 +128,7 @@
     </section>
 
 
-    <section class="card" id="logCard">
+    <section class="card" id="logCard" style="display:none">
       <div class="card-header">
         <h2>Log</h2>
         <div class="actions">
@@ -145,7 +149,7 @@
       <div id="logList" class="list"></div>
     </section>
 
-    <section class="card" id="inviteCard">
+    <section class="card" id="inviteCard" style="display:none">
       <div class="card-header">
         <h2>Convites</h2>
       </div>
@@ -315,7 +319,7 @@
     </form>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="vendor/supabase-js.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

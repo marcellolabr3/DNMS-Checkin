@@ -1,4 +1,6 @@
-﻿﻿const STORAGE_KEY = "checkin_app_state_v1";`r`nconst STORAGE_BUCKET = "dnms-photos";`r`nconst PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
+﻿﻿const STORAGE_KEY = "checkin_app_state_v1";
+const STORAGE_BUCKET = "dnms-photos";
+const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
 const SUPABASE_URL = "https://yaeqisvatborrbndmuxr.supabase.co";
@@ -3144,4 +3146,5 @@ function registerServiceWorker() {
     });
   }
 }
+
 

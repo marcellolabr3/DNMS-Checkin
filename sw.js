@@ -1,10 +1,11 @@
-﻿const CACHE_NAME = "checkin-cache-v1";
+﻿const CACHE_NAME = "checkin-cache-v3";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
+  "./vendor/supabase-js.js",
   "./icon-192.png",
   "./icon-512.png"
 ];
@@ -28,3 +29,5 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
+
+
