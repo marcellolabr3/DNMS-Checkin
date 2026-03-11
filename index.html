@@ -165,15 +165,17 @@
     <form method="dialog" class="dialog-body">
       <h3 id="studentDialogTitle">Novo aluno</h3>
       <input type="hidden" id="studentId" />
-      <label class="field">ID do aluno
-        <input id="studentIdDisplay" readonly />
-      </label>
       <div class="grid-2">
         <label class="field">Nome completo
           <input id="studentName" required />
         </label>
         <label class="field">Data de nascimento
           <input id="studentBirth" type="date" required />
+        </label>
+        <label class="field">
+          Foto do aluno
+          <input id="studentPhoto" type="file" accept="image/*" />
+          <img id="studentPhotoPreview" class="photo-preview" alt="Foto do aluno" />
         </label>
         <label class="field" id="studentGuardianField">Responsável principal
           <input id="studentGuardian" required />
@@ -229,7 +231,7 @@
     <form method="dialog" class="dialog-body">
       <h3>Check-in por QR</h3>
       <label class="field"><span id="qrDialogLabel">QR Code (simulado)</span>
-        <input id="qrDialogInput" placeholder="Cole o ID do aluno" />
+        <input id="qrDialogInput" placeholder="Cole o codigo do aluno" />
       </label>
       <div id="qrDialogStatus" class="summary"></div>
       <div class="dialog-actions">
@@ -268,6 +270,11 @@
       <input type="hidden" id="signupInviteToken" />
       <label class="field">Nome completo
         <input id="signupName" required />
+      </label>
+      <label class="field">
+        Foto do responsável
+        <input id="signupPhoto" type="file" accept="image/*" />
+        <img id="signupPhotoPreview" class="photo-preview" alt="Foto do responsável" />
       </label>
       <div class="grid-2">
         <label class="field" id="signupBirthField">Data de nascimento

@@ -1,4 +1,4 @@
-﻿﻿const STORAGE_KEY = "checkin_app_state_v1";
+﻿﻿const STORAGE_KEY = "checkin_app_state_v1";`r`nconst STORAGE_BUCKET = "dnms-photos";`r`nconst PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
 const SUPABASE_URL = "https://yaeqisvatborrbndmuxr.supabase.co";
@@ -73,9 +73,10 @@ const els = {
   studentDialog: document.getElementById("studentDialog"),
   studentDialogTitle: document.getElementById("studentDialogTitle"),
   studentId: document.getElementById("studentId"),
-  studentIdDisplay: document.getElementById("studentIdDisplay"),
   studentName: document.getElementById("studentName"),
   studentBirth: document.getElementById("studentBirth"),
+  studentPhoto: document.getElementById("studentPhoto"),
+  studentPhotoPreview: document.getElementById("studentPhotoPreview"),
   studentGuardianField: document.getElementById("studentGuardianField"),
   studentGuardian: document.getElementById("studentGuardian"),
   studentOtherField: document.getElementById("studentOtherField"),
@@ -96,6 +97,8 @@ const els = {
   signupDialogTitle: document.getElementById("signupDialogTitle"),
   signupInviteToken: document.getElementById("signupInviteToken"),
   signupName: document.getElementById("signupName"),
+  signupPhoto: document.getElementById("signupPhoto"),
+  signupPhotoPreview: document.getElementById("signupPhotoPreview"),
   signupBirthField: document.getElementById("signupBirthField"),
   signupBirth: document.getElementById("signupBirth"),
   signupCivilField: document.getElementById("signupCivilField"),
@@ -167,6 +170,20 @@ function bindEvents() {
   });
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
   window.addEventListener("afterprint", () => document.body.classList.remove("print-label"));
+
+  if (els.studentPhoto) {
+    els.studentPhoto.addEventListener("change", () => {
+      updatePhotoPreview(els.studentPhoto, els.studentPhotoPreview);
+    });
+  }
+  if (els.signupPhoto) {
+    els.signupPhoto.addEventListener("change", () => {
+      updatePhotoPreview(els.signupPhoto, els.signupPhotoPreview);
+    });
+  }
+  if (isMobileDevice() && els.btnPrintLabel) {
+    els.btnPrintLabel.style.display = "none";
+  }
 }
 
 function render() {
@@ -241,6 +258,7 @@ async function hydrateFromSupabase() {
       return;
     }
     state.session = { id: profile.id, name: profile.name, role: profile.role };
+    await uploadPendingProfilePhoto(session.user);
     await fetchRooms();
     await fetchStudents();
     await fetchCheckins();
@@ -335,7 +353,8 @@ async function fetchStudents() {
     address: student.address,
     notes: student.notes || "",
     owner: student.primary_guardian_name || "",
-    isVisitor: Boolean(student.is_visitor)
+    isVisitor: Boolean(student.is_visitor),
+    photoUrl: student.photo_url || ""
   }));
 }
 
@@ -533,7 +552,6 @@ function renderStudents() {
     item.innerHTML = `
       ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
       <strong>${student.name}</strong>
-      <span class="muted">ID: ${student.id}</span>
       <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
       <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes especiais: ${observationFlag}</span>
       <div class="actions">
@@ -905,6 +923,10 @@ function openSignupDialog(role, inviteToken = "") {
   if (els.signupName) {
     els.signupName.value = "";
   }
+  if (els.signupPhoto) {
+    els.signupPhoto.value = "";
+  }
+  setPhotoPreviewUrl(els.signupPhotoPreview, "");
   if (els.signupBirth) {
     els.signupBirth.value = "";
   }
@@ -945,6 +967,8 @@ async function handleSignupSubmit(event) {
   const password = els.signupPassword.value;
   const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
   const isInviteFlow = signupContext.role === "dnms_kids";
+  const signupPhotoFile = els.signupPhoto?.files?.[0] || null;
+  const pendingPhotoData = signupPhotoFile ? await readFileAsDataUrl(signupPhotoFile) : "";
 
   if (!name || !email || !password) {
     alert("Preencha os campos obrigatorios.");
@@ -976,7 +1000,7 @@ async function handleSignupSubmit(event) {
     }
   }
 
-  const { error } = await supabaseClient.auth.signUp({
+  const { data, error } = await supabaseClient.auth.signUp({
     email,
     password,
     options: {
@@ -994,6 +1018,13 @@ async function handleSignupSubmit(event) {
   if (error) {
     alert("Nao foi possivel concluir o cadastro.");
     return;
+  }
+  if (signupPhotoFile) {
+    if (data?.session?.user) {
+      await uploadProfilePhotoForUser(data.session.user, signupPhotoFile);
+    } else if (pendingPhotoData) {
+      storePendingProfilePhoto(email, pendingPhotoData);
+    }
   }
   els.signupDialog?.close();
   alert("Cadastro criado. Confirme seu email para finalizar e depois faca login.");
@@ -1331,7 +1362,6 @@ function openStudentDialog(student) {
   els.studentDialogTitle.textContent = student ? (isResponsavel ? "Editar crianca" : "Editar aluno") : (isResponsavel ? "Cadastrar crianca" : "Novo aluno");
   const id = student?.id || (supabaseClient ? "" : uid());
   els.studentId.value = id;
-  els.studentIdDisplay.value = id || "Gerado ao salvar";
   els.studentName.value = student?.name || "";
   els.studentBirth.value = student?.birth || "";
   els.studentGuardian.value = student?.guardian || state.session?.name || "";
@@ -1340,6 +1370,10 @@ function openStudentDialog(student) {
   els.studentAddress.value = student?.address || "";
   els.studentNotes.value = student?.notes || "";
   els.studentIsVisitor.checked = Boolean(student?.isVisitor);
+  if (els.studentPhoto) {
+    els.studentPhoto.value = "";
+  }
+  setPhotoPreviewUrl(els.studentPhotoPreview, student?.photoUrl || "");
   if (els.studentGuardianField) {
     els.studentGuardianField.style.display = isResponsavel ? "none" : "flex";
   }
@@ -1381,6 +1415,7 @@ async function saveStudent(event) {
     owner: ownerName,
     isVisitor
   };
+  const photoFile = els.studentPhoto?.files?.[0] || null;
 
   const missingCommon = !payload.name || !payload.birth || !payload.className;
   const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
@@ -1415,6 +1450,12 @@ async function saveStudent(event) {
       alert(`Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
       return;
     }
+    if (photoFile) {
+      const upload = await uploadStudentPhoto(data.id, photoFile);
+      if (upload.ok) {
+        await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
+      }
+    }
     const linked = await linkGuardianToStudent(data.id, payload.guardian);
     if (!linked && isResponsavel) {
       console.warn("Aluno salvo sem vinculo em student_guardians; usando fallback por nome do responsavel.");
@@ -1427,9 +1468,11 @@ async function saveStudent(event) {
         alert("Voce nao pode editar este aluno.");
         return;
       }
-      state.students[index] = { ...state.students[index], ...payload };
+      const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : state.students[index].photoUrl || "";
+      state.students[index] = { ...state.students[index], ...payload, photoUrl };
     } else {
-      state.students.push(payload);
+      const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : "";
+      state.students.push({ ...payload, photoUrl });
     }
   }
 
@@ -1492,7 +1535,7 @@ async function openQrDialog() {
   }
   if (els.qrDialogInput) {
     els.qrDialogInput.value = "";
-    els.qrDialogInput.placeholder = "Cole o ID do aluno";
+    els.qrDialogInput.placeholder = "Cole o codigo do aluno";
   }
   els.qrDialog?.showModal();
 }
@@ -1504,10 +1547,10 @@ async function handleQrCheckin(inputEl, statusEl, event) {
   const rawInput = inputEl?.value.trim();
   if (!rawInput) {
     if (statusEl) {
-      statusEl.textContent = "Informe o ID do aluno.";
+      statusEl.textContent = "Informe o codigo do aluno.";
       return;
     }
-    alert("Informe o ID do aluno.");
+    alert("Informe o codigo do aluno.");
     return;
   }
   const result = await handleManualCheckin(rawInput, { silent: Boolean(statusEl) });
@@ -1654,14 +1697,6 @@ function showLabel(person, room, checkin) {
   `;
   els.labelPreview.innerHTML = label;
   els.labelDialog.showModal();
-  setTimeout(() => {
-    try {
-      document.body.classList.add("print-label");
-      window.print();
-    } catch (err) {
-      console.warn("Falha ao iniciar impressao automatica", err);
-    }
-  }, 300);
 }
 
 function exportCsv() {
@@ -1736,6 +1771,145 @@ function formatRole(role) {
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isMobileDevice() {
+  const agent = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod/i.test(agent);
+}
+
+function updatePhotoPreview(input, preview) {
+  if (!input || !preview) {
+    return;
+  }
+  const file = input.files?.[0];
+  if (!file) {
+    setPhotoPreviewUrl(preview, "");
+    return;
+  }
+  readFileAsDataUrl(file).then((dataUrl) => setPhotoPreviewUrl(preview, dataUrl));
+}
+
+function setPhotoPreviewUrl(preview, url) {
+  if (!preview) {
+    return;
+  }
+  if (!url) {
+    preview.src = "";
+    preview.classList.remove("is-visible");
+    return;
+  }
+  preview.src = url;
+  preview.classList.add("is-visible");
+}
+
+function readFileAsDataUrl(file) {
+  if (!file) {
+    return Promise.resolve("");
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(",");
+  if (parts.length < 2) {
+    return null;
+  }
+  const meta = parts[0].match(/data:(.*?);base64/);
+  const type = meta?.[1] || "image/jpeg";
+  const binary = atob(parts[1]);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type });
+}
+
+function getPendingProfilePhotoKey(email) {
+  const safeEmail = (email || "").trim().toLowerCase();
+  return `${PENDING_PROFILE_PHOTO_PREFIX}${safeEmail}`;
+}
+
+function storePendingProfilePhoto(email, dataUrl) {
+  if (!email || !dataUrl) {
+    return;
+  }
+  localStorage.setItem(getPendingProfilePhotoKey(email), dataUrl);
+}
+
+async function uploadPendingProfilePhoto(user) {
+  if (!supabaseClient || !user?.email) {
+    return;
+  }
+  const key = getPendingProfilePhotoKey(user.email);
+  const dataUrl = localStorage.getItem(key);
+  if (!dataUrl) {
+    return;
+  }
+  const blob = dataUrlToBlob(dataUrl);
+  if (!blob) {
+    localStorage.removeItem(key);
+    return;
+  }
+  const file = new File([blob], "profile.jpg", { type: blob.type || "image/jpeg" });
+  const result = await uploadProfilePhotoForUser(user, file);
+  if (result.ok) {
+    localStorage.removeItem(key);
+  }
+}
+
+function getFileExtension(file) {
+  const name = file?.name || "";
+  const ext = name.includes(".") ? name.split(".").pop() : "";
+  const safe = (ext || "").trim().toLowerCase();
+  if (safe) {
+    return safe;
+  }
+  const type = file?.type || "";
+  if (type.includes("png")) return "png";
+  if (type.includes("webp")) return "webp";
+  return "jpg";
+}
+
+async function uploadFileToStorage(path, file) {
+  if (!supabaseClient || !file) {
+    return { ok: false, error: "Supabase nao configurado." };
+  }
+  const bucket = supabaseClient.storage.from(STORAGE_BUCKET);
+  const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
+  if (error) {
+    console.warn("Falha no upload", error);
+    return { ok: false, error: error.message };
+  }
+  const { data } = bucket.getPublicUrl(path);
+  return { ok: true, url: data?.publicUrl || "", path };
+}
+
+async function uploadStudentPhoto(studentId, file) {
+  const ext = getFileExtension(file);
+  const path = `students/${studentId}/profile.${ext}`;
+  return uploadFileToStorage(path, file);
+}
+
+async function uploadProfilePhotoForUser(user, file) {
+  if (!supabaseClient || !user?.id) {
+    return { ok: false, error: "Usuario invalido." };
+  }
+  const ext = getFileExtension(file);
+  const path = `profiles/${user.id}/profile.${ext}`;
+  const upload = await uploadFileToStorage(path, file);
+  if (upload.ok) {
+    await supabaseClient
+      .from("profiles")
+      .upsert({ id: user.id, photo_url: upload.url, email: user.email || null });
+  }
+  return upload;
 }
 
 function timeNow() {
@@ -2970,3 +3144,4 @@ function registerServiceWorker() {
     });
   }
 }
+
