@@ -5,7 +5,15 @@ const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 const DEFAULT_RECURRENCE_WEEKS = 4;
 const SUPABASE_URL = "https://yaeqisvatborrbndmuxr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_vTuti3mzKSwhX8PpF1DFeg_C0J9cc_t";
-const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: authStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
 const state = loadState();
 const signupContext = { role: "responsavel", inviteToken: "" };
@@ -121,6 +129,11 @@ async function boot() {
   bindEvents();
   handleInviteQueryParams();
   seedRoomDefaults();
+  renderSession();
+  renderRoleVisibility();
+  if (authStorageBlocked) {
+    console.warn("Armazenamento bloqueado pelo navegador. Sessao pode nao persistir.");
+  }
   if (supabaseClient) {
     await hydrateFromSupabase();
   } else {
@@ -269,6 +282,8 @@ async function hydrateFromSupabase() {
   } catch (err) {
     console.warn("Falha ao carregar dados", err);
     alert("Falha ao carregar dados do Supabase. Verifique sua conexao.");
+    state.session = null;
+    render();
   }
 }
 
@@ -1773,6 +1788,38 @@ function formatRole(role) {
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function createAuthStorage() {
+  const memory = new Map();
+  let blocked = false;
+  const safe = {
+    getItem: (key) => {
+      try {
+        return localStorage.getItem(key);
+      } catch (err) {
+        blocked = true;
+        return memory.get(key) || null;
+      }
+    },
+    setItem: (key, value) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (err) {
+        blocked = true;
+        memory.set(key, value);
+      }
+    },
+    removeItem: (key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch (err) {
+        blocked = true;
+        memory.delete(key);
+      }
+    }
+  };
+  return { storage: safe, blocked };
 }
 
 function isMobileDevice() {
