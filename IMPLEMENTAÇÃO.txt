@@ -1,0 +1,8 @@
+PWA
+	+
+Supabase Free (Postgres)
+
+
+USAR anon key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhb2h4ZG1vaGdmeWJtZnRsZWZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTY4MTgsImV4cCI6MjA4ODY3MjgxOH0.Pv3Xiw5OzhzvR6cLkZpCSYfcTuz_arTe_9beirEnmTc
+
+project URL  https://waohxdmohgfybmftlefk.supabase.co
