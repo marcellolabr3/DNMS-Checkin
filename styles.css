@@ -195,6 +195,18 @@ body {
   display: block;
 }
 
+.student-details-title {
+  text-align: center;
+}
+
+.student-details-photo {
+  margin: 0 auto;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 2px solid var(--stroke);
+}
+
 .field textarea {
   min-height: 90px;
   resize: vertical;
