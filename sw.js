@@ -1,34 +1,32 @@
-﻿const CACHE_NAME = "checkin-cache-v5";
+const CACHE_NAME = "checkin-cache-v6";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260311a",
+  "./styles.css?v=20260327b",
   "./app.js",
-  "./app.js?v=20260311a",
+  "./app.js?v=20260327b",
   "./manifest.json",
-  "./manifest.json?v=20260311a",
+  "./manifest.json?v=20260327b",
   "./print.html",
   "./print.js",
-  "./print.js?v=20260311a",
+  "./print.js?v=20260327b",
   "./vendor/supabase-js.js",
-  "./vendor/supabase-js.js?v=20260311a",
+  "./vendor/supabase-js.js?v=20260327b",
   "./icon-192.png",
   "./icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
   );
   self.clients.claim();
 });
@@ -46,6 +44,7 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)
