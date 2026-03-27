@@ -573,6 +573,9 @@ function renderStudents() {
     const alreadyInTargetRoom = Boolean(
       targetRoom && state.checkins.find((checkin) => checkin.roomId === targetRoom.id && checkin.studentId === student.id)
     );
+    const checkoutButton = openCheckin
+      ? `<button class="ghost" data-checkout="${student.id}">Checkout</button>`
+      : "";
     item.innerHTML = `
       ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
       <strong>${student.name}</strong>
@@ -580,8 +583,8 @@ function renderStudents() {
       <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes especiais: ${observationFlag}</span>
       <div class="actions">
         <button class="ghost" data-edit="${student.id}">Editar</button>
+        ${checkoutButton}
         <button class="primary" data-checkin="${student.id}">Check-in</button>
-        <button class="ghost" data-checkout="${student.id}">Checkout</button>
       </div>
     `;
     const btnEdit = item.querySelector("[data-edit]");
@@ -590,7 +593,7 @@ function renderStudents() {
 
     btnEdit.addEventListener("click", () => openStudentDialog(student));
     btnCheckin.addEventListener("click", () => handleManualCheckin(student.id));
-    btnCheckout.addEventListener("click", () => openCheckoutDialog(openCheckin));
+    btnCheckout?.addEventListener("click", () => openCheckoutDialog(openCheckin));
     item.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof Element)) {
@@ -602,7 +605,7 @@ function renderStudents() {
       openStudentDetailsDialog(student);
     });
 
-    if (isResponsavel && !isAdmin() && !isEquipe()) {
+    if (isResponsavel && !isAdmin() && !isEquipe() && btnCheckout) {
       btnCheckout.style.display = "none";
     }
 
@@ -618,7 +621,7 @@ function renderStudents() {
       btnCheckin.textContent = "Check-in realizado";
     }
 
-    if (!openCheckin || !canCheckinStudent(student)) {
+    if (btnCheckout && (!openCheckin || !canCheckinStudent(student))) {
       btnCheckout.disabled = true;
     }
 

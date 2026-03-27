@@ -329,6 +329,7 @@ button:disabled,
 }
 
 .dialog-body {
+  position: relative;
   background: #fff;
   border-radius: 18px;
   padding: 20px;
@@ -337,6 +338,21 @@ button:disabled,
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.dialog-close-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--stroke);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
 }
 
 .grid-2 {
