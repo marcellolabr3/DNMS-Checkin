@@ -1017,23 +1017,34 @@ async function handleSignupSubmit(event) {
     }
   }
 
-  const { data, error } = await supabaseClient.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: name,
-        desired_role: signupContext.role,
-        birth_date: isInviteFlow ? null : birthDate,
-        marital_status: isInviteFlow ? null : civilStatus,
-        phone: isInviteFlow ? null : phone,
-        invite_token: isInviteFlow ? signupContext.inviteToken : null,
-        is_visitor: isInviteFlow ? false : responsibleVisitor
+  let data;
+  let error;
+  try {
+    const signupResult = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          desired_role: signupContext.role,
+          birth_date: isInviteFlow ? null : birthDate,
+          marital_status: isInviteFlow ? null : civilStatus,
+          phone: isInviteFlow ? null : phone,
+          invite_token: isInviteFlow ? signupContext.inviteToken : null,
+          is_visitor: isInviteFlow ? false : responsibleVisitor
+        }
       }
-    }
-  });
+    });
+    data = signupResult.data;
+    error = signupResult.error;
+  } catch (err) {
+    console.warn("Falha no cadastro (exception)", err);
+    alert("Falha de conexao ao cadastrar. Use http://localhost e verifique as configuracoes do Supabase.");
+    return;
+  }
   if (error) {
-    alert("Nao foi possivel concluir o cadastro.");
+    console.warn("Falha no cadastro (supabase)", error);
+    alert(`Nao foi possivel concluir o cadastro: ${error.message || "erro desconhecido"}`);
     return;
   }
   if (signupPhotoFile) {
