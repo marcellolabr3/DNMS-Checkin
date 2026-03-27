@@ -1779,7 +1779,7 @@ async function handleManualCheckin(studentId, options = {}) {
       .select()
       .single();
     if (error) {
-      return fail("Falha ao registrar check-in.");
+      return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
     }
     record = {
       id: data.id,
