@@ -1516,10 +1516,19 @@ function getCheckinsForRoom(roomId) {
 }
 
 function getRoomCheckinStudents(roomId) {
-  const names = getCheckinsForRoom(roomId).map(
-    (checkin) => state.students.find((student) => student.id === checkin.studentId)?.name || "Aluno"
-  );
-  return Array.from(new Set(names));
+  const map = new Map();
+  getCheckinsForRoom(roomId).forEach((checkin) => {
+    const student = state.students.find((item) => item.id === checkin.studentId) || null;
+    const key = student?.id || `unknown:${checkin.studentId || checkin.id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        id: student?.id || "",
+        name: student?.name || "Aluno",
+        student
+      });
+    }
+  });
+  return Array.from(map.values());
 }
 
 function openRoomDetails(roomId) {
@@ -1559,10 +1568,14 @@ function renderRoomDetailsDialog(room) {
       empty.textContent = "Nenhuma crianca fez check-in nessa sala.";
       els.roomDetailsStudents.appendChild(empty);
     } else {
-      students.forEach((name) => {
+      students.forEach((entry) => {
         const item = document.createElement("div");
         item.className = "list-item";
-        item.innerHTML = `<strong>${name}</strong>`;
+        item.innerHTML = `<strong>${entry.name}</strong>`;
+        if (entry.student) {
+          item.style.cursor = "pointer";
+          item.addEventListener("click", () => openStudentDetailsDialog(entry.student));
+        }
         els.roomDetailsStudents.appendChild(item);
       });
     }

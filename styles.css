@@ -258,6 +258,16 @@ body {
   font-weight: 600;
 }
 
+.danger {
+  background: #c0392b;
+  color: #fff;
+  border: 1px solid #c0392b;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 button:disabled,
 .primary:disabled,
 .ghost:disabled {
@@ -365,6 +375,12 @@ button:disabled,
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.room-danger-actions {
+  justify-content: flex-start;
+  padding-top: 6px;
+  border-top: 1px dashed var(--stroke);
 }
 
 .label {
