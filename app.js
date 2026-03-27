@@ -1249,6 +1249,10 @@ async function createRooms() {
   }
 
   const total = recurrence === "weekly" ? DEFAULT_RECURRENCE_WEEKS : 1;
+  let createdCount = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
+  let lastErrorMessage = "";
   for (let i = 0; i < total; i += 1) {
     const date = addDays(baseDate, recurrence === "weekly" ? i * 7 : 0);
     const dateLabel = formatDate(date);
@@ -1263,6 +1267,7 @@ async function createRooms() {
         room.classTarget === classTarget
     );
     if (exists) {
+      skippedCount += 1;
       continue;
     }
     if (supabaseClient) {
@@ -1276,13 +1281,32 @@ async function createRooms() {
       });
       if (error) {
         console.warn("Falha ao criar sala", error);
+        failedCount += 1;
+        lastErrorMessage = error.message || "erro inesperado";
+      } else {
+        createdCount += 1;
       }
+    } else {
+      createdCount += 1;
     }
   }
   if (supabaseClient) {
     await fetchRooms();
   }
   render();
+  if (failedCount) {
+    alert(
+      `Falha ao criar ${failedCount} evento(s). ${createdCount ? `Criados: ${createdCount}. ` : ""}${lastErrorMessage}`
+    );
+    return;
+  }
+  if (!createdCount && skippedCount) {
+    alert("Nenhum evento criado. Ja existe evento com os mesmos dados.");
+    return;
+  }
+  if (createdCount) {
+    alert(`${createdCount} evento(s) criado(s) com sucesso.`);
+  }
 }
 
 function openRoomDialog() {
