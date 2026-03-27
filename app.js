@@ -1057,17 +1057,6 @@ async function handleSignupSubmit(event) {
     return;
   }
   const requiresEmailConfirmation = !data?.session;
-  let resendError = null;
-  if (requiresEmailConfirmation) {
-    const resendResult = await supabaseClient.auth.resend({
-      type: "signup",
-      email
-    });
-    resendError = resendResult?.error || null;
-    if (resendError) {
-      console.warn("Falha ao reenviar confirmacao", resendError);
-    }
-  }
   if (signupPhotoFile) {
     if (data?.session?.user) {
       await uploadProfilePhotoForUser(data.session.user, signupPhotoFile);
@@ -1076,10 +1065,6 @@ async function handleSignupSubmit(event) {
     }
   }
   els.signupDialog?.close();
-  if (requiresEmailConfirmation && resendError) {
-    alert("Cadastro criado, mas houve falha no envio de confirmacao por email. Verifique SMTP/Auth no Supabase.");
-    return;
-  }
   if (requiresEmailConfirmation) {
     alert("Cadastro criado. Enviamos o email de confirmacao. Verifique caixa de entrada e spam.");
     return;
