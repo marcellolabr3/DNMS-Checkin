@@ -40,6 +40,7 @@ const els = {
   roomClass: document.getElementById("roomClass"),
   roomRecurrence: document.getElementById("roomRecurrence"),
   btnCreateRoom: document.getElementById("btnCreateRoom"),
+  btnDeleteRoomFromEdit: document.getElementById("btnDeleteRoomFromEdit"),
   studentList: document.getElementById("studentList"),
   studentSearch: document.getElementById("studentSearch"),
   studentClassFilter: document.getElementById("studentClassFilter"),
@@ -71,7 +72,6 @@ const els = {
   btnRoomDialogOpen: document.getElementById("btnRoomDialogOpen"),
   btnRoomDialogEdit: document.getElementById("btnRoomDialogEdit"),
   btnRoomDialogClose: document.getElementById("btnRoomDialogClose"),
-  btnRoomDialogDelete: document.getElementById("btnRoomDialogDelete"),
   btnExport: document.getElementById("btnExport"),
   btnLogSummary: document.getElementById("btnLogSummary"),
   logStart: document.getElementById("logStart"),
@@ -160,6 +160,7 @@ function bindEvents() {
   els.btnLogout.addEventListener("click", handleLogout);
   els.btnPrintPanel.addEventListener("click", () => window.open("print.html", "_blank"));
   els.btnCreateRoom.addEventListener("click", createRooms);
+  els.btnDeleteRoomFromEdit?.addEventListener("click", handleDeleteRoomFromEdit);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
   els.btnParentCheckin.addEventListener("click", openQrDialog);
   els.btnParentCheckinSelected.addEventListener("click", handleParentCheckinSelected);
@@ -180,7 +181,6 @@ function bindEvents() {
   els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
-  els.btnRoomDialogDelete?.addEventListener("click", handleRoomDialogDelete);
   els.btnPrintLabel.addEventListener("click", () => {
     document.body.classList.add("print-label");
     window.print();
@@ -1258,6 +1258,9 @@ async function createRooms() {
     }
     roomFormContext.editingId = "";
     els.btnCreateRoom.textContent = "Criar evento";
+    if (els.btnDeleteRoomFromEdit) {
+      els.btnDeleteRoomFromEdit.style.display = "none";
+    }
     if (els.roomRecurrence) {
       els.roomRecurrence.disabled = false;
     }
@@ -1523,10 +1526,11 @@ function renderRoomDetailsDialog(room) {
   const canManageRoom = isAdmin() || isEquipe();
   const students = getRoomCheckinStudents(room.id);
   if (els.roomDetailsTitle) {
-    els.roomDetailsTitle.textContent = `${room.name} (${room.status})`;
+    els.roomDetailsTitle.textContent = `Turma ${room.classTarget || "-"} (${room.status})`;
   }
   if (els.roomDetailsMeta) {
     els.roomDetailsMeta.innerHTML = `
+      <strong>Evento:</strong> ${room.name}<br />
       <strong>Data:</strong> ${room.date}<br />
       <strong>Horario:</strong> ${room.startTime || "-"}${room.endTime ? ` - ${room.endTime}` : ""}<br />
       <strong>Turma:</strong> ${room.classTarget || "-"}<br />
@@ -1561,10 +1565,6 @@ function renderRoomDetailsDialog(room) {
     els.btnRoomDialogClose.style.display = canManageRoom ? "inline-flex" : "none";
     els.btnRoomDialogClose.disabled = room.status !== "Aberta";
   }
-  if (els.btnRoomDialogDelete) {
-    els.btnRoomDialogDelete.style.display = canManageRoom ? "inline-flex" : "none";
-    els.btnRoomDialogDelete.disabled = false;
-  }
 }
 
 async function handleRoomDialogOpen() {
@@ -1598,17 +1598,6 @@ async function handleRoomDialogClose() {
   }
 }
 
-async function handleRoomDialogDelete() {
-  if (!state.selectedRoomId) {
-    return;
-  }
-  await deleteRoom(state.selectedRoomId);
-  if (!state.rooms.some((room) => room.id === state.selectedRoomId)) {
-    state.selectedRoomId = "";
-    els.roomDetailsDialog?.close();
-  }
-}
-
 function startRoomEdit(room) {
   if (!room) {
     return;
@@ -1624,7 +1613,26 @@ function startRoomEdit(room) {
     els.roomRecurrence.disabled = true;
   }
   els.btnCreateRoom.textContent = "Salvar edicao";
+  if (els.btnDeleteRoomFromEdit) {
+    els.btnDeleteRoomFromEdit.style.display = "inline-flex";
+  }
   els.roomName.focus();
+}
+
+async function handleDeleteRoomFromEdit() {
+  const roomId = roomFormContext.editingId;
+  if (!roomId) {
+    return;
+  }
+  await deleteRoom(roomId);
+  roomFormContext.editingId = "";
+  els.btnCreateRoom.textContent = "Criar evento";
+  if (els.btnDeleteRoomFromEdit) {
+    els.btnDeleteRoomFromEdit.style.display = "none";
+  }
+  if (els.roomRecurrence) {
+    els.roomRecurrence.disabled = false;
+  }
 }
 
 function openStudentDialog(student) {
