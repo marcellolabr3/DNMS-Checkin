@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327f" />
+  <link rel="manifest" href="manifest.json?v=20260327g" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327f" />
+  <link rel="stylesheet" href="styles.css?v=20260327g" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -96,7 +96,6 @@
         <h2>Alunos</h2>
         <div class="actions" id="studentActions">
           <button id="btnAddStudent" class="primary">Cadastrar novo</button>
-          <button id="btnParentCheckin" class="ghost">Check-in (QR)</button>
         </div>
       </div>
       <div id="studentEmpty" class="summary"></div>
@@ -173,7 +172,12 @@
         </label>
         <label class="field">
           Foto do aluno
-          <input id="studentPhoto" type="file" accept="image/*" />
+          <div class="actions">
+            <label class="ghost" for="studentPhotoCamera">Tirar foto</label>
+            <label class="ghost" for="studentPhoto">Galeria</label>
+          </div>
+          <input id="studentPhotoCamera" type="file" accept="image/*" capture="environment" style="display:none" />
+          <input id="studentPhoto" type="file" accept="image/*" style="display:none" />
           <img id="studentPhotoPreview" class="photo-preview" alt="Foto do aluno" />
         </label>
         <label class="field" id="studentGuardianField">Responsável principal
@@ -318,7 +322,7 @@
     </form>
   </dialog>
 
-  <script src="vendor/supabase-js.js?v=20260327f"></script>
-  <script src="app.js?v=20260327f"></script>
+  <script src="vendor/supabase-js.js?v=20260327g"></script>
+  <script src="app.js?v=20260327g"></script>
 </body>
 </html>

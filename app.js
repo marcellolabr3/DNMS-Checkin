@@ -89,6 +89,7 @@ const els = {
   studentName: document.getElementById("studentName"),
   studentBirth: document.getElementById("studentBirth"),
   studentPhoto: document.getElementById("studentPhoto"),
+  studentPhotoCamera: document.getElementById("studentPhotoCamera"),
   studentPhotoPreview: document.getElementById("studentPhotoPreview"),
   studentGuardianField: document.getElementById("studentGuardianField"),
   studentGuardian: document.getElementById("studentGuardian"),
@@ -162,7 +163,7 @@ function bindEvents() {
   els.btnCreateRoom.addEventListener("click", createRooms);
   els.btnDeleteRoomFromEdit?.addEventListener("click", handleDeleteRoomFromEdit);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
-  els.btnParentCheckin.addEventListener("click", openQrDialog);
+  els.btnParentCheckin?.addEventListener("click", openQrDialog);
   els.btnParentCheckinSelected.addEventListener("click", handleParentCheckinSelected);
   els.studentSearch.addEventListener("input", renderStudents);
   els.studentClassFilter.addEventListener("change", renderStudents);
@@ -191,6 +192,11 @@ function bindEvents() {
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
       updatePhotoPreview(els.studentPhoto, els.studentPhotoPreview);
+    });
+  }
+  if (els.studentPhotoCamera) {
+    els.studentPhotoCamera.addEventListener("change", () => {
+      updatePhotoPreview(els.studentPhotoCamera, els.studentPhotoPreview);
     });
   }
   if (els.signupPhoto) {
@@ -534,8 +540,9 @@ function renderStudents() {
   }
 
   if (els.studentActions) {
-    const canShowParentCheckin = isResponsavel && items.length > 0;
-    els.btnParentCheckin.style.display = canShowParentCheckin ? "inline-flex" : "none";
+    if (els.btnParentCheckin) {
+      els.btnParentCheckin.style.display = "none";
+    }
     if (isResponsavel) {
       els.btnAddStudent.textContent = items.length ? "Cadastrar nova crianca" : "Cadastrar crianca";
     } else {
@@ -575,6 +582,16 @@ function renderStudents() {
     btnEdit.addEventListener("click", () => openStudentDialog(student));
     btnCheckin.addEventListener("click", () => handleManualCheckin(student.id));
     btnCheckout.addEventListener("click", () => openCheckoutDialog(openCheckin));
+    item.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (target.closest("button") || target.closest("input[type='checkbox']") || target.closest("label")) {
+        return;
+      }
+      openStudentDialog(student);
+    });
 
     if (isResponsavel && !isAdmin() && !isEquipe()) {
       btnCheckout.style.display = "none";
@@ -1640,7 +1657,10 @@ function openStudentDialog(student) {
   if (els.studentPhoto) {
     els.studentPhoto.value = "";
   }
-  setPhotoPreviewUrl(els.studentPhotoPreview, student?.photoUrl || "");
+  if (els.studentPhotoCamera) {
+    els.studentPhotoCamera.value = "";
+  }
+  setPhotoPreviewUrl(els.studentPhotoPreview, student?.photoUrl || getStudentPhotoPlaceholderUrl());
   if (els.studentGuardianField) {
     els.studentGuardianField.style.display = isResponsavel ? "none" : "flex";
   }
@@ -1682,7 +1702,7 @@ async function saveStudent(event) {
     owner: ownerName,
     isVisitor
   };
-  const photoFile = els.studentPhoto?.files?.[0] || null;
+  const photoFile = els.studentPhotoCamera?.files?.[0] || els.studentPhoto?.files?.[0] || null;
 
   const missingCommon = !payload.name || !payload.birth || !payload.className;
   const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
@@ -2116,6 +2136,19 @@ function setPhotoPreviewUrl(preview, url) {
   }
   preview.src = url;
   preview.classList.add("is-visible");
+}
+
+function getStudentPhotoPlaceholderUrl() {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'>
+        <rect width='100%' height='100%' rx='14' ry='14' fill='#f2efe5' stroke='#d8d2c5'/>
+        <text x='50%' y='48%' dominant-baseline='middle' text-anchor='middle' font-size='11' fill='#6c685a' font-family='sans-serif'>Foto</text>
+        <text x='50%' y='63%' dominant-baseline='middle' text-anchor='middle' font-size='11' fill='#6c685a' font-family='sans-serif'>nao disponivel</text>
+      </svg>`
+    )
+  );
 }
 
 function readFileAsDataUrl(file) {
