@@ -1047,6 +1047,17 @@ async function handleSignupSubmit(event) {
     alert(`Nao foi possivel concluir o cadastro: ${error.message || "erro desconhecido"}`);
     return;
   }
+  const signupUser = data?.user || null;
+  const signupIdentities = signupUser?.identities;
+  const isExistingAuthUser = Array.isArray(signupIdentities) && signupIdentities.length === 0;
+  if (isExistingAuthUser) {
+    alert("Este email ja esta cadastrado.");
+    return;
+  }
+  if (!signupUser) {
+    alert("Nao foi possivel concluir o cadastro: resposta invalida do Supabase.");
+    return;
+  }
   if (signupPhotoFile) {
     if (data?.session?.user) {
       await uploadProfilePhotoForUser(data.session.user, signupPhotoFile);
