@@ -265,7 +265,7 @@ async function hydrateFromSupabase() {
     }
     let profile = await fetchProfile(session.user.id);
     if (!profile) {
-      profile = await ensureProfileAfterEmailConfirmation(session.user);
+      profile = await ensureProfileFromAuthUser(session.user);
     }
     if (!profile) {
       state.session = null;
@@ -287,12 +287,14 @@ async function hydrateFromSupabase() {
   }
 }
 
-async function ensureProfileAfterEmailConfirmation(user) {
-  if (!user?.id || !user?.email_confirmed_at) {
+async function ensureProfileFromAuthUser(user) {
+  if (!user?.id) {
     return null;
   }
   const metadata = user.user_metadata || {};
-  const role = metadata.desired_role || "responsavel";
+  const allowedRoles = new Set(["admin", "equipe", "responsavel", "dnms_kids"]);
+  const desiredRole = metadata.desired_role || metadata.role || "responsavel";
+  const role = allowedRoles.has(desiredRole) ? desiredRole : "responsavel";
   const payload = {
     id: user.id,
     name: metadata.full_name || user.email || "Usuario",
@@ -873,7 +875,7 @@ async function handleLogin(event) {
     await hydrateFromSupabase();
     if (!state.session) {
       await supabaseClient.auth.signOut();
-      alert("Perfil nao encontrado. Confirme seu email e tente novamente.");
+      alert("Perfil nao encontrado. Verifique confirmacao de email e permissoes RLS da tabela profiles.");
       return;
     }
   } catch (err) {
