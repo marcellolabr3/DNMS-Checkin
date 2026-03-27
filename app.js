@@ -240,12 +240,26 @@ function renderSession() {
 }
 
 async function fetchProfile(userId) {
-  const { data, error } = await supabaseClient.from("profiles").select("id,name,role").eq("id", userId).single();
-  if (error) {
-    console.warn("Falha ao buscar perfil", error);
+  const primaryResult = await supabaseClient.from("profiles").select("id,name,role").eq("id", userId).single();
+  if (!primaryResult.error && primaryResult.data) {
+    return primaryResult.data;
+  }
+  const primaryErrorMessage = (primaryResult.error?.message || "").toLowerCase();
+  const missingNameColumn = primaryErrorMessage.includes("column") && primaryErrorMessage.includes("name");
+  if (!missingNameColumn) {
+    console.warn("Falha ao buscar perfil", primaryResult.error);
     return null;
   }
-  return data;
+  const legacyResult = await supabaseClient.from("profiles").select("id,nome,role").eq("id", userId).single();
+  if (legacyResult.error) {
+    console.warn("Falha ao buscar perfil (schema legado)", legacyResult.error);
+    return null;
+  }
+  return {
+    id: legacyResult.data.id,
+    name: legacyResult.data.nome || "",
+    role: legacyResult.data.role
+  };
 }
 
 async function hydrateFromSupabase() {
@@ -316,6 +330,11 @@ async function ensureProfileFromAuthUser(user) {
     ({ error } = await supabaseClient
       .from("profiles")
       .upsert({ id: payload.id, name: payload.name, role: payload.role, email: payload.email }));
+  }
+  if (error) {
+    ({ error } = await supabaseClient
+      .from("profiles")
+      .upsert({ id: payload.id, nome: payload.name, role: payload.role }));
   }
   if (error) {
     return null;
@@ -1555,12 +1574,19 @@ async function linkGuardianToStudent(studentId, guardianName) {
     guardianId = null;
   }
   if (!guardianId && guardianName) {
-    const { data } = await supabaseClient
+    let result = await supabaseClient
       .from("profiles")
       .select("id")
       .ilike("name", guardianName)
       .limit(1);
-    guardianId = data?.[0]?.id || null;
+    if (result.error) {
+      result = await supabaseClient
+        .from("profiles")
+        .select("id")
+        .ilike("nome", guardianName)
+        .limit(1);
+    }
+    guardianId = result.data?.[0]?.id || null;
   }
   if (!guardianId) {
     return false;
