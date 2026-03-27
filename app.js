@@ -869,7 +869,12 @@ async function handleLogin(event) {
   try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
-      alert("Falha no login. Verifique email e senha.");
+      const loginMessage = (error.message || "").toLowerCase();
+      if (loginMessage.includes("email not confirmed")) {
+        alert("Email ainda nao confirmado. Verifique caixa de entrada e spam, ou solicite reenvio.");
+      } else {
+        alert(`Falha no login: ${error.message || "verifique email e senha."}`);
+      }
       return;
     }
     await hydrateFromSupabase();
@@ -1060,6 +1065,18 @@ async function handleSignupSubmit(event) {
     alert("Nao foi possivel concluir o cadastro: resposta invalida do Supabase.");
     return;
   }
+  const requiresEmailConfirmation = !data?.session;
+  let resendError = null;
+  if (requiresEmailConfirmation) {
+    const resendResult = await supabaseClient.auth.resend({
+      type: "signup",
+      email
+    });
+    resendError = resendResult?.error || null;
+    if (resendError) {
+      console.warn("Falha ao reenviar confirmacao", resendError);
+    }
+  }
   if (signupPhotoFile) {
     if (data?.session?.user) {
       await uploadProfilePhotoForUser(data.session.user, signupPhotoFile);
@@ -1068,7 +1085,15 @@ async function handleSignupSubmit(event) {
     }
   }
   els.signupDialog?.close();
-  alert("Cadastro criado. Confirme seu email para finalizar e depois faca login.");
+  if (requiresEmailConfirmation && resendError) {
+    alert("Cadastro criado, mas houve falha no envio de confirmacao por email. Verifique SMTP/Auth no Supabase.");
+    return;
+  }
+  if (requiresEmailConfirmation) {
+    alert("Cadastro criado. Enviamos o email de confirmacao. Verifique caixa de entrada e spam.");
+    return;
+  }
+  alert("Cadastro criado com sucesso. Voce ja pode fazer login.");
 }
 
 async function verifyInviteToken(token, email) {
