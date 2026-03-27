@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327b" />
+  <link rel="manifest" href="manifest.json?v=20260327c" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327b" />
+  <link rel="stylesheet" href="styles.css?v=20260327c" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -62,8 +62,11 @@
           <label class="field">Data
             <input id="roomDate" type="date" />
           </label>
-          <label class="field">Horario
-            <input id="roomTime" type="time" />
+          <label class="field">Horario de inicio
+            <input id="roomStartTime" type="time" />
+          </label>
+          <label class="field">Horario de termino
+            <input id="roomEndTime" type="time" />
           </label>
           <label class="field">Turma
             <select id="roomClass">
@@ -84,16 +87,6 @@
         <button id="btnCreateRoom" class="primary">Criar evento</button>
       </div>
       <div id="roomCurrent" class="room-current"></div>
-      <div class="actions">
-        <button id="btnOpenRoomDialog" class="primary">Abrir sala</button>
-      </div>
-      <div class="actions">
-        <button id="btnRoomViewOpen" class="primary">Salas ativas</button>
-        <button id="btnRoomViewClosed" class="ghost">Salas fechadas</button>
-      </div>
-      <label class="field">Sala ativa
-        <select id="roomActive"></select>
-      </label>
       <div class="room-list" id="roomList"></div>
     </section>
 
@@ -220,18 +213,6 @@
     </div>
   </dialog>
 
-  <dialog id="roomOpenDialog" class="dialog">
-    <form method="dialog" class="dialog-body">
-      <h3>Abrir sala</h3>
-      <div id="roomOpenList" class="room-open-list"></div>
-      <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
-        <button id="btnOpenSelectedRooms" value="default" class="primary">Abrir selecionadas</button>
-        <button id="btnOpenAllRooms" value="default" class="ghost">Abrir todas</button>
-      </div>
-    </form>
-  </dialog>
-
   <dialog id="qrDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h3>Check-in por QR</h3>
@@ -320,7 +301,7 @@
     </form>
   </dialog>
 
-  <script src="vendor/supabase-js.js?v=20260327b"></script>
-  <script src="app.js?v=20260327b"></script>
+  <script src="vendor/supabase-js.js?v=20260327c"></script>
+  <script src="app.js?v=20260327c"></script>
 </body>
 </html>

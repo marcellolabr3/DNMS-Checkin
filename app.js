@@ -17,6 +17,7 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 
 const state = loadState();
 const signupContext = { role: "responsavel", inviteToken: "" };
+const roomFormContext = { editingId: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -34,18 +35,11 @@ const els = {
   roomList: document.getElementById("roomList"),
   roomName: document.getElementById("roomName"),
   roomDate: document.getElementById("roomDate"),
-  roomTime: document.getElementById("roomTime"),
+  roomStartTime: document.getElementById("roomStartTime"),
+  roomEndTime: document.getElementById("roomEndTime"),
   roomClass: document.getElementById("roomClass"),
   roomRecurrence: document.getElementById("roomRecurrence"),
   btnCreateRoom: document.getElementById("btnCreateRoom"),
-  btnOpenRoomDialog: document.getElementById("btnOpenRoomDialog"),
-  btnRoomViewOpen: document.getElementById("btnRoomViewOpen"),
-  btnRoomViewClosed: document.getElementById("btnRoomViewClosed"),
-  roomActive: document.getElementById("roomActive"),
-  roomOpenDialog: document.getElementById("roomOpenDialog"),
-  roomOpenList: document.getElementById("roomOpenList"),
-  btnOpenSelectedRooms: document.getElementById("btnOpenSelectedRooms"),
-  btnOpenAllRooms: document.getElementById("btnOpenAllRooms"),
   studentList: document.getElementById("studentList"),
   studentSearch: document.getElementById("studentSearch"),
   studentClassFilter: document.getElementById("studentClassFilter"),
@@ -158,12 +152,6 @@ function bindEvents() {
   els.btnLogout.addEventListener("click", handleLogout);
   els.btnPrintPanel.addEventListener("click", () => window.open("print.html", "_blank"));
   els.btnCreateRoom.addEventListener("click", createRooms);
-  els.btnOpenRoomDialog.addEventListener("click", openRoomDialog);
-  els.btnOpenSelectedRooms.addEventListener("click", (event) => openSelectedRooms(event));
-  els.btnOpenAllRooms.addEventListener("click", (event) => openAllRooms(event));
-  els.btnRoomViewOpen.addEventListener("click", () => setRoomView("open"));
-  els.btnRoomViewClosed.addEventListener("click", () => setRoomView("closed"));
-  els.roomActive.addEventListener("change", handleActiveRoomChange);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
   els.btnParentCheckin.addEventListener("click", openQrDialog);
   els.btnParentCheckinSelected.addEventListener("click", handleParentCheckinSelected);
@@ -423,12 +411,16 @@ async function fetchRooms() {
   state.rooms = data.map((room) => {
     const dateObj = parseInputDate(room.date);
     const dateLabel = dateObj ? formatDate(dateObj) : room.date;
+    const startTime = room.start_time || room.time || "";
+    const endTime = room.end_time || "";
     return {
       id: room.id,
       name: room.name,
       date: dateLabel,
       dateIso: room.date,
-      time: room.time,
+      startTime,
+      endTime,
+      time: startTime,
       classTarget: room.class_target,
       status: room.status,
       openedAt: room.opened_at ? formatTimeFromIso(room.opened_at) : "",
@@ -461,88 +453,87 @@ async function fetchCheckins() {
 }
 
 function renderRooms() {
-  const roomsToday = getRoomsToday();
-  const openRooms = getOpenRoomsToday();
-  const activeRoom = getActiveRoom();
-  if (openRooms.length) {
-    els.roomStatus.textContent = openRooms.length > 1 ? "Salas abertas" : "Sala aberta";
-    els.roomStatus.className = "pill";
-    els.roomCurrent.textContent = activeRoom
-      ? `Ativa: ${activeRoom.date} ${activeRoom.time || ""} - ${activeRoom.name} (${activeRoom.classTarget || "-"})`.trim()
-      : "Nenhuma sala ativa selecionada.";
-  } else if (roomsToday.length) {
-    els.roomStatus.textContent = roomsToday.length > 1 ? "Salas fechadas" : "Sala fechada";
-    els.roomCurrent.textContent = roomsToday
-      .map((room) => `${room.date} ${room.time || ""} - ${room.name} (${room.status})`.trim())
-      .join(" | ");
-  } else {
-    els.roomStatus.textContent = "Nenhuma sala aberta";
-    els.roomCurrent.textContent = "Nenhuma sala cadastrada para hoje.";
-  }
-
+  const sortedRooms = state.rooms.slice().sort(compareRooms);
+  const openRooms = sortedRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = isAdmin() || isEquipe();
-  els.btnCreateRoom.disabled = !canManageRoom;
-  els.btnOpenRoomDialog.disabled = !canManageRoom;
+  const selectedRoom = sortedRooms.find((room) => room.id === state.selectedRoomId) || null;
 
-  renderActiveRoomSelect(openRooms, activeRoom);
-  renderRoomOpenList(roomsToday.slice().sort(compareRooms));
-  updateRoomViewButtons();
+  els.btnCreateRoom.disabled = !canManageRoom;
+  if (!sortedRooms.length) {
+    els.roomStatus.textContent = "Nenhuma sala aberta";
+    els.roomCurrent.textContent = "Nenhuma sala cadastrada.";
+  } else if (openRooms.length) {
+    els.roomStatus.textContent = openRooms.length > 1 ? "Salas abertas" : "Sala aberta";
+    els.roomCurrent.textContent = "Clique em uma sala para abrir/fechar e gerenciar.";
+  } else {
+    els.roomStatus.textContent = "Salas programadas";
+    els.roomCurrent.textContent = "Clique em uma sala para abrir.";
+  }
 
   els.roomList.innerHTML = "";
-  const sortedRooms = state.rooms.slice().sort(compareRooms);
-  const roomView = state.roomView || "open";
-  if (roomView === "closed" && !state.rooms.some((room) => room.status === "Fechada")) {
-    state.roomView = "open";
-  }
-  const filteredRooms =
-    roomView === "closed"
-      ? sortedRooms.filter((room) => room.status === "Fechada")
-      : sortedRooms.filter((room) => room.status !== "Fechada");
-
-  filteredRooms.forEach((room) => {
-      const item = document.createElement("div");
-      item.className = "list-item";
-      let actionButtons = "";
-      if (canManageRoom) {
-        if (room.status === "Fechada") {
-          actionButtons = `
-            <div class="actions">
-              <button class="primary" data-reopen="${room.id}">Reabrir</button>
-              <button class="ghost" data-delete="${room.id}">Excluir</button>
-            </div>
-          `;
-        } else {
-          actionButtons = `
-            <div class="actions">
-              <button class="ghost" data-close="${room.id}">Fechar</button>
-              <button class="ghost" data-delete="${room.id}">Excluir</button>
-            </div>
-          `;
-        }
+  sortedRooms.forEach((room) => {
+    const isSelected = selectedRoom?.id === room.id;
+    const item = document.createElement("div");
+    item.className = "list-item";
+    if (isSelected) {
+      item.classList.add("is-selected");
+    }
+    item.innerHTML = `
+      <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
+      <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
+      <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
+    `;
+    item.addEventListener("click", () => {
+      state.selectedRoomId = room.id;
+      if (room.status === "Aberta") {
+        setActiveRoom(room.id);
       }
-      item.innerHTML = `
-        <strong>${room.date} ${room.time || ""} - ${room.name}</strong>
-        <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
-        <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
-        ${actionButtons}
-      `;
-      if (canManageRoom) {
-        const btnClose = item.querySelector(`[data-close="${room.id}"]`);
-        const btnReopen = item.querySelector(`[data-reopen="${room.id}"]`);
-        const btnDelete = item.querySelector(`[data-delete="${room.id}"]`);
-        if (btnClose) {
-          btnClose.disabled = room.status !== "Aberta";
-          btnClose.addEventListener("click", () => closeRoom(room.id));
-        }
-        if (btnReopen) {
-          btnReopen.addEventListener("click", () => reopenRoom(room.id));
-        }
-        if (btnDelete) {
-          btnDelete.addEventListener("click", () => deleteRoom(room.id));
-        }
-      }
-      els.roomList.appendChild(item);
+      render();
     });
+    els.roomList.appendChild(item);
+  });
+
+  if (!selectedRoom) {
+    return;
+  }
+
+  const details = document.createElement("div");
+  details.className = "summary";
+  const checkinsForRoom = getCheckinsForRoom(selectedRoom.id);
+  const studentsText = checkinsForRoom.length
+    ? checkinsForRoom
+        .map((checkin) => state.students.find((s) => s.id === checkin.studentId)?.name || "Aluno")
+        .join(", ")
+    : "Nenhum check-in nessa sala.";
+  details.innerHTML = `
+    <strong>Sala selecionada:</strong> ${selectedRoom.name}<br />
+    <strong>Alunos com check-in:</strong> ${studentsText}
+  `;
+  els.roomList.appendChild(details);
+
+  if (!canManageRoom) {
+    return;
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.innerHTML = `
+    <button class="primary" data-room-open>Abrir</button>
+    <button class="ghost" data-room-close>Fechar</button>
+    <button class="ghost" data-room-edit>Editar</button>
+    <button class="ghost" data-room-delete>Excluir sala</button>
+  `;
+  const btnOpen = actions.querySelector("[data-room-open]");
+  const btnClose = actions.querySelector("[data-room-close]");
+  const btnEdit = actions.querySelector("[data-room-edit]");
+  const btnDelete = actions.querySelector("[data-room-delete]");
+  btnOpen.disabled = selectedRoom.status === "Aberta";
+  btnClose.disabled = selectedRoom.status !== "Aberta";
+  btnOpen.addEventListener("click", () => openRoom(selectedRoom.id));
+  btnClose.addEventListener("click", () => closeRoom(selectedRoom.id));
+  btnEdit.addEventListener("click", () => startRoomEdit(selectedRoom));
+  btnDelete.addEventListener("click", () => deleteRoom(selectedRoom.id));
+  els.roomList.appendChild(actions);
 }
 
 function renderStudents() {
@@ -934,6 +925,8 @@ async function handleLogout() {
   state.students = [];
   state.rooms = [];
   state.checkins = [];
+  state.activeRoomId = "";
+  state.selectedRoomId = "";
   state.ui = { showLogPanel: false, showInvitePanel: false };
   render();
 }
@@ -1251,18 +1244,64 @@ async function createRooms() {
   }
   const name = els.roomName.value.trim();
   const dateValue = els.roomDate.value;
-  const timeValue = els.roomTime.value;
+  const startTimeValue = els.roomStartTime.value;
+  const endTimeValue = els.roomEndTime.value;
   const classTarget = els.roomClass.value;
   const recurrence = els.roomRecurrence.value;
+  const isEditing = Boolean(roomFormContext.editingId);
 
-  if (!name || !dateValue || !timeValue || !classTarget) {
-    alert("Informe nome, data, horario e turma do evento.");
+  if (!name || !dateValue || !startTimeValue || !endTimeValue || !classTarget) {
+    alert("Informe nome, data, horario de inicio, horario de termino e turma do evento.");
+    return;
+  }
+  if (endTimeValue <= startTimeValue) {
+    alert("Horario de termino deve ser maior que o horario de inicio.");
     return;
   }
 
   const baseDate = parseInputDate(dateValue);
   if (!baseDate) {
     alert("Data invalida.");
+    return;
+  }
+
+  if (isEditing) {
+    if (supabaseClient) {
+      const { error } = await supabaseClient
+        .from("rooms")
+        .update({
+          name,
+          date: dateValue,
+          time: startTimeValue,
+          start_time: startTimeValue,
+          end_time: endTimeValue,
+          class_target: classTarget
+        })
+        .eq("id", roomFormContext.editingId);
+      if (error) {
+        alert(`Falha ao atualizar sala: ${error.message || "erro inesperado"}`);
+        return;
+      }
+      await fetchRooms();
+    } else {
+      const room = state.rooms.find((item) => item.id === roomFormContext.editingId);
+      if (room) {
+        room.name = name;
+        room.dateIso = dateValue;
+        room.date = formatDate(baseDate);
+        room.time = startTimeValue;
+        room.startTime = startTimeValue;
+        room.endTime = endTimeValue;
+        room.classTarget = classTarget;
+      }
+    }
+    roomFormContext.editingId = "";
+    els.btnCreateRoom.textContent = "Criar evento";
+    if (els.roomRecurrence) {
+      els.roomRecurrence.disabled = false;
+    }
+    render();
+    alert("Sala atualizada com sucesso.");
     return;
   }
 
@@ -1281,7 +1320,7 @@ async function createRooms() {
       (room) =>
         room.date === dateLabel &&
         room.name === name &&
-        room.time === timeValue &&
+        room.startTime === startTimeValue &&
         room.classTarget === classTarget
     );
     if (exists) {
@@ -1292,7 +1331,9 @@ async function createRooms() {
       const { error } = await supabaseClient.from("rooms").insert({
         name,
         date: dateIso,
-        time: timeValue,
+        time: startTimeValue,
+        start_time: startTimeValue,
+        end_time: endTimeValue,
         class_target: classTarget,
         status: "Programada",
         created_by: state.session?.id || null
@@ -1310,6 +1351,11 @@ async function createRooms() {
   }
   if (supabaseClient) {
     await fetchRooms();
+  }
+  els.roomName.value = "";
+  els.roomClass.value = "";
+  if (els.roomRecurrence) {
+    els.roomRecurrence.value = "none";
   }
   render();
   if (failedCount) {
@@ -1478,6 +1524,28 @@ async function deleteRoom(roomId) {
     state.activeRoomId = openRooms.length ? openRooms[0].id : "";
   }
   render();
+}
+
+function getCheckinsForRoom(roomId) {
+  return state.checkins.filter((checkin) => checkin.roomId === roomId);
+}
+
+function startRoomEdit(room) {
+  if (!room) {
+    return;
+  }
+  roomFormContext.editingId = room.id;
+  els.roomName.value = room.name || "";
+  els.roomDate.value = room.dateIso || "";
+  els.roomStartTime.value = room.startTime || room.time || "";
+  els.roomEndTime.value = room.endTime || "";
+  els.roomClass.value = room.classTarget || "";
+  if (els.roomRecurrence) {
+    els.roomRecurrence.value = "none";
+    els.roomRecurrence.disabled = true;
+  }
+  els.btnCreateRoom.textContent = "Salvar edicao";
+  els.roomName.focus();
 }
 
 function openStudentDialog(student) {
@@ -2215,10 +2283,16 @@ function seedRoomDefaults() {
   if (els.roomDate && !els.roomDate.value) {
     els.roomDate.value = `${year}-${month}-${day}`;
   }
-  if (els.roomTime && !els.roomTime.value) {
+  if (els.roomStartTime && !els.roomStartTime.value) {
     const hours = String(today.getHours()).padStart(2, "0");
     const minutes = String(today.getMinutes()).padStart(2, "0");
-    els.roomTime.value = `${hours}:${minutes}`;
+    els.roomStartTime.value = `${hours}:${minutes}`;
+  }
+  if (els.roomEndTime && !els.roomEndTime.value) {
+    const end = new Date(today.getTime() + 60 * 60 * 1000);
+    const hours = String(end.getHours()).padStart(2, "0");
+    const minutes = String(end.getMinutes()).padStart(2, "0");
+    els.roomEndTime.value = `${hours}:${minutes}`;
   }
 }
 
@@ -2385,8 +2459,8 @@ function compareRooms(a, b) {
   if (!dateA && dateB) {
     return 1;
   }
-  const timeA = a.time || "";
-  const timeB = b.time || "";
+  const timeA = a.startTime || a.time || "";
+  const timeB = b.startTime || b.time || "";
   if (timeA !== timeB) {
     return timeA.localeCompare(timeB);
   }
@@ -3285,7 +3359,7 @@ function loadState() {
           ? parsed.rooms.map((room) => ({ ...room, classTarget: room.classTarget || "" }))
           : [];
         const ui = { showLogPanel: false, showInvitePanel: false, ...(parsed.ui || {}) };
-        return { activeRoomId: "", roomView: "open", ...parsed, rooms, ui };
+        return { activeRoomId: "", selectedRoomId: "", roomView: "open", ...parsed, rooms, ui };
       } catch (err) {
         console.warn("Falha ao ler storage", err);
       }
@@ -3294,6 +3368,7 @@ function loadState() {
   return {
     session: null,
     activeRoomId: "",
+    selectedRoomId: "",
     roomView: "open",
     students: [],
     rooms: [],

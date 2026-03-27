@@ -131,6 +131,11 @@ body {
   background: #faf9f5;
 }
 
+.list-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(15, 61, 46, 0.2);
+}
+
 .list-item strong {
   font-weight: 600;
 }
