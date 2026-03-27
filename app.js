@@ -18,6 +18,7 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 const state = loadState();
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
+const studentDetailsContext = { studentId: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -103,6 +104,11 @@ const els = {
   studentVisitorField: document.getElementById("studentVisitorField"),
   studentIsVisitor: document.getElementById("studentIsVisitor"),
   btnSaveStudent: document.getElementById("btnSaveStudent"),
+  studentDetailsDialog: document.getElementById("studentDetailsDialog"),
+  studentDetailsTitle: document.getElementById("studentDetailsTitle"),
+  studentDetailsPhoto: document.getElementById("studentDetailsPhoto"),
+  studentDetailsInfo: document.getElementById("studentDetailsInfo"),
+  btnStudentDetailsEdit: document.getElementById("btnStudentDetailsEdit"),
   labelDialog: document.getElementById("labelDialog"),
   labelPreview: document.getElementById("labelPreview"),
   btnPrintLabel: document.getElementById("btnPrintLabel"),
@@ -178,6 +184,7 @@ function bindEvents() {
   els.logStart.addEventListener("change", renderLog);
   els.logEnd.addEventListener("change", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
+  els.btnStudentDetailsEdit?.addEventListener("click", handleStudentDetailsEdit);
   els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
   els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
@@ -459,7 +466,7 @@ async function fetchCheckins() {
     return {
       id: checkin.id,
       roomId: checkin.room_id,
-      roomName: room?.name || "-",
+      roomName: checkin.room_name_snapshot || room?.name || "-",
       studentId: checkin.student_id,
       className: checkin.class_name,
       notes: checkin.notes_snapshot || "",
@@ -515,9 +522,7 @@ function renderStudents() {
     items = items.filter((student) => student.guardian === session?.name || student.owner === session?.name);
   }
 
-  if (!isResponsavel && classFilter === "none") {
-    items = [];
-  } else if (!isResponsavel && classFilter && classFilter !== "all") {
+  if (!isResponsavel && classFilter && classFilter !== "all" && classFilter !== "none") {
     items = items.filter((student) => (student.className || getClassForBirth(student.birth)) === classFilter);
   }
 
@@ -564,6 +569,10 @@ function renderStudents() {
     const observationFlag = student.notes ? "Sim" : "Nao";
     const className = student.className || getClassForBirth(student.birth);
     const openCheckin = getOpenCheckinForStudent(student.id);
+    const targetRoom = getOpenRoomForClass(className);
+    const alreadyInTargetRoom = Boolean(
+      targetRoom && state.checkins.find((checkin) => checkin.roomId === targetRoom.id && checkin.studentId === student.id)
+    );
     item.innerHTML = `
       ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
       <strong>${student.name}</strong>
@@ -590,7 +599,7 @@ function renderStudents() {
       if (target.closest("button") || target.closest("input[type='checkbox']") || target.closest("label")) {
         return;
       }
-      openStudentDialog(student);
+      openStudentDetailsDialog(student);
     });
 
     if (isResponsavel && !isAdmin() && !isEquipe()) {
@@ -604,7 +613,7 @@ function renderStudents() {
     if (!canCheckinStudent(student)) {
       btnCheckin.disabled = true;
     }
-    if (openCheckin) {
+    if (alreadyInTargetRoom) {
       btnCheckin.disabled = true;
       btnCheckin.textContent = "Check-in realizado";
     }
@@ -1949,6 +1958,7 @@ async function handleManualCheckin(studentId, options = {}) {
       .insert({
         student_id: student.id,
         room_id: room.id,
+        room_name_snapshot: room.name,
         class_name: className,
         actor_id: state.session?.id || null,
         notes_snapshot: student.notes || ""
@@ -2136,6 +2146,41 @@ function setPhotoPreviewUrl(preview, url) {
   }
   preview.src = url;
   preview.classList.add("is-visible");
+}
+
+function openStudentDetailsDialog(student) {
+  if (!student) {
+    return;
+  }
+  studentDetailsContext.studentId = student.id;
+  if (els.studentDetailsTitle) {
+    els.studentDetailsTitle.textContent = student.name || "Crianca";
+  }
+  if (els.studentDetailsPhoto) {
+    els.studentDetailsPhoto.src = student.photoUrl || getStudentPhotoPlaceholderUrl();
+    els.studentDetailsPhoto.classList.add("is-visible");
+  }
+  if (els.studentDetailsInfo) {
+    const className = student.className || getClassForBirth(student.birth);
+    els.studentDetailsInfo.innerHTML = `
+      <strong>Turma:</strong> ${className || "-"}<br />
+      <strong>Nascimento:</strong> ${student.birth || "-"}<br />
+      <strong>Responsavel:</strong> ${student.guardian || "-"}<br />
+      <strong>Telefone:</strong> ${student.phone || "-"}<br />
+      <strong>Endereco:</strong> ${student.address || "-"}<br />
+      <strong>Observacoes:</strong> ${student.notes || "-"}
+    `;
+  }
+  els.studentDetailsDialog?.showModal();
+}
+
+function handleStudentDetailsEdit() {
+  const student = state.students.find((item) => item.id === studentDetailsContext.studentId);
+  if (!student) {
+    return;
+  }
+  els.studentDetailsDialog?.close();
+  openStudentDialog(student);
 }
 
 function getStudentPhotoPlaceholderUrl() {
