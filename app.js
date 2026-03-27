@@ -286,7 +286,7 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
-    state.session = { id: profile.id, name: profile.name, role: profile.role };
+    state.session = { id: profile.id, name: profile.name, role: normalizeRole(profile.role) };
     await uploadPendingProfilePhoto(session.user);
     await fetchRooms();
     await fetchStudents();
@@ -307,7 +307,8 @@ async function ensureProfileFromAuthUser(user) {
   }
   const metadata = user.user_metadata || {};
   const allowedRoles = new Set(["admin", "equipe", "responsavel", "dnms_kids"]);
-  const desiredRole = metadata.desired_role || metadata.role || "responsavel";
+  const desiredRoleRaw = metadata.desired_role || metadata.role || "responsavel";
+  const desiredRole = normalizeRole(desiredRoleRaw);
   const role = allowedRoles.has(desiredRole) ? desiredRole : "responsavel";
   const payload = {
     id: user.id,
@@ -1870,18 +1871,27 @@ function getRoomsToday() {
   return state.rooms.filter((room) => room.date === today);
 }
 
+function normalizeRole(role) {
+  const value = String(role || "").trim().toLowerCase();
+  if (value === "dnms kids") return "dnms_kids";
+  return value;
+}
+
 function isEquipe() {
-  return state.session?.role === "dnms_kids";
+  const role = normalizeRole(state.session?.role);
+  return role === "equipe" || role === "dnms_kids";
 }
 
 function isAdmin() {
-  return state.session?.role === "admin";
+  return normalizeRole(state.session?.role) === "admin";
 }
 
 function formatRole(role) {
-  if (role === "responsavel") return "Responsavel";
-  if (role === "dnms_kids") return "DNMS Kids";
-  if (role === "admin") return "Administrador";
+  const normalized = normalizeRole(role);
+  if (normalized === "responsavel") return "Responsavel";
+  if (normalized === "equipe") return "Equipe";
+  if (normalized === "dnms_kids") return "DNMS Kids";
+  if (normalized === "admin") return "Administrador";
   return "-";
 }
 
