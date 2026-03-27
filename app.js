@@ -1450,10 +1450,21 @@ async function closeRoom(roomId, options = {}) {
   const closedAtIso = new Date().toISOString();
   if (supabaseClient) {
     await supabaseClient.from("rooms").update({ status: "Fechada", closed_at: closedAtIso }).eq("id", room.id);
+    await supabaseClient
+      .from("checkins")
+      .update({ checked_out_at: closedAtIso })
+      .eq("room_id", room.id)
+      .is("checked_out_at", null);
     await fetchRooms();
+    await fetchCheckins();
   } else {
     room.status = "Fechada";
     room.closedAt = timeNow();
+    state.checkins.forEach((checkin) => {
+      if (checkin.roomId === room.id && !checkin.checkedOutAt) {
+        checkin.checkedOutAt = formatTimeFromIso(closedAtIso);
+      }
+    });
   }
   if (state.activeRoomId === room.id) {
     const openRooms = getOpenRoomsToday();
