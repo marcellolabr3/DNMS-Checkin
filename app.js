@@ -109,6 +109,7 @@ const els = {
   studentDetailsPhoto: document.getElementById("studentDetailsPhoto"),
   studentDetailsInfo: document.getElementById("studentDetailsInfo"),
   btnStudentDetailsEdit: document.getElementById("btnStudentDetailsEdit"),
+  btnStudentDetailsCheckout: document.getElementById("btnStudentDetailsCheckout"),
   labelDialog: document.getElementById("labelDialog"),
   labelPreview: document.getElementById("labelPreview"),
   btnPrintLabel: document.getElementById("btnPrintLabel"),
@@ -185,6 +186,7 @@ function bindEvents() {
   els.logEnd.addEventListener("change", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
   els.btnStudentDetailsEdit?.addEventListener("click", handleStudentDetailsEdit);
+  els.btnStudentDetailsCheckout?.addEventListener("click", handleStudentDetailsCheckout);
   els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
   els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
@@ -2187,6 +2189,11 @@ function openStudentDetailsDialog(student) {
       <strong>Observacoes:</strong> ${student.notes || "-"}
     `;
   }
+  const openCheckin = getOpenCheckinForStudent(student.id);
+  if (els.btnStudentDetailsCheckout) {
+    els.btnStudentDetailsCheckout.style.display = openCheckin ? "inline-flex" : "none";
+    els.btnStudentDetailsCheckout.disabled = !openCheckin;
+  }
   els.studentDetailsDialog?.showModal();
 }
 
@@ -2197,6 +2204,19 @@ function handleStudentDetailsEdit() {
   }
   els.studentDetailsDialog?.close();
   openStudentDialog(student);
+}
+
+function handleStudentDetailsCheckout() {
+  const student = state.students.find((item) => item.id === studentDetailsContext.studentId);
+  if (!student) {
+    return;
+  }
+  const openCheckin = getOpenCheckinForStudent(student.id);
+  if (!openCheckin) {
+    return;
+  }
+  els.studentDetailsDialog?.close();
+  openCheckoutDialog(openCheckin);
 }
 
 function getStudentPhotoPlaceholderUrl() {
