@@ -246,6 +246,14 @@ body {
   font-weight: 600;
 }
 
+button:disabled,
+.primary:disabled,
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+}
+
 .pill {
   background: rgba(15, 61, 46, 0.12);
   color: var(--accent);
