@@ -65,12 +65,26 @@ function subscribeToCheckins() {
         if (payload?.new?.printed_at) {
           return;
         }
+        includeStudentInReprintList(payload?.new?.student_id);
         enqueueCheckin(payload.new, { markPrinted: true });
         updateQueueStatus();
         processQueue();
       }
     )
     .subscribe();
+}
+
+async function includeStudentInReprintList(studentId) {
+  if (!studentId || studentsCache.some((item) => item.id === studentId)) {
+    return;
+  }
+  const { data } = await supabaseClient.from("students").select("id,name").eq("id", studentId).single();
+  if (!data?.id) {
+    return;
+  }
+  studentsCache.push({ id: data.id, name: data.name });
+  studentsCache.sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
+  renderStudentsForReprint();
 }
 
 function enqueueCheckin(checkin, options = {}) {
@@ -153,7 +167,23 @@ function formatDateTime(value) {
 }
 
 async function fetchStudentsForReprint() {
-  const { data, error } = await supabaseClient.from("students").select("id,name").order("name");
+  const { data: checkins, error: checkinsError } = await supabaseClient
+    .from("checkins")
+    .select("student_id,checked_in_at")
+    .not("student_id", "is", null)
+    .order("checked_in_at", { ascending: false })
+    .limit(5000);
+  if (checkinsError) {
+    els.printQueueStatus.textContent = "Falha ao carregar check-ins para reimpressao.";
+    return;
+  }
+  const studentIds = Array.from(new Set((checkins || []).map((item) => item.student_id).filter(Boolean)));
+  if (!studentIds.length) {
+    studentsCache = [];
+    renderStudentsForReprint();
+    return;
+  }
+  const { data, error } = await supabaseClient.from("students").select("id,name").in("id", studentIds).order("name");
   if (error) {
     els.printQueueStatus.textContent = "Falha ao carregar alunos para reimpressao.";
     return;

@@ -20,6 +20,7 @@ const signupContext = { role: "responsavel", inviteToken: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
+  btnHomePanel: document.getElementById("btnHomePanel"),
   btnPrintPanel: document.getElementById("btnPrintPanel"),
   btnLogPanel: document.getElementById("btnLogPanel"),
   btnInvitePanel: document.getElementById("btnInvitePanel"),
@@ -151,6 +152,7 @@ function bindEvents() {
   els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
   els.btnSendInvite?.addEventListener("click", handleSendInvite);
+  els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnLogPanel?.addEventListener("click", toggleLogPanel);
   els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
   els.btnLogout.addEventListener("click", handleLogout);
@@ -218,6 +220,9 @@ function renderSession() {
     if (els.btnPrintPanel) {
       els.btnPrintPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
     }
+    if (els.btnHomePanel) {
+      els.btnHomePanel.style.display = "inline-flex";
+    }
     if (els.btnLogPanel) {
       els.btnLogPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
     }
@@ -229,6 +234,9 @@ function renderSession() {
     els.btnLogout.style.display = "none";
     if (els.btnPrintPanel) {
       els.btnPrintPanel.style.display = "none";
+    }
+    if (els.btnHomePanel) {
+      els.btnHomePanel.style.display = "none";
     }
     if (els.btnLogPanel) {
       els.btnLogPanel.style.display = "none";
@@ -260,6 +268,15 @@ async function fetchProfile(userId) {
     name: legacyResult.data.nome || "",
     role: legacyResult.data.role
   };
+}
+
+function goHomePanel() {
+  if (!state.session) {
+    return;
+  }
+  state.ui.showLogPanel = false;
+  state.ui.showInvitePanel = false;
+  render();
 }
 
 async function hydrateFromSupabase() {
