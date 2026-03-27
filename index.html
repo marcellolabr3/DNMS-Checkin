@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327c" />
+  <link rel="manifest" href="manifest.json?v=20260327d" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327c" />
+  <link rel="stylesheet" href="styles.css?v=20260327d" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -250,6 +250,21 @@
     </form>
   </dialog>
 
+  <dialog id="roomDetailsDialog" class="dialog">
+    <div class="dialog-body">
+      <h3 id="roomDetailsTitle">Sala</h3>
+      <div id="roomDetailsMeta" class="summary"></div>
+      <div id="roomDetailsStudents" class="room-open-list"></div>
+      <div class="dialog-actions">
+        <button id="btnRoomDialogOpen" class="primary" type="button">Abrir</button>
+        <button id="btnRoomDialogEdit" class="ghost" type="button">Editar</button>
+        <button id="btnRoomDialogClose" class="ghost" type="button">Fechar</button>
+        <button id="btnRoomDialogDelete" class="ghost" type="button">Excluir sala</button>
+        <button type="button" class="ghost" onclick="this.closest('dialog').close()">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="signupDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h3 id="signupDialogTitle">Cadastro de Responsável</h3>
@@ -301,7 +316,7 @@
     </form>
   </dialog>
 
-  <script src="vendor/supabase-js.js?v=20260327c"></script>
-  <script src="app.js?v=20260327c"></script>
+  <script src="vendor/supabase-js.js?v=20260327d"></script>
+  <script src="app.js?v=20260327d"></script>
 </body>
 </html>

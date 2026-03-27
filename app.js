@@ -64,6 +64,14 @@ const els = {
   checkoutSummary: document.getElementById("checkoutSummary"),
   checkoutCheckinId: document.getElementById("checkoutCheckinId"),
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
+  roomDetailsDialog: document.getElementById("roomDetailsDialog"),
+  roomDetailsTitle: document.getElementById("roomDetailsTitle"),
+  roomDetailsMeta: document.getElementById("roomDetailsMeta"),
+  roomDetailsStudents: document.getElementById("roomDetailsStudents"),
+  btnRoomDialogOpen: document.getElementById("btnRoomDialogOpen"),
+  btnRoomDialogEdit: document.getElementById("btnRoomDialogEdit"),
+  btnRoomDialogClose: document.getElementById("btnRoomDialogClose"),
+  btnRoomDialogDelete: document.getElementById("btnRoomDialogDelete"),
   btnExport: document.getElementById("btnExport"),
   btnLogSummary: document.getElementById("btnLogSummary"),
   logStart: document.getElementById("logStart"),
@@ -169,6 +177,10 @@ function bindEvents() {
   els.logEnd.addEventListener("change", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
   els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
+  els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
+  els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
+  els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
+  els.btnRoomDialogDelete?.addEventListener("click", handleRoomDialogDelete);
   els.btnPrintLabel.addEventListener("click", () => {
     document.body.classList.add("print-label");
     window.print();
@@ -456,7 +468,6 @@ function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
   const openRooms = sortedRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = isAdmin() || isEquipe();
-  const selectedRoom = sortedRooms.find((room) => room.id === state.selectedRoomId) || null;
 
   els.btnCreateRoom.disabled = !canManageRoom;
   if (!sortedRooms.length) {
@@ -472,68 +483,18 @@ function renderRooms() {
 
   els.roomList.innerHTML = "";
   sortedRooms.forEach((room) => {
-    const isSelected = selectedRoom?.id === room.id;
     const item = document.createElement("div");
     item.className = "list-item";
-    if (isSelected) {
-      item.classList.add("is-selected");
-    }
     item.innerHTML = `
       <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
       <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
       <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
     `;
     item.addEventListener("click", () => {
-      state.selectedRoomId = room.id;
-      if (room.status === "Aberta") {
-        setActiveRoom(room.id);
-      }
-      render();
+      openRoomDetails(room.id);
     });
     els.roomList.appendChild(item);
   });
-
-  if (!selectedRoom) {
-    return;
-  }
-
-  const details = document.createElement("div");
-  details.className = "summary";
-  const checkinsForRoom = getCheckinsForRoom(selectedRoom.id);
-  const studentsText = checkinsForRoom.length
-    ? checkinsForRoom
-        .map((checkin) => state.students.find((s) => s.id === checkin.studentId)?.name || "Aluno")
-        .join(", ")
-    : "Nenhum check-in nessa sala.";
-  details.innerHTML = `
-    <strong>Sala selecionada:</strong> ${selectedRoom.name}<br />
-    <strong>Alunos com check-in:</strong> ${studentsText}
-  `;
-  els.roomList.appendChild(details);
-
-  if (!canManageRoom) {
-    return;
-  }
-
-  const actions = document.createElement("div");
-  actions.className = "actions";
-  actions.innerHTML = `
-    <button class="primary" data-room-open>Abrir</button>
-    <button class="ghost" data-room-close>Fechar</button>
-    <button class="ghost" data-room-edit>Editar</button>
-    <button class="ghost" data-room-delete>Excluir sala</button>
-  `;
-  const btnOpen = actions.querySelector("[data-room-open]");
-  const btnClose = actions.querySelector("[data-room-close]");
-  const btnEdit = actions.querySelector("[data-room-edit]");
-  const btnDelete = actions.querySelector("[data-room-delete]");
-  btnOpen.disabled = selectedRoom.status === "Aberta";
-  btnClose.disabled = selectedRoom.status !== "Aberta";
-  btnOpen.addEventListener("click", () => openRoom(selectedRoom.id));
-  btnClose.addEventListener("click", () => closeRoom(selectedRoom.id));
-  btnEdit.addEventListener("click", () => startRoomEdit(selectedRoom));
-  btnDelete.addEventListener("click", () => deleteRoom(selectedRoom.id));
-  els.roomList.appendChild(actions);
 }
 
 function renderStudents() {
@@ -1450,12 +1411,16 @@ async function openRoom(roomId) {
   render();
 }
 
-async function closeRoom(roomId) {
+async function closeRoom(roomId, options = {}) {
   if (!isAdmin() && !isEquipe()) {
     alert("Somente administradores e equipe podem fechar salas.");
     return;
   }
+  const requireDoubleConfirm = options.requireDoubleConfirm !== false;
   if (!confirm("Tem certeza que deseja fechar esta sala?")) {
+    return;
+  }
+  if (requireDoubleConfirm && !confirm("Confirmar fechamento da sala agora?")) {
     return;
   }
   const room = state.rooms.find((item) => item.id === roomId);
@@ -1523,11 +1488,125 @@ async function deleteRoom(roomId) {
     const openRooms = getOpenRoomsToday();
     state.activeRoomId = openRooms.length ? openRooms[0].id : "";
   }
+  if (state.selectedRoomId === roomId) {
+    state.selectedRoomId = "";
+  }
   render();
 }
 
 function getCheckinsForRoom(roomId) {
   return state.checkins.filter((checkin) => checkin.roomId === roomId);
+}
+
+function getRoomCheckinStudents(roomId) {
+  const names = getCheckinsForRoom(roomId).map(
+    (checkin) => state.students.find((student) => student.id === checkin.studentId)?.name || "Aluno"
+  );
+  return Array.from(new Set(names));
+}
+
+function openRoomDetails(roomId) {
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (!room) {
+    alert("Sala nao encontrada.");
+    return;
+  }
+  state.selectedRoomId = room.id;
+  renderRoomDetailsDialog(room);
+  els.roomDetailsDialog?.showModal();
+}
+
+function renderRoomDetailsDialog(room) {
+  if (!room) {
+    return;
+  }
+  const canManageRoom = isAdmin() || isEquipe();
+  const students = getRoomCheckinStudents(room.id);
+  if (els.roomDetailsTitle) {
+    els.roomDetailsTitle.textContent = `${room.name} (${room.status})`;
+  }
+  if (els.roomDetailsMeta) {
+    els.roomDetailsMeta.innerHTML = `
+      <strong>Data:</strong> ${room.date}<br />
+      <strong>Horario:</strong> ${room.startTime || "-"}${room.endTime ? ` - ${room.endTime}` : ""}<br />
+      <strong>Turma:</strong> ${room.classTarget || "-"}<br />
+      <strong>Abertura:</strong> ${room.openedAt || "-"} | <strong>Fechamento:</strong> ${room.closedAt || "-"}
+    `;
+  }
+  if (els.roomDetailsStudents) {
+    els.roomDetailsStudents.innerHTML = "";
+    if (!students.length) {
+      const empty = document.createElement("div");
+      empty.className = "summary";
+      empty.textContent = "Nenhuma crianca fez check-in nessa sala.";
+      els.roomDetailsStudents.appendChild(empty);
+    } else {
+      students.forEach((name) => {
+        const item = document.createElement("div");
+        item.className = "list-item";
+        item.innerHTML = `<strong>${name}</strong>`;
+        els.roomDetailsStudents.appendChild(item);
+      });
+    }
+  }
+  if (els.btnRoomDialogOpen) {
+    els.btnRoomDialogOpen.style.display = canManageRoom ? "inline-flex" : "none";
+    els.btnRoomDialogOpen.disabled = room.status === "Aberta";
+  }
+  if (els.btnRoomDialogEdit) {
+    els.btnRoomDialogEdit.style.display = canManageRoom ? "inline-flex" : "none";
+    els.btnRoomDialogEdit.disabled = false;
+  }
+  if (els.btnRoomDialogClose) {
+    els.btnRoomDialogClose.style.display = canManageRoom ? "inline-flex" : "none";
+    els.btnRoomDialogClose.disabled = room.status !== "Aberta";
+  }
+  if (els.btnRoomDialogDelete) {
+    els.btnRoomDialogDelete.style.display = canManageRoom ? "inline-flex" : "none";
+    els.btnRoomDialogDelete.disabled = false;
+  }
+}
+
+async function handleRoomDialogOpen() {
+  if (!state.selectedRoomId) {
+    return;
+  }
+  await openRoom(state.selectedRoomId);
+  const room = state.rooms.find((item) => item.id === state.selectedRoomId);
+  if (room) {
+    renderRoomDetailsDialog(room);
+  }
+}
+
+function handleRoomDialogEdit() {
+  const room = state.rooms.find((item) => item.id === state.selectedRoomId);
+  if (!room) {
+    return;
+  }
+  els.roomDetailsDialog?.close();
+  startRoomEdit(room);
+}
+
+async function handleRoomDialogClose() {
+  if (!state.selectedRoomId) {
+    return;
+  }
+  await closeRoom(state.selectedRoomId, { requireDoubleConfirm: true });
+  const room = state.rooms.find((item) => item.id === state.selectedRoomId);
+  if (room) {
+    renderRoomDetailsDialog(room);
+  }
+}
+
+async function handleRoomDialogDelete() {
+  if (!state.selectedRoomId) {
+    return;
+  }
+  await deleteRoom(state.selectedRoomId);
+  if (!state.rooms.some((room) => room.id === state.selectedRoomId)) {
+    state.selectedRoomId = "";
+    els.roomDetailsDialog?.close();
+  }
 }
 
 function startRoomEdit(room) {
