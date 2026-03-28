@@ -481,7 +481,7 @@ function renderTipsDialog() {
       wrapper.appendChild(hint);
     }
 
-    preview.addEventListener("click", () => {
+    preview.addEventListener("click", async () => {
       const current = new Set(state.ui?.expandedTips || []);
       if (current.has(tip.id)) {
         current.delete(tip.id);
@@ -489,6 +489,9 @@ function renderTipsDialog() {
         current.add(tip.id);
       }
       state.ui.expandedTips = Array.from(current);
+      if (!read) {
+        await markTipAsRead(tip.id);
+      }
       renderTipsDialog();
     });
 
@@ -501,6 +504,27 @@ function truncateTipMessage(message, max = 90) {
     return message || "";
   }
   return `${message.slice(0, max).trimEnd()}...`;
+}
+
+async function markTipAsRead(tipId) {
+  if (!state.session || !tipId || isTipReadByCurrentUser(tipId)) {
+    return;
+  }
+  const readAt = new Date().toISOString();
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("tip_reads").upsert(
+      [{ tip_id: tipId, user_id: state.session.id, read_at: readAt }],
+      { onConflict: "tip_id,user_id" }
+    );
+    if (error) {
+      console.warn("Falha ao marcar mensagem como lida", error);
+      return;
+    }
+  }
+  if (!state.tipReads.some((item) => item.tipId === tipId && item.userId === state.session.id)) {
+    state.tipReads.push({ tipId, userId: state.session.id, readAt });
+  }
+  updateTipsUnreadBadge();
 }
 
 async function markAllTipsAsRead() {
