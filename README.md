@@ -1,105 +1,52 @@
-# 📌 DNMS Check-in
+# DNMS Check-in
 
-Sistema de check-in com geração e impressão de etiquetas, desenvolvido para controle rápido e eficiente de entrada de usuários.
+Aplicacao web para check-in educacional com:
+- autenticacao e dados no Supabase
+- controle de salas/eventos
+- check-in por aluno e por responsavel
+- painel de impressao de etiquetas
+- dashboard e gestao por perfil
 
----
+## Repositorio
+- GitHub: `https://github.com/marcellolabr3/DNMS-Checkin.git`
 
-## 📖 Sobre o Projeto
+## Estrutura principal
+- `index.html`
+- `app.js`
+- `print.html`
+- `print.js`
+- `styles.css`
+- `supabase/setup_dnms_checkin.sql`
 
-O **DNMS Check-in** é uma aplicação web criada para facilitar o processo de cadastro e impressão de etiquetas em eventos, igrejas ou ambientes organizacionais.
+## Banco de dados (Supabase)
+Este projeto depende de schema, RLS, policies, triggers e funcoes do Supabase.
 
-O sistema permite:
+Arquivos de referencia no Git:
+- Setup base: `supabase/setup_dnms_checkin.sql`
+- Patches incrementais: `supabase/patch_*.sql`
+- Snapshot/backup da estrutura atual do banco: `supabase/BD_BACKUP_2026-03-28.md`
 
-* Cadastro de participantes
-* Geração automática de etiquetas
-* Impressão otimizada para impressoras térmicas (Brother)
-* Interface simples e rápida
+## Backup de estrutura do Supabase
+Foi registrado um backup estrutural completo do projeto Supabase em:
+- `supabase/BD_BACKUP_2026-03-28.md`
 
----
+Conteudo do backup:
+- tabelas
+- colunas
+- constraints
+- indices
+- policies RLS
+- triggers
+- funcoes SQL (definicoes)
 
-## ⚙️ Funcionalidades
+Objetivo: preservar o funcionamento e permitir restauracao/analise da estrutura caso haja alteracoes futuras.
 
-* ✅ Cadastro de usuários
-* ✅ Geração de etiquetas personalizada
-* ✅ Impressão formatada (padrão Brother)
-* ✅ Interface leve e responsiva
-* ✅ Fluxo rápido de check-in
+## Execucao local
+1. Clone o repositorio.
+2. Abra `index.html` no navegador (ou use servidor local HTTP).
+3. Garanta que URL/anon key do Supabase estejam corretas no frontend.
 
----
-
-## 🖥️ Tecnologias Utilizadas
-
-* HTML5
-* CSS3
-* JavaScript (Vanilla)
-
----
-
-## 🏷️ Impressão de Etiquetas
-
-O sistema foi configurado para funcionar com:
-
-* **Impressora:** Brother QL-810W
-* **Etiqueta:** DK-11201 (29mm x 90mm)
-
----
-
-## 📂 Estrutura do Projeto
-
-```
-├── index.html
-├── app.js
-├── print.html
-├── print.js
-├── styles.css
-```
-
----
-
-## 🚀 Como Executar
-
-1. Clone o repositório:
-
-```
-git clone https://github.com/marcellolabr3/DNMS-Checkin.git
-```
-
-2. Acesse a pasta:
-
-```
-cd DNMS-Checkin
-```
-
-3. Abra o arquivo:
-
-```
-index.html
-```
-
----
-
-## 📌 Melhorias Futuras
-
-* [ ] Integração com banco de dados
-* [ ] Dashboard administrativo
-* [ ] Histórico de check-ins
-* [ ] Autenticação de usuários
-* [ ] Deploy online
-
----
-
-## 🤝 Contribuição
-
-Sinta-se à vontade para contribuir com melhorias, sugestões ou correções.
-
----
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT.
-
----
-
-## 👨‍💻 Autor
-
-Desenvolvido por **Marcello Labre**
+## Observacao
+Para nao perder compatibilidade entre app e banco:
+- versionar sempre alteracoes de schema/policy em `supabase/`
+- manter patches e backup estrutural atualizados no Git.
