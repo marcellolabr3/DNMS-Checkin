@@ -1019,8 +1019,7 @@ function renderDashboard() {
     <strong>Agenda</strong><br />
     Hoje: ${todayRooms.length ? `${todayRooms.length} evento(s)` : "sem eventos"}<br />
     Proximos 30 dias: ${upcomingRooms.length} evento(s)<br />
-    Proximo evento: ${nextRoomLabel}<br />
-    Informacoes: ${state.dashboardInfo || "Nenhuma informacao cadastrada."}
+    Proximo evento: ${nextRoomLabel}
   `;
 
   const alerts = [];
@@ -1029,6 +1028,10 @@ function renderDashboard() {
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
   const studentsWithNotes = state.students.filter((student) => (student.notes || "").trim().length > 0);
+  const neuroStudents = state.students.filter((student) => {
+    const notes = String(student.notes || "").toLowerCase();
+    return /neuro|tea|autismo|autista|tdah/.test(notes);
+  });
 
   if (openRooms.length) {
     alerts.push(`${openRooms.length} sala(s) aberta(s) neste momento.`);
@@ -1042,7 +1045,17 @@ function renderDashboard() {
   if (!alerts.length) {
     alerts.push("Sem alertas pendentes.");
   }
-  els.dashboardAlerts.innerHTML = `<strong>Atencao</strong><br />${alerts.join("<br />")}`;
+  const infoText = state.dashboardInfo || "Nenhuma informacao cadastrada.";
+  const neuroLine = neuroStudents.length
+    ? `Criancas neuroatipicas: ${neuroStudents.map((student) => student.name).join(", ")}`
+    : "Criancas neuroatipicas: nenhuma identificada.";
+  els.dashboardAlerts.innerHTML = `
+    <strong>Informacoes</strong><br />
+    ${infoText}<br />
+    ${neuroLine}<br />
+    <strong>Atencao</strong><br />
+    ${alerts.join("<br />")}
+  `;
 
   const mySchedules = state.schedules
     .filter((item) => !item.profileId || item.profileId === currentUserId)
