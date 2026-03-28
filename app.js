@@ -191,12 +191,14 @@ function bindEvents() {
   els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
-  els.btnPrintLabel.addEventListener("click", () => {
-    document.body.classList.add("print-label");
-    window.print();
-  });
+  els.btnPrintLabel.addEventListener("click", printCurrentLabel);
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
-  window.addEventListener("afterprint", () => document.body.classList.remove("print-label"));
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("print-label");
+    if (els.labelDialog?.open) {
+      els.labelDialog.close();
+    }
+  });
 
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
@@ -2010,26 +2012,37 @@ async function handleManualCheckin(studentId, options = {}) {
     };
   }
   state.checkins.push(record);
-  showLabel(student, room, record);
+  showLabel(student, record, { autoPrint: true, openPreview: false });
   render();
   return { ok: true, message: `Check-in confirmado para ${student.name}.` };
 }
 
-function showLabel(person, room, checkin) {
+function printCurrentLabel() {
+  document.body.classList.add("print-label");
+  window.setTimeout(() => window.print(), 50);
+}
+
+function showLabel(person, checkin, options = {}) {
   const className = checkin.className || getClassForBirth(person.birth);
   const guardian = person.guardian || "-";
-  const eventName = room?.name || "-";
   const notes = checkin?.notes || person?.notes || "-";
+  const autoPrint = options.autoPrint === true;
+  const openPreview = options.openPreview === true;
   const label = `
     <div class="label-name">${person.name || "{{nome}}"}</div>
     <div class="label-body">
-      <div class="label-line">Evento: ${eventName || "{{evento}}"} / Turma: ${className || "{{turma}}"}</div>
+      <div class="label-line">Turma: ${className || "{{turma}}"}</div>
       <div class="label-line">Responsavel: ${guardian || "{{responsavel}}"}</div>
-      <div class="label-line">Observacao especial: ${notes || "{{observacao}}"}</div>
+      <div class="label-line">Observacao: ${notes || "{{observacao}}"}</div>
     </div>
   `;
   els.labelPreview.innerHTML = label;
-  els.labelDialog.showModal();
+  if (openPreview) {
+    els.labelDialog.showModal();
+  }
+  if (autoPrint) {
+    printCurrentLabel();
+  }
 }
 
 function exportCsv() {

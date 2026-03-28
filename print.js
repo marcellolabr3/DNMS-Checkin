@@ -114,19 +114,17 @@ async function processQueue() {
 
 async function printCheckin(checkin) {
   const student = await fetchStudent(checkin.student_id);
-  const room = await fetchRoom(checkin.room_id);
   const name = student?.name || "Aluno";
   const guardian = student?.primary_guardian_name || "-";
   const className = checkin.class_name || student?.class_name || "-";
-  const eventName = room?.name || "-";
   const notes = checkin?.notes_snapshot || student?.notes || "-";
 
   els.printLabel.innerHTML = `
     <div class="label-name">${name}</div>
     <div class="label-body">
-      <div class="label-line">Evento: ${eventName} / Turma: ${className}</div>
+      <div class="label-line">Turma: ${className}</div>
       <div class="label-line">Responsavel: ${guardian}</div>
-      <div class="label-line">Observacao especial: ${notes}</div>
+      <div class="label-line">Observacao: ${notes}</div>
     </div>
   `;
 
@@ -138,11 +136,6 @@ async function printCheckin(checkin) {
 
 async function fetchStudent(studentId) {
   const { data } = await supabaseClient.from("students").select("*").eq("id", studentId).single();
-  return data || null;
-}
-
-async function fetchRoom(roomId) {
-  const { data } = await supabaseClient.from("rooms").select("*").eq("id", roomId).single();
   return data || null;
 }
 
