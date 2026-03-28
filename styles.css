@@ -81,6 +81,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .grid {
@@ -329,6 +330,29 @@ button:disabled,
   border: 1px solid var(--stroke);
 }
 
+.message-btn {
+  position: relative;
+}
+
+.message-badge {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #c0392b;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  padding: 0 5px;
+  font-weight: 700;
+}
+
+.message-btn.has-unread {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -344,6 +368,12 @@ button:disabled,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
+}
+
+.dashboard-schedules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .dashboard-birthday-item {
@@ -398,6 +428,14 @@ button:disabled,
 .dashboard-birthday-date {
   font-size: 12px;
   color: var(--muted);
+}
+
+.dashboard-admin-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--stroke);
 }
 
 .label-title {

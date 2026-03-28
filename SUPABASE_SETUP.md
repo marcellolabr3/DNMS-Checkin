@@ -8,6 +8,10 @@ Este app espera estas tabelas no schema `public`:
 - `checkins`
 - `student_guardians`
 - `invites`
+- `dashboard_settings`
+- `schedules`
+- `tips`
+- `tip_reads`
 
 No seu projeto atual, o schema publicado está diferente (`criancas`, `salas`, `evento_salas`, etc), por isso partes do fluxo falham.
 
@@ -29,4 +33,7 @@ Depois do script, o endpoint OpenAPI deve listar os caminhos:
 - `/checkins`
 - `/student_guardians`
 - `/invites`
-
+- `/dashboard_settings`
+- `/schedules`
+- `/tips`
+- `/tip_reads`

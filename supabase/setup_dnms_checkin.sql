@@ -74,11 +74,46 @@ create table if not exists public.invites (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.dashboard_settings (
+  id int primary key default 1 check (id = 1),
+  info_text text not null default '',
+  updated_by uuid null references public.profiles (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.schedules (
+  id uuid primary key default gen_random_uuid(),
+  date date not null,
+  profile_id uuid null references public.profiles (id) on delete set null,
+  lesson_theme text not null,
+  details text not null default '',
+  created_by uuid null references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tips (
+  id uuid primary key default gen_random_uuid(),
+  message text not null,
+  recipient_id uuid null references public.profiles (id) on delete set null,
+  created_by uuid null references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tip_reads (
+  tip_id uuid not null references public.tips (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (tip_id, user_id)
+);
+
 create index if not exists idx_students_guardian_name on public.students (primary_guardian_name);
 create index if not exists idx_rooms_date_status on public.rooms (date, status);
 create index if not exists idx_checkins_room_student on public.checkins (room_id, student_id);
 create index if not exists idx_checkins_student_checkedin on public.checkins (student_id, checked_in_at desc);
 create index if not exists idx_invites_token on public.invites (token);
+create index if not exists idx_schedules_date on public.schedules (date);
+create index if not exists idx_tips_recipient on public.tips (recipient_id, created_at desc);
+create index if not exists idx_tip_reads_user on public.tip_reads (user_id, read_at desc);
 
 alter table public.profiles enable row level security;
 alter table public.students enable row level security;
@@ -86,6 +121,10 @@ alter table public.rooms enable row level security;
 alter table public.checkins enable row level security;
 alter table public.student_guardians enable row level security;
 alter table public.invites enable row level security;
+alter table public.dashboard_settings enable row level security;
+alter table public.schedules enable row level security;
+alter table public.tips enable row level security;
+alter table public.tip_reads enable row level security;
 
 drop policy if exists profiles_select_own_or_staff on public.profiles;
 create policy profiles_select_own_or_staff on public.profiles
@@ -297,6 +336,99 @@ with check (
   or lower(invites.email) = lower((select u.email from auth.users u where u.id = auth.uid()))
 );
 
+drop policy if exists dashboard_settings_select_all on public.dashboard_settings;
+create policy dashboard_settings_select_all on public.dashboard_settings
+for select to authenticated
+using (true);
+
+drop policy if exists dashboard_settings_manage_admin on public.dashboard_settings;
+create policy dashboard_settings_manage_admin on public.dashboard_settings
+for all to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+);
+
+drop policy if exists schedules_select_scope on public.schedules;
+create policy schedules_select_scope on public.schedules
+for select to authenticated
+using (
+  profile_id is null
+  or profile_id = auth.uid()
+  or exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role in ('admin', 'equipe')
+  )
+);
+
+drop policy if exists schedules_manage_admin on public.schedules;
+create policy schedules_manage_admin on public.schedules
+for all to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+);
+
+drop policy if exists tips_select_scope on public.tips;
+create policy tips_select_scope on public.tips
+for select to authenticated
+using (
+  recipient_id is null
+  or recipient_id = auth.uid()
+  or exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role in ('admin', 'equipe')
+  )
+);
+
+drop policy if exists tips_insert_admin on public.tips;
+create policy tips_insert_admin on public.tips
+for insert to authenticated
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+);
+
+drop policy if exists tip_reads_select_own on public.tip_reads;
+create policy tip_reads_select_own on public.tip_reads
+for select to authenticated
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  )
+);
+
+drop policy if exists tip_reads_insert_own on public.tip_reads;
+create policy tip_reads_insert_own on public.tip_reads
+for insert to authenticated
+with check (user_id = auth.uid());
+
+drop policy if exists tip_reads_upsert_own on public.tip_reads;
+create policy tip_reads_upsert_own on public.tip_reads
+for update to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
 create or replace function public.ensure_profile_for_new_user()
 returns trigger
 language plpgsql
@@ -332,6 +464,10 @@ drop trigger if exists on_auth_user_created_dnms on auth.users;
 create trigger on_auth_user_created_dnms
 after insert on auth.users
 for each row execute procedure public.ensure_profile_for_new_user();
+
+insert into public.dashboard_settings (id, info_text)
+values (1, '')
+on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)
 values ('dnms-photos', 'dnms-photos', true)

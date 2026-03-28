@@ -23,6 +23,10 @@ const studentDetailsContext = { studentId: "" };
 const els = {
   sessionRole: document.getElementById("sessionRole"),
   btnHomePanel: document.getElementById("btnHomePanel"),
+  btnRoomsPanel: document.getElementById("btnRoomsPanel"),
+  btnStudentsPanel: document.getElementById("btnStudentsPanel"),
+  btnTipsInbox: document.getElementById("btnTipsInbox"),
+  tipsUnreadCount: document.getElementById("tipsUnreadCount"),
   btnPrintPanel: document.getElementById("btnPrintPanel"),
   btnLogPanel: document.getElementById("btnLogPanel"),
   btnInvitePanel: document.getElementById("btnInvitePanel"),
@@ -34,7 +38,17 @@ const els = {
   dashboardCard: document.getElementById("dashboardCard"),
   dashboardAgenda: document.getElementById("dashboardAgenda"),
   dashboardAlerts: document.getElementById("dashboardAlerts"),
+  dashboardLessonToday: document.getElementById("dashboardLessonToday"),
+  dashboardSchedules: document.getElementById("dashboardSchedules"),
   dashboardBirthdays: document.getElementById("dashboardBirthdays"),
+  dashboardAdminTools: document.getElementById("dashboardAdminTools"),
+  dashboardInfoText: document.getElementById("dashboardInfoText"),
+  btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
+  scheduleFileInput: document.getElementById("scheduleFileInput"),
+  btnImportScheduleFile: document.getElementById("btnImportScheduleFile"),
+  tipsRecipientSelect: document.getElementById("tipsRecipientSelect"),
+  tipsMessageInput: document.getElementById("tipsMessageInput"),
+  btnSendTip: document.getElementById("btnSendTip"),
   roomStatus: document.getElementById("roomStatus"),
   roomCurrent: document.getElementById("roomCurrent"),
   roomList: document.getElementById("roomList"),
@@ -70,6 +84,9 @@ const els = {
   checkoutSummary: document.getElementById("checkoutSummary"),
   checkoutCheckinId: document.getElementById("checkoutCheckinId"),
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
+  tipsDialog: document.getElementById("tipsDialog"),
+  tipsList: document.getElementById("tipsList"),
+  btnMarkAllTipsRead: document.getElementById("btnMarkAllTipsRead"),
   roomDetailsDialog: document.getElementById("roomDetailsDialog"),
   roomDetailsTitle: document.getElementById("roomDetailsTitle"),
   roomDetailsMeta: document.getElementById("roomDetailsMeta"),
@@ -167,6 +184,9 @@ function bindEvents() {
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
   els.btnSendInvite?.addEventListener("click", handleSendInvite);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
+  els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
+  els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
+  els.btnTipsInbox?.addEventListener("click", openTipsDialog);
   els.btnLogPanel?.addEventListener("click", toggleLogPanel);
   els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
   els.btnLogout.addEventListener("click", handleLogout);
@@ -195,6 +215,10 @@ function bindEvents() {
   els.btnRoomDialogOpen?.addEventListener("click", handleRoomDialogOpen);
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
+  els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
+  els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
+  els.btnSendTip?.addEventListener("click", sendTipMessage);
+  els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
   window.addEventListener("afterprint", () => {
@@ -238,12 +262,22 @@ function renderSession() {
   if (state.session) {
     const sessionName = state.session.name || formatRole(state.session.role);
     els.sessionRole.textContent = sessionName;
+    ensureDefaultActivePanel();
     els.btnLogout.style.display = "inline-flex";
+    if (els.btnHomePanel) {
+      els.btnHomePanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
+    if (els.btnRoomsPanel) {
+      els.btnRoomsPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
+    if (els.btnStudentsPanel) {
+      els.btnStudentsPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
+    if (els.btnTipsInbox) {
+      els.btnTipsInbox.style.display = "inline-flex";
+    }
     if (els.btnPrintPanel) {
       els.btnPrintPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
-    }
-    if (els.btnHomePanel) {
-      els.btnHomePanel.style.display = "inline-flex";
     }
     if (els.btnLogPanel) {
       els.btnLogPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
@@ -254,6 +288,15 @@ function renderSession() {
   } else {
     els.sessionRole.textContent = "Deslogado";
     els.btnLogout.style.display = "none";
+    if (els.btnRoomsPanel) {
+      els.btnRoomsPanel.style.display = "none";
+    }
+    if (els.btnStudentsPanel) {
+      els.btnStudentsPanel.style.display = "none";
+    }
+    if (els.btnTipsInbox) {
+      els.btnTipsInbox.style.display = "none";
+    }
     if (els.btnPrintPanel) {
       els.btnPrintPanel.style.display = "none";
     }
@@ -267,6 +310,8 @@ function renderSession() {
       els.btnInvitePanel.style.display = "none";
     }
   }
+  updateHeaderPanelButtons();
+  updateTipsUnreadBadge();
 }
 
 async function fetchProfile(userId) {
@@ -296,8 +341,155 @@ function goHomePanel() {
   if (!state.session) {
     return;
   }
-  state.ui.showLogPanel = false;
-  state.ui.showInvitePanel = false;
+  setActivePanel("dashboard");
+}
+
+function setActivePanel(panel) {
+  if (!state.session) {
+    return;
+  }
+  state.ui.activePanel = panel;
+  state.ui.showLogPanel = panel === "log";
+  state.ui.showInvitePanel = panel === "invite";
+  render();
+}
+
+function ensureDefaultActivePanel() {
+  if (!state.session) {
+    return;
+  }
+  if (state.session.role === "responsavel") {
+    state.ui.activePanel = "students";
+    state.ui.showLogPanel = false;
+    state.ui.showInvitePanel = false;
+    return;
+  }
+  const allowed = new Set(["dashboard", "rooms", "students", "log", "invite"]);
+  if (!allowed.has(state.ui.activePanel || "")) {
+    state.ui.activePanel = "dashboard";
+  }
+  state.ui.showLogPanel = state.ui.activePanel === "log";
+  state.ui.showInvitePanel = state.ui.activePanel === "invite";
+}
+
+function getActivePanel() {
+  return state.ui.activePanel || "dashboard";
+}
+
+function updateHeaderPanelButtons() {
+  const active = getActivePanel();
+  if (els.btnHomePanel) {
+    els.btnHomePanel.className = active === "dashboard" ? "primary" : "ghost";
+  }
+  if (els.btnRoomsPanel) {
+    els.btnRoomsPanel.className = active === "rooms" ? "primary" : "ghost";
+  }
+  if (els.btnStudentsPanel) {
+    els.btnStudentsPanel.className = active === "students" ? "primary" : "ghost";
+  }
+}
+
+function updateTipsUnreadBadge() {
+  if (!els.tipsUnreadCount || !els.btnTipsInbox) {
+    return;
+  }
+  const unread = getUnreadTipsForCurrentUser();
+  els.tipsUnreadCount.textContent = String(unread.length);
+  els.tipsUnreadCount.style.display = unread.length ? "inline-flex" : "none";
+  els.btnTipsInbox.classList.toggle("has-unread", unread.length > 0);
+}
+
+function getUnreadTipsForCurrentUser() {
+  if (!state.session) {
+    return [];
+  }
+  const myId = state.session.id;
+  return state.tips.filter((tip) => {
+    const isRecipient = !tip.recipientId || tip.recipientId === myId;
+    if (!isRecipient) {
+      return false;
+    }
+    return !state.tipReads.some((read) => read.tipId === tip.id && read.userId === myId);
+  });
+}
+
+function getVisibleTipsForCurrentUser() {
+  if (!state.session) {
+    return [];
+  }
+  const myId = state.session.id;
+  return state.tips
+    .filter((tip) => !tip.recipientId || tip.recipientId === myId || isAdmin())
+    .slice()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function isTipReadByCurrentUser(tipId) {
+  if (!state.session) {
+    return true;
+  }
+  return state.tipReads.some((read) => read.tipId === tipId && read.userId === state.session.id);
+}
+
+function openTipsDialog() {
+  if (!state.session) {
+    return;
+  }
+  renderTipsDialog();
+  els.tipsDialog?.showModal();
+}
+
+function renderTipsDialog() {
+  if (!els.tipsList) {
+    return;
+  }
+  const tips = getVisibleTipsForCurrentUser();
+  if (!tips.length) {
+    els.tipsList.innerHTML = `<div class="summary">Nenhuma mensagem disponivel.</div>`;
+    return;
+  }
+  els.tipsList.innerHTML = tips
+    .map((tip) => {
+      const read = isTipReadByCurrentUser(tip.id);
+      const dateText = formatDateTimeFromIso(tip.createdAt);
+      return `
+        <div class="list-item ${read ? "" : "is-selected"}">
+          <strong>${read ? "" : "[Nova] "}Mensagem</strong>
+          <span class="muted">${dateText}</span>
+          <span>${tip.message || ""}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function markAllTipsAsRead() {
+  if (!state.session) {
+    return;
+  }
+  const unread = getUnreadTipsForCurrentUser();
+  if (!unread.length) {
+    return;
+  }
+  if (supabaseClient) {
+    const payload = unread.map((tip) => ({
+      tip_id: tip.id,
+      user_id: state.session.id,
+      read_at: new Date().toISOString()
+    }));
+    const { error } = await supabaseClient.from("tip_reads").upsert(payload, { onConflict: "tip_id,user_id" });
+    if (error) {
+      alert(`Falha ao marcar mensagens como lidas: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    unread.forEach((tip) => {
+      state.tipReads.push({ tipId: tip.id, userId: state.session.id, readAt: new Date().toISOString() });
+    });
+  }
+  updateTipsUnreadBadge();
+  renderTipsDialog();
   render();
 }
 
@@ -313,6 +505,11 @@ async function hydrateFromSupabase() {
       state.students = [];
       state.rooms = [];
       state.checkins = [];
+      state.profiles = [];
+      state.schedules = [];
+      state.tips = [];
+      state.tipReads = [];
+      state.dashboardInfo = "";
       render();
       return;
     }
@@ -330,7 +527,10 @@ async function hydrateFromSupabase() {
     await fetchRooms();
     await fetchStudents();
     await fetchCheckins();
+    await fetchProfiles();
+    await fetchDashboardData();
     normalizeStudents();
+    ensureDefaultActivePanel();
     render();
   } catch (err) {
     console.warn("Falha ao carregar dados", err);
@@ -520,6 +720,81 @@ function renderRooms() {
   });
 }
 
+async function fetchProfiles() {
+  if (!supabaseClient || !state.session || !(isAdmin() || isEquipe())) {
+    state.profiles = [];
+    return;
+  }
+  const { data, error } = await supabaseClient.from("profiles").select("id,name,role,email");
+  if (error) {
+    console.warn("Falha ao buscar perfis", error);
+    state.profiles = [];
+    return;
+  }
+  state.profiles = (data || []).map((profile) => ({
+    id: profile.id,
+    name: profile.name || "Usuario",
+    role: normalizeRole(profile.role),
+    email: profile.email || ""
+  }));
+}
+
+async function fetchDashboardData() {
+  if (!supabaseClient || !state.session) {
+    return;
+  }
+  const [{ data: infoRows, error: infoError }, { data: schedules, error: schedulesError }, { data: tips, error: tipsError }, { data: reads, error: readsError }] =
+    await Promise.all([
+      supabaseClient.from("dashboard_settings").select("info_text").eq("id", 1).limit(1),
+      supabaseClient.from("schedules").select("*"),
+      supabaseClient.from("tips").select("*"),
+      supabaseClient.from("tip_reads").select("*")
+    ]);
+
+  if (!infoError) {
+    state.dashboardInfo = infoRows?.[0]?.info_text || "";
+  } else {
+    console.warn("Falha ao buscar dashboard_settings", infoError);
+    state.dashboardInfo = "";
+  }
+
+  if (!schedulesError) {
+    state.schedules = (schedules || []).map((item) => ({
+      id: item.id,
+      date: item.date,
+      profileId: item.profile_id || "",
+      lessonTheme: item.lesson_theme || "",
+      details: item.details || ""
+    }));
+  } else {
+    console.warn("Falha ao buscar schedules", schedulesError);
+    state.schedules = [];
+  }
+
+  if (!tipsError) {
+    state.tips = (tips || []).map((tip) => ({
+      id: tip.id,
+      message: tip.message || "",
+      recipientId: tip.recipient_id || "",
+      createdAt: tip.created_at || new Date().toISOString()
+    }));
+  } else {
+    console.warn("Falha ao buscar tips", tipsError);
+    state.tips = [];
+  }
+
+  if (!readsError) {
+    state.tipReads = (reads || []).map((item) => ({
+      tipId: item.tip_id,
+      userId: item.user_id,
+      readAt: item.read_at
+    }));
+  } else {
+    console.warn("Falha ao buscar tip_reads", readsError);
+    state.tipReads = [];
+  }
+}
+
 function renderStudents() {
   const session = state.session;
   const search = els.studentSearch.value.toLowerCase();
@@ -649,19 +924,22 @@ function renderStudents() {
 function renderCheckins() {}
 
 function renderDashboard() {
-  if (!els.dashboardAgenda || !els.dashboardAlerts || !els.dashboardBirthdays) {
+  if (
+    !els.dashboardAgenda ||
+    !els.dashboardAlerts ||
+    !els.dashboardBirthdays ||
+    !els.dashboardSchedules ||
+    !els.dashboardLessonToday
+  ) {
     return;
   }
 
-  const canViewDashboard =
-    Boolean(state.session) &&
-    (isAdmin() || isEquipe()) &&
-    !Boolean(state.ui?.showLogPanel) &&
-    !Boolean(state.ui?.showInvitePanel);
+  const canViewDashboard = Boolean(state.session) && (isAdmin() || isEquipe()) && getActivePanel() === "dashboard";
   if (!canViewDashboard) {
     return;
   }
 
+  const currentUserId = state.session.id;
   const today = formatToday();
   const todayRooms = state.rooms
     .filter((room) => room.date === today && room.status !== "Fechada")
@@ -677,7 +955,8 @@ function renderDashboard() {
     <strong>Agenda</strong><br />
     Hoje: ${todayRooms.length ? `${todayRooms.length} evento(s)` : "sem eventos"}<br />
     Proximos 30 dias: ${upcomingRooms.length} evento(s)<br />
-    Proximo evento: ${nextRoomLabel}
+    Proximo evento: ${nextRoomLabel}<br />
+    Informacoes: ${state.dashboardInfo || "Nenhuma informacao cadastrada."}
   `;
 
   const alerts = [];
@@ -701,36 +980,102 @@ function renderDashboard() {
   }
   els.dashboardAlerts.innerHTML = `<strong>Atencao</strong><br />${alerts.join("<br />")}`;
 
+  const mySchedules = state.schedules
+    .filter((item) => !item.profileId || item.profileId === currentUserId)
+    .slice()
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const upcomingMySchedules = mySchedules.filter((item) => {
+    const dateObj = parseInputDate(item.date);
+    if (!dateObj) {
+      return false;
+    }
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    return dateObj >= dayStart;
+  });
+  if (!upcomingMySchedules.length) {
+    els.dashboardSchedules.innerHTML = `<div class="summary">Sem escalas futuras para voce.</div>`;
+  } else {
+    els.dashboardSchedules.innerHTML = upcomingMySchedules
+      .slice(0, 8)
+      .map((item) => {
+        const dateObj = parseInputDate(item.date);
+        const dateLabel = dateObj ? formatDate(dateObj) : item.date;
+        return `<div class="list-item"><strong>${dateLabel}</strong><span class="muted">Tema: ${item.lessonTheme || "-"}</span></div>`;
+      })
+      .join("");
+  }
+
+  const todaySchedule = mySchedules.find((item) => {
+    const dateObj = parseInputDate(item.date);
+    const todayObj = parseRoomDate(today);
+    return Boolean(dateObj && todayObj && dateObj.getTime() === todayObj.getTime());
+  });
+  els.dashboardLessonToday.innerHTML = `
+    <strong>Tema da licao de hoje</strong><br />
+    ${todaySchedule?.lessonTheme || "Sem tema definido para hoje."}
+  `;
+
   const birthdayStudents = getCurrentMonthBirthdays();
   if (!birthdayStudents.length) {
     els.dashboardBirthdays.innerHTML = `<div class="summary">Nenhum aniversariante neste mes.</div>`;
-    return;
+  } else {
+    els.dashboardBirthdays.innerHTML = birthdayStudents
+      .map(
+        (student) => `
+          <div class="dashboard-birthday-item" data-birthday-student="${student.id}">
+            <div class="dashboard-balloon">
+              <img src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
+            </div>
+            <div class="dashboard-birthday-name">${student.name}</div>
+            <div class="dashboard-birthday-date">${formatBirthdayLabel(student.birth)}</div>
+          </div>
+        `
+      )
+      .join("");
+
+    const birthdayCards = els.dashboardBirthdays.querySelectorAll("[data-birthday-student]");
+    birthdayCards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const id = card.getAttribute("data-birthday-student");
+        const student = state.students.find((item) => item.id === id);
+        if (student) {
+          openStudentDetailsDialog(student);
+        }
+      });
+    });
   }
 
-  els.dashboardBirthdays.innerHTML = birthdayStudents
-    .map(
-      (student) => `
-        <div class="dashboard-birthday-item" data-birthday-student="${student.id}">
-          <div class="dashboard-balloon">
-            <img src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
-          </div>
-          <div class="dashboard-birthday-name">${student.name}</div>
-          <div class="dashboard-birthday-date">${formatBirthdayLabel(student.birth)}</div>
-        </div>
-      `
-    )
-    .join("");
+  renderAdminDashboardTools();
+  updateTipsUnreadBadge();
+}
 
-  const birthdayCards = els.dashboardBirthdays.querySelectorAll("[data-birthday-student]");
-  birthdayCards.forEach((card) => {
-    card.addEventListener("click", () => {
-      const id = card.getAttribute("data-birthday-student");
-      const student = state.students.find((item) => item.id === id);
-      if (student) {
-        openStudentDetailsDialog(student);
-      }
-    });
-  });
+function renderAdminDashboardTools() {
+  if (!els.dashboardAdminTools) {
+    return;
+  }
+  const canManageDashboard = isAdmin();
+  els.dashboardAdminTools.style.display = canManageDashboard ? "flex" : "none";
+  if (!canManageDashboard) {
+    return;
+  }
+  if (els.dashboardInfoText) {
+    els.dashboardInfoText.value = state.dashboardInfo || "";
+  }
+  if (els.tipsRecipientSelect) {
+    const current = els.tipsRecipientSelect.value || "all";
+    const options = ['<option value="all">Todos os usuarios</option>']
+      .concat(
+        state.profiles
+          .filter((profile) => profile.id !== state.session?.id)
+          .map((profile) => `<option value="${profile.id}">${profile.name} (${formatRole(profile.role)})</option>`)
+      )
+      .join("");
+    els.tipsRecipientSelect.innerHTML = options;
+    if (Array.from(els.tipsRecipientSelect.options).some((option) => option.value === current)) {
+      els.tipsRecipientSelect.value = current;
+    }
+  }
 }
 
 function renderRoleVisibility() {
@@ -773,9 +1118,8 @@ function renderRoleVisibility() {
     return;
   }
 
-  const showLogOnly = Boolean(state.ui?.showLogPanel) && (isAdmin() || isEquipe());
-  const showInviteOnly = Boolean(state.ui?.showInvitePanel) && isAdmin();
-  if (showLogOnly) {
+  const activePanel = getActivePanel();
+  if (activePanel === "log" && (isAdmin() || isEquipe())) {
     if (dashboardCard) {
       dashboardCard.style.display = "none";
     }
@@ -787,7 +1131,7 @@ function renderRoleVisibility() {
     }
     return;
   }
-  if (showInviteOnly) {
+  if (activePanel === "invite" && isAdmin()) {
     if (dashboardCard) {
       dashboardCard.style.display = "none";
     }
@@ -800,10 +1144,10 @@ function renderRoleVisibility() {
     return;
   }
   if (dashboardCard) {
-    dashboardCard.style.display = "flex";
+    dashboardCard.style.display = activePanel === "dashboard" ? "flex" : "none";
   }
-  roomCard.style.display = "flex";
-  studentCard.style.display = "flex";
+  roomCard.style.display = activePanel === "rooms" ? "flex" : "none";
+  studentCard.style.display = activePanel === "students" ? "flex" : "none";
   logCard.style.display = "none";
   if (inviteCard) {
     inviteCard.style.display = "none";
@@ -813,7 +1157,7 @@ function renderRoleVisibility() {
 function renderLog() {
   const canSeeLog = isEquipe() || isAdmin();
   const logCard = document.getElementById("logCard");
-  logCard.style.display = canSeeLog && state.ui?.showLogPanel ? "flex" : "none";
+  logCard.style.display = canSeeLog && getActivePanel() === "log" ? "flex" : "none";
   if (!canSeeLog) {
     return;
   }
@@ -854,22 +1198,229 @@ function toggleLogPanel() {
   if (!state.session || !(isAdmin() || isEquipe())) {
     return;
   }
-  state.ui.showLogPanel = !state.ui.showLogPanel;
-  if (state.ui.showLogPanel) {
-    state.ui.showInvitePanel = false;
-  }
-  render();
+  setActivePanel(getActivePanel() === "log" ? "dashboard" : "log");
 }
 
 function toggleInvitePanel() {
   if (!state.session || !isAdmin()) {
     return;
   }
-  state.ui.showInvitePanel = !state.ui.showInvitePanel;
-  if (state.ui.showInvitePanel) {
-    state.ui.showLogPanel = false;
+  setActivePanel(getActivePanel() === "invite" ? "dashboard" : "invite");
+}
+
+async function saveDashboardInfo() {
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  const value = (els.dashboardInfoText?.value || "").trim();
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("dashboard_settings").upsert({ id: 1, info_text: value });
+    if (error) {
+      alert(`Falha ao salvar informacoes: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    state.dashboardInfo = value;
   }
   render();
+}
+
+async function importScheduleFromFile() {
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  const file = els.scheduleFileInput?.files?.[0];
+  if (!file) {
+    alert("Selecione um arquivo Excel ou CSV.");
+    return;
+  }
+  const rows = await parseScheduleFile(file);
+  if (!rows.length) {
+    alert("Nenhuma linha valida encontrada no arquivo.");
+    return;
+  }
+  const payload = rows
+    .map((row) => normalizeScheduleRow(row))
+    .filter((row) => row.date && row.lessonTheme);
+  if (!payload.length) {
+    alert("Arquivo sem colunas validas. Use: data, usuario(email ou nome), tema.");
+    return;
+  }
+
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("schedules").insert(
+      payload.map((row) => ({
+        date: row.date,
+        profile_id: row.profileId || null,
+        lesson_theme: row.lessonTheme,
+        details: row.details || "",
+        created_by: state.session.id
+      }))
+    );
+    if (error) {
+      alert(`Falha ao importar escala: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    payload.forEach((row) => {
+      state.schedules.push({ id: uid(), ...row });
+    });
+  }
+  if (els.scheduleFileInput) {
+    els.scheduleFileInput.value = "";
+  }
+  alert(`${payload.length} linha(s) de escala importada(s).`);
+  render();
+}
+
+async function sendTipMessage() {
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  const message = (els.tipsMessageInput?.value || "").trim();
+  const recipient = els.tipsRecipientSelect?.value || "all";
+  if (!message) {
+    alert("Digite a mensagem.");
+    return;
+  }
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("tips").insert({
+      message,
+      recipient_id: recipient === "all" ? null : recipient,
+      created_by: state.session.id
+    });
+    if (error) {
+      alert(`Falha ao enviar mensagem: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    state.tips.push({
+      id: uid(),
+      message,
+      recipientId: recipient === "all" ? "" : recipient,
+      createdAt: new Date().toISOString()
+    });
+  }
+  if (els.tipsMessageInput) {
+    els.tipsMessageInput.value = "";
+  }
+  updateTipsUnreadBadge();
+  alert("Mensagem enviada.");
+  render();
+}
+
+function normalizeScheduleRow(row) {
+  const normalized = {};
+  const entries = Object.entries(row || {});
+  entries.forEach(([key, value]) => {
+    normalized[String(key || "").trim().toLowerCase()] = value;
+  });
+  const rawDate =
+    normalized.data ||
+    normalized.date ||
+    normalized.dia ||
+    normalized["data da escala"] ||
+    normalized["dia da escala"] ||
+    "";
+  const rawTheme = normalized.tema || normalized.licao || normalized["tema da licao"] || normalized.theme || "";
+  const rawDetails = normalized.observacao || normalized.observacoes || normalized.info || normalized.informacao || "";
+  const rawUser =
+    normalized.usuario ||
+    normalized.user ||
+    normalized.email ||
+    normalized["e-mail"] ||
+    normalized.nome ||
+    normalized.responsavel ||
+    "";
+
+  const date = normalizeScheduleDate(rawDate);
+  const lessonTheme = String(rawTheme || "").trim();
+  const details = String(rawDetails || "").trim();
+  const userToken = String(rawUser || "").trim().toLowerCase();
+  const matchedProfile = state.profiles.find((profile) => {
+    const byEmail = profile.email && profile.email.toLowerCase() === userToken;
+    const byName = profile.name && profile.name.toLowerCase() === userToken;
+    return byEmail || byName;
+  });
+  return {
+    date,
+    lessonTheme,
+    details,
+    profileId: matchedProfile?.id || ""
+  };
+}
+
+function normalizeScheduleDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const converted = new Date(excelEpoch.getTime() + value * 86400000);
+    if (!Number.isNaN(converted.getTime())) {
+      const day = String(converted.getUTCDate()).padStart(2, "0");
+      const month = String(converted.getUTCMonth() + 1).padStart(2, "0");
+      const year = converted.getUTCFullYear();
+      return `${year}-${month}-${day}`;
+    }
+  }
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("/");
+    return `${year}-${month}-${day}`;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const year = parsed.getFullYear();
+  return `${year}-${month}-${day}`;
+}
+
+async function parseScheduleFile(file) {
+  const name = String(file?.name || "").toLowerCase();
+  if (name.endsWith(".csv")) {
+    const text = await file.text();
+    return parseCsvRows(text);
+  }
+  if ((name.endsWith(".xlsx") || name.endsWith(".xls")) && window.XLSX) {
+    const bytes = await file.arrayBuffer();
+    const workbook = window.XLSX.read(bytes, { type: "array" });
+    const firstSheet = workbook.SheetNames[0];
+    if (!firstSheet) {
+      return [];
+    }
+    return window.XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: "" });
+  }
+  alert("Formato nao suportado. Use CSV ou Excel (.xlsx).");
+  return [];
+}
+
+function parseCsvRows(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) {
+    return [];
+  }
+  const delimiter = lines[0].includes(";") ? ";" : ",";
+  const headers = lines[0].split(delimiter).map((item) => item.trim());
+  return lines.slice(1).map((line) => {
+    const cols = line.split(delimiter);
+    return headers.reduce((acc, header, index) => {
+      acc[header] = (cols[index] || "").trim();
+      return acc;
+    }, {});
+  });
 }
 
 function handleSelectAllStudents(event) {
@@ -1029,9 +1580,14 @@ async function handleLogout() {
   state.students = [];
   state.rooms = [];
   state.checkins = [];
+  state.profiles = [];
+  state.schedules = [];
+  state.tips = [];
+  state.tipReads = [];
+  state.dashboardInfo = "";
   state.activeRoomId = "";
   state.selectedRoomId = "";
-  state.ui = { showLogPanel: false, showInvitePanel: false };
+  state.ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false };
   render();
 }
 
@@ -3721,8 +4277,20 @@ function loadState() {
         const rooms = Array.isArray(parsed.rooms)
           ? parsed.rooms.map((room) => ({ ...room, classTarget: room.classTarget || "" }))
           : [];
-        const ui = { showLogPanel: false, showInvitePanel: false, ...(parsed.ui || {}) };
-        return { activeRoomId: "", selectedRoomId: "", roomView: "open", ...parsed, rooms, ui };
+        const ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false, ...(parsed.ui || {}) };
+        return {
+          activeRoomId: "",
+          selectedRoomId: "",
+          roomView: "open",
+          profiles: [],
+          schedules: [],
+          tips: [],
+          tipReads: [],
+          dashboardInfo: "",
+          ...parsed,
+          rooms,
+          ui
+        };
       } catch (err) {
         console.warn("Falha ao ler storage", err);
       }
@@ -3736,8 +4304,14 @@ function loadState() {
     students: [],
     rooms: [],
     checkins: [],
+    profiles: [],
+    schedules: [],
+    tips: [],
+    tipReads: [],
+    dashboardInfo: "",
     visitors: [],
     ui: {
+      activePanel: "dashboard",
       showLogPanel: false,
       showInvitePanel: false
     }

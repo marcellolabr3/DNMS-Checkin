@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327s" />
+  <link rel="manifest" href="manifest.json?v=20260327t" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327s" />
+  <link rel="stylesheet" href="styles.css?v=20260327t" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -23,7 +23,13 @@
     </div>
     <div class="session">
       <div id="sessionRole" class="pill">Deslogado</div>
-      <button id="btnHomePanel" class="ghost" style="display:none">Inicio</button>
+      <button id="btnHomePanel" class="ghost" style="display:none">Dashboard</button>
+      <button id="btnRoomsPanel" class="ghost" style="display:none">Salas</button>
+      <button id="btnStudentsPanel" class="ghost" style="display:none">Alunos</button>
+      <button id="btnTipsInbox" class="ghost message-btn" style="display:none">
+        Mensagens
+        <span id="tipsUnreadCount" class="message-badge">0</span>
+      </button>
       <button id="btnPrintPanel" class="ghost">Painel de impressao</button>
       <button id="btnLogPanel" class="ghost">Log</button>
       <button id="btnInvitePanel" class="ghost">Convites</button>
@@ -57,9 +63,32 @@
       <div class="dashboard-grid">
         <div class="summary" id="dashboardAgenda"></div>
         <div class="summary" id="dashboardAlerts"></div>
+        <div class="summary" id="dashboardLessonToday"></div>
       </div>
+      <h3 class="dashboard-title">Proximas escalas</h3>
+      <div id="dashboardSchedules" class="dashboard-schedules"></div>
       <h3 class="dashboard-title">Aniversariantes do mes</h3>
       <div id="dashboardBirthdays" class="dashboard-birthdays"></div>
+      <section id="dashboardAdminTools" class="dashboard-admin-tools" style="display:none">
+        <h3 class="dashboard-title">Painel do ADM</h3>
+        <label class="field">Informacoes
+          <textarea id="dashboardInfoText" placeholder="Informacoes gerais para equipe e responsaveis"></textarea>
+        </label>
+        <button id="btnSaveDashboardInfo" class="primary">Salvar informacoes</button>
+        <label class="field">Escala do mes (Excel ou CSV)
+          <input id="scheduleFileInput" type="file" accept=".xlsx,.xls,.csv" />
+        </label>
+        <button id="btnImportScheduleFile" class="primary">Importar escala</button>
+        <label class="field">Dicas / Mensagem
+          <select id="tipsRecipientSelect">
+            <option value="all">Todos os usuarios</option>
+          </select>
+        </label>
+        <label class="field">Mensagem
+          <textarea id="tipsMessageInput" placeholder="Digite a mensagem para o usuario selecionado"></textarea>
+        </label>
+        <button id="btnSendTip" class="primary">Enviar mensagem</button>
+      </section>
     </section>
 
     <section class="card" id="roomCard" style="display:none">
@@ -281,6 +310,17 @@
     </div>
   </dialog>
 
+  <dialog id="tipsDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Mensagens recebidas</h3>
+      <div id="tipsList" class="list"></div>
+      <div class="dialog-actions">
+        <button id="btnMarkAllTipsRead" type="button" class="ghost">Marcar todas como lidas</button>
+        <button value="cancel" class="ghost">Fechar</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="roomDetailsDialog" class="dialog">
     <div class="dialog-body">
       <button class="dialog-close-x" type="button" aria-label="Fechar" onclick="this.closest('dialog').close()">X</button>
@@ -348,7 +388,8 @@
     </form>
   </dialog>
 
-  <script src="vendor/supabase-js.js?v=20260327s"></script>
-  <script src="app.js?v=20260327s"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="vendor/supabase-js.js?v=20260327t"></script>
+  <script src="app.js?v=20260327t"></script>
 </body>
 </html>
