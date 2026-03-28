@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260328k" />
+  <link rel="manifest" href="manifest.json?v=20260328l" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260328k" />
+  <link rel="stylesheet" href="styles.css?v=20260328l" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -86,7 +86,10 @@
         <label class="field">Mensagem
           <textarea id="tipsMessageInput" placeholder="Digite a mensagem para o usuario selecionado"></textarea>
         </label>
-        <button id="btnSendTip" class="primary">Enviar mensagem</button>
+        <div class="actions">
+          <button id="btnSendTip" class="primary">Enviar mensagem</button>
+          <button id="btnClearTipMessage" type="button" class="ghost">Limpar mensagem</button>
+        </div>
       </section>
     </section>
 
@@ -178,11 +181,23 @@
         <label class="field">Ate
           <input id="logEnd" type="date" />
         </label>
+        <label class="field">Turma
+          <select id="logClassFilter">
+            <option value="all">Todas as turmas</option>
+            <option value="Maternal">Maternal</option>
+            <option value="Kids">Kids</option>
+            <option value="Juniors">Juniors</option>
+            <option value="Teens">Teens</option>
+            <option value="Visitante">Visitante</option>
+          </select>
+        </label>
         <label class="field">Crianca
           <input id="logStudentFilter" type="text" placeholder="Digite o nome da crianca" list="logStudentOptions" />
           <datalist id="logStudentOptions"></datalist>
         </label>
+        <button id="btnLogSelectStudents" type="button" class="ghost">Selecionar criancas</button>
       </div>
+      <div id="logSelectedStudentsSummary" class="summary"></div>
       <div id="logSummary" class="summary"></div>
       <div id="logCounts" class="summary"></div>
       <div id="logList" class="list"></div>
@@ -324,6 +339,21 @@
     </form>
   </dialog>
 
+  <dialog id="logStudentsDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Selecionar crianças no log</h3>
+      <label class="field checkbox-field">
+        <span>Selecionar todas da turma</span>
+        <input id="logStudentsSelectAll" type="checkbox" />
+      </label>
+      <div id="logStudentsList" class="room-open-list"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Fechar</button>
+        <button id="btnApplyLogStudents" type="button" class="primary">Aplicar seleção</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="roomDetailsDialog" class="dialog">
     <div class="dialog-body">
       <button class="dialog-close-x" type="button" aria-label="Fechar" onclick="this.closest('dialog').close()">X</button>
@@ -392,7 +422,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260328k"></script>
-  <script src="app.js?v=20260328k"></script>
+  <script src="vendor/supabase-js.js?v=20260328l"></script>
+  <script src="app.js?v=20260328l"></script>
 </body>
 </html>

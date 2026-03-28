@@ -50,6 +50,7 @@ const els = {
   tipsRecipientSelect: document.getElementById("tipsRecipientSelect"),
   tipsMessageInput: document.getElementById("tipsMessageInput"),
   btnSendTip: document.getElementById("btnSendTip"),
+  btnClearTipMessage: document.getElementById("btnClearTipMessage"),
   roomStatus: document.getElementById("roomStatus"),
   roomCurrent: document.getElementById("roomCurrent"),
   roomList: document.getElementById("roomList"),
@@ -99,10 +100,17 @@ const els = {
   btnShareWhatsapp: document.getElementById("btnShareWhatsapp"),
   logStart: document.getElementById("logStart"),
   logEnd: document.getElementById("logEnd"),
+  logClassFilter: document.getElementById("logClassFilter"),
   logStudentFilter: document.getElementById("logStudentFilter"),
+  btnLogSelectStudents: document.getElementById("btnLogSelectStudents"),
+  logSelectedStudentsSummary: document.getElementById("logSelectedStudentsSummary"),
   logSummary: document.getElementById("logSummary"),
   logCounts: document.getElementById("logCounts"),
   logList: document.getElementById("logList"),
+  logStudentsDialog: document.getElementById("logStudentsDialog"),
+  logStudentsSelectAll: document.getElementById("logStudentsSelectAll"),
+  logStudentsList: document.getElementById("logStudentsList"),
+  btnApplyLogStudents: document.getElementById("btnApplyLogStudents"),
   inviteCard: document.getElementById("inviteCard"),
   manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
@@ -211,7 +219,14 @@ function bindEvents() {
   els.btnShareWhatsapp?.addEventListener("click", shareLogWhatsapp);
   els.logStart.addEventListener("change", renderLog);
   els.logEnd.addEventListener("change", renderLog);
+  els.logClassFilter?.addEventListener("change", () => {
+    state.ui.logSelectedStudentIds = [];
+    renderLog();
+  });
   els.logStudentFilter?.addEventListener("input", renderLog);
+  els.btnLogSelectStudents?.addEventListener("click", openLogStudentsDialog);
+  els.logStudentsSelectAll?.addEventListener("change", handleLogStudentsSelectAll);
+  els.btnApplyLogStudents?.addEventListener("click", applyLogStudentsSelection);
   els.btnSaveStudent.addEventListener("click", saveStudent);
   els.btnDeleteStudent?.addEventListener("click", deleteStudentFromDialog);
   els.btnStudentDetailsEdit?.addEventListener("click", handleStudentDetailsEdit);
@@ -223,6 +238,7 @@ function bindEvents() {
   els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSendTip?.addEventListener("click", sendTipMessage);
+  els.btnClearTipMessage?.addEventListener("click", clearTipMessageBox);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
@@ -1249,10 +1265,14 @@ function renderLog() {
     return;
   }
 
+  renderLogClassFilterOptions();
   renderLogStudentFilterOptions();
   const startValue = els.logStart?.value || "";
   const endValue = els.logEnd?.value || "";
   if (!startValue || !endValue) {
+    if (els.logSelectedStudentsSummary) {
+      els.logSelectedStudentsSummary.textContent = "Selecione o periodo para habilitar a selecao de criancas.";
+    }
     els.logSummary.textContent = "Selecione o periodo (De e Ate) para gerar a lista de frequencia.";
     els.logCounts.textContent = "";
     els.logList.innerHTML = "";
@@ -1262,10 +1282,17 @@ function renderLog() {
     if (els.btnShareWhatsapp) {
       els.btnShareWhatsapp.disabled = true;
     }
+    if (els.btnLogSelectStudents) {
+      els.btnLogSelectStudents.disabled = true;
+    }
     return;
   }
 
   const items = getFilteredCheckins();
+  const availableStudents = getAvailableLogStudents(items);
+  const allowedIds = new Set(availableStudents.map((student) => student.id));
+  state.ui.logSelectedStudentIds = (state.ui.logSelectedStudentIds || []).filter((id) => allowedIds.has(id));
+  renderLogSelectedStudentsSummary(availableStudents);
   const rows = buildLogFrequencyRows(items);
   els.logList.innerHTML = "";
   rows.forEach((row) => {
@@ -1292,6 +1319,9 @@ function renderLog() {
   els.btnExport.disabled = !totalRows;
   if (els.btnShareWhatsapp) {
     els.btnShareWhatsapp.disabled = !totalRows;
+  }
+  if (els.btnLogSelectStudents) {
+    els.btnLogSelectStudents.disabled = !availableStudents.length;
   }
 }
 
@@ -1421,6 +1451,13 @@ async function sendTipMessage() {
   updateTipsUnreadBadge();
   alert("Mensagem enviada.");
   render();
+}
+
+function clearTipMessageBox() {
+  if (els.tipsMessageInput) {
+    els.tipsMessageInput.value = "";
+    els.tipsMessageInput.focus();
+  }
 }
 
 function normalizeScheduleRow(row) {
@@ -1768,7 +1805,8 @@ async function handleLogout() {
     showLogPanel: false,
     showInvitePanel: false,
     expandedTips: [],
-    selectedManageUserId: ""
+    selectedManageUserId: "",
+    logSelectedStudentIds: []
   };
   render();
 }
@@ -3713,8 +3751,13 @@ function parseLogDateTimeLabel(value) {
 
 function buildLogFrequencyRows(checkins) {
   const filterTerm = String(els.logStudentFilter?.value || "").trim().toLowerCase();
+  const selectedIds = new Set(state.ui.logSelectedStudentIds || []);
+  const hasSelectedIds = selectedIds.size > 0;
   const grouped = new Map();
   for (const checkin of checkins) {
+    if (hasSelectedIds && !selectedIds.has(checkin.studentId)) {
+      continue;
+    }
     const student = state.students.find((item) => item.id === checkin.studentId);
     const studentName = student?.name || "Visitante";
     if (filterTerm && !studentName.toLowerCase().includes(filterTerm)) {
@@ -3747,6 +3790,104 @@ function buildLogFrequencyRows(checkins) {
       };
     })
     .sort((a, b) => a.studentName.localeCompare(b.studentName));
+}
+
+function getAvailableLogStudents(checkins) {
+  const map = new Map();
+  checkins.forEach((checkin) => {
+    const student = state.students.find((item) => item.id === checkin.studentId);
+    const id = checkin.studentId;
+    if (!id || map.has(id)) {
+      return;
+    }
+    map.set(id, {
+      id,
+      name: student?.name || "Visitante",
+      className: checkin.className || student?.className || "Visitante"
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function renderLogSelectedStudentsSummary(availableStudents) {
+  if (!els.logSelectedStudentsSummary) {
+    return;
+  }
+  const selectedIds = state.ui.logSelectedStudentIds || [];
+  if (!availableStudents.length) {
+    els.logSelectedStudentsSummary.textContent = "Nenhuma crianca com check-in no periodo/turma selecionados.";
+    return;
+  }
+  if (!selectedIds.length) {
+    els.logSelectedStudentsSummary.textContent = `Criancas filtradas: todas (${availableStudents.length}).`;
+    return;
+  }
+  const selectedNames = availableStudents
+    .filter((student) => selectedIds.includes(student.id))
+    .map((student) => student.name);
+  els.logSelectedStudentsSummary.textContent = `Criancas selecionadas (${selectedNames.length}): ${selectedNames.join(", ")}`;
+}
+
+function renderLogClassFilterOptions() {
+  if (!els.logClassFilter) {
+    return;
+  }
+  if (!els.logClassFilter.value) {
+    els.logClassFilter.value = "all";
+  }
+}
+
+function openLogStudentsDialog() {
+  if (!els.logStudentsDialog || !els.logStudentsList) {
+    return;
+  }
+  const students = getAvailableLogStudents(getFilteredCheckins());
+  els.logStudentsList.innerHTML = "";
+  if (!students.length) {
+    els.logStudentsList.innerHTML = `<div class="summary">Nenhuma crianca disponivel para o filtro atual.</div>`;
+    els.logStudentsDialog.showModal();
+    return;
+  }
+  const selectedSet = new Set(state.ui.logSelectedStudentIds || []);
+  students.forEach((student) => {
+    const row = document.createElement("label");
+    row.className = "field checkbox-field";
+    row.innerHTML = `
+      <span>${student.name} (${student.className})</span>
+      <input type="checkbox" data-log-student-id="${student.id}" ${selectedSet.has(student.id) ? "checked" : ""} />
+    `;
+    const box = row.querySelector('input[type="checkbox"][data-log-student-id]');
+    box?.addEventListener("change", syncLogStudentsSelectAllState);
+    els.logStudentsList.appendChild(row);
+  });
+  syncLogStudentsSelectAllState();
+  els.logStudentsDialog.showModal();
+}
+
+function handleLogStudentsSelectAll(event) {
+  const checked = Boolean(event?.target?.checked);
+  const boxes = els.logStudentsList?.querySelectorAll('input[type="checkbox"][data-log-student-id]') || [];
+  boxes.forEach((box) => {
+    box.checked = checked;
+  });
+}
+
+function syncLogStudentsSelectAllState() {
+  if (!els.logStudentsSelectAll || !els.logStudentsList) {
+    return;
+  }
+  const boxes = Array.from(els.logStudentsList.querySelectorAll('input[type="checkbox"][data-log-student-id]'));
+  els.logStudentsSelectAll.checked = boxes.length > 0 && boxes.every((box) => box.checked);
+}
+
+function applyLogStudentsSelection() {
+  if (!els.logStudentsList) {
+    return;
+  }
+  const boxes = els.logStudentsList.querySelectorAll('input[type="checkbox"][data-log-student-id]:checked');
+  state.ui.logSelectedStudentIds = Array.from(boxes).map((box) => box.getAttribute("data-log-student-id"));
+  els.logStudentsDialog?.close();
+  renderLog();
 }
 
 function renderLogStudentFilterOptions() {
@@ -3803,6 +3944,7 @@ function seedRoomDefaults() {
 function getFilteredCheckins() {
   const startValue = els.logStart.value;
   const endValue = els.logEnd.value;
+  const classFilter = (els.logClassFilter?.value || "all").trim();
   const startDate = parseInputDate(startValue);
   const endDate = parseInputDate(endValue);
 
@@ -3818,6 +3960,12 @@ function getFilteredCheckins() {
     if (endDate) {
       const endOfDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
       if (checkinDate > endOfDay) {
+        return false;
+      }
+    }
+    if (classFilter && classFilter !== "all") {
+      const className = checkin.className || "Visitante";
+      if (className !== classFilter) {
         return false;
       }
     }
@@ -4868,6 +5016,7 @@ function loadState() {
           showInvitePanel: false,
           expandedTips: [],
           selectedManageUserId: "",
+          logSelectedStudentIds: [],
           ...(parsed.ui || {})
         };
         return {
@@ -4907,7 +5056,8 @@ function loadState() {
       showLogPanel: false,
       showInvitePanel: false,
       expandedTips: [],
-      selectedManageUserId: ""
+      selectedManageUserId: "",
+      logSelectedStudentIds: []
     }
   };
 }

@@ -4,16 +4,18 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 
 const els = {
   printAuthStatus: document.getElementById("printAuthStatus"),
-  printQueueStatus: document.getElementById("printQueueStatus"),
   printLabel: document.getElementById("printLabel"),
   printStudentList: document.getElementById("printStudentList"),
-  printSelectAllStudents: document.getElementById("printSelectAllStudents"),
-  btnPrintSelected: document.getElementById("btnPrintSelected")
+  reprintDialog: document.getElementById("reprintDialog"),
+  reprintDialogText: document.getElementById("reprintDialogText"),
+  btnCloseReprintDialog: document.getElementById("btnCloseReprintDialog"),
+  btnConfirmReprintDialog: document.getElementById("btnConfirmReprintDialog")
 };
 
 const queue = [];
 let isPrinting = false;
 let studentsCache = [];
+const reprintContext = { studentId: "", studentName: "" };
 
 boot();
 
@@ -35,8 +37,10 @@ async function boot() {
 }
 
 function bindEvents() {
-  els.printSelectAllStudents?.addEventListener("change", handleSelectAllStudents);
-  els.btnPrintSelected?.addEventListener("click", handlePrintSelected);
+  els.btnCloseReprintDialog?.addEventListener("click", () => {
+    els.reprintDialog?.close();
+  });
+  els.btnConfirmReprintDialog?.addEventListener("click", handleConfirmReprintFromDialog);
 }
 
 async function fetchPendingCheckins() {
@@ -95,9 +99,11 @@ function enqueueCheckin(checkin, options = {}) {
 }
 
 function updateQueueStatus() {
-  els.printQueueStatus.textContent = queue.length
-    ? `Etiquetas na fila: ${queue.length}`
-    : "Nenhuma etiqueta pendente.";
+  if (!els.printAuthStatus) {
+    return;
+  }
+  const base = "Autenticado. Aguardando check-ins...";
+  els.printAuthStatus.textContent = queue.length ? `${base} Etiquetas na fila: ${queue.length}.` : base;
 }
 
 async function processQueue() {
@@ -167,7 +173,9 @@ async function fetchStudentsForReprint() {
     .order("checked_in_at", { ascending: false })
     .limit(5000);
   if (checkinsError) {
-    els.printQueueStatus.textContent = "Falha ao carregar check-ins para reimpressao.";
+    if (els.printAuthStatus) {
+      els.printAuthStatus.textContent = "Falha ao carregar check-ins para reimpressao.";
+    }
     return;
   }
   const studentIds = Array.from(new Set((checkins || []).map((item) => item.student_id).filter(Boolean)));
@@ -178,7 +186,9 @@ async function fetchStudentsForReprint() {
   }
   const { data, error } = await supabaseClient.from("students").select("id,name").in("id", studentIds).order("name");
   if (error) {
-    els.printQueueStatus.textContent = "Falha ao carregar alunos para reimpressao.";
+    if (els.printAuthStatus) {
+      els.printAuthStatus.textContent = "Falha ao carregar alunos para reimpressao.";
+    }
     return;
   }
   studentsCache = data || [];
@@ -194,67 +204,45 @@ function renderStudentsForReprint() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "print-student-item";
-    row.innerHTML = `
-      <input type="checkbox" data-print-student="${student.id}" />
-      <span>${student.name}</span>
-    `;
+    row.innerHTML = `<span>${student.name}</span>`;
     row.addEventListener("click", () => {
-      const box = row.querySelector('input[type="checkbox"][data-print-student]');
-      if (!box) {
-        return;
-      }
-      box.checked = !box.checked;
-      row.classList.toggle("is-selected", box.checked);
-      syncSelectAllState();
+      openReprintDialog(student);
     });
     els.printStudentList.appendChild(row);
   });
-  syncSelectAllState();
 }
 
-function handleSelectAllStudents(event) {
-  const checked = event.target.checked;
-  const boxes = els.printStudentList.querySelectorAll('input[type="checkbox"][data-print-student]');
-  boxes.forEach((box) => {
-    box.checked = checked;
-    box.closest(".print-student-item")?.classList.toggle("is-selected", checked);
-  });
-}
-
-async function handlePrintSelected() {
-  const boxes = els.printStudentList.querySelectorAll('input[type="checkbox"][data-print-student]:checked');
-  const studentIds = Array.from(boxes).map((box) => box.dataset.printStudent);
-  if (!studentIds.length) {
-    els.printQueueStatus.textContent = "Selecione ao menos um aluno para reimprimir.";
+function openReprintDialog(student) {
+  if (!student?.id) {
     return;
   }
-  let added = 0;
-  for (const studentId of studentIds) {
-    const latest = await fetchLatestCheckinForStudent(studentId);
-    if (!latest) {
-      continue;
-    }
-    enqueueCheckin(latest, { markPrinted: false, queueId: `reprint-${latest.id}-${studentId}-${Date.now()}` });
-    added += 1;
+  reprintContext.studentId = student.id;
+  reprintContext.studentName = student.name || "Aluno";
+  if (els.reprintDialogText) {
+    els.reprintDialogText.textContent = `Reimprimir etiqueta de ${reprintContext.studentName}?`;
   }
-  els.printQueueStatus.textContent = added
-    ? `${added} etiqueta(s) adicionada(s) para reimpressao.`
-    : "Nenhum check-in encontrado para os alunos selecionados.";
-  updateQueueStatus();
-  processQueue();
+  els.reprintDialog?.showModal();
 }
 
-async function fetchLatestCheckinForStudent(studentId) {
-  const { data, error } = await supabaseClient
-    .from("checkins")
-    .select("*")
-    .eq("student_id", studentId)
-    .order("checked_in_at", { ascending: false })
-    .limit(1);
-  if (error) {
-    return null;
+async function handleConfirmReprintFromDialog() {
+  const studentId = reprintContext.studentId;
+  if (!studentId) {
+    return;
   }
-  return data?.[0] || null;
+  const latest = await fetchLatestCheckinForStudent(studentId);
+  if (!latest) {
+    if (els.printAuthStatus) {
+      els.printAuthStatus.textContent = `Nenhum check-in encontrado para ${reprintContext.studentName}.`;
+    }
+    return;
+  }
+  enqueueCheckin(latest, { markPrinted: false, queueId: `reprint-${latest.id}-${studentId}-${Date.now()}` });
+  els.reprintDialog?.close();
+  updateQueueStatus();
+  await processQueue();
+  if (els.printAuthStatus) {
+    els.printAuthStatus.textContent = `Etiqueta reimpressa para ${reprintContext.studentName}.`;
+  }
 }
 
 function printCurrentLabel() {
@@ -284,14 +272,15 @@ function printCurrentLabel() {
   });
 }
 
-function syncSelectAllState() {
-  if (!els.printSelectAllStudents) {
-    return;
+async function fetchLatestCheckinForStudent(studentId) {
+  const { data, error } = await supabaseClient
+    .from("checkins")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("checked_in_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    return null;
   }
-  const boxes = Array.from(els.printStudentList.querySelectorAll('input[type="checkbox"][data-print-student]'));
-  if (!boxes.length) {
-    els.printSelectAllStudents.checked = false;
-    return;
-  }
-  els.printSelectAllStudents.checked = boxes.every((box) => box.checked);
+  return data?.[0] || null;
 }

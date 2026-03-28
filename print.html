@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Painel de Impressao</title>
-  <link rel="stylesheet" href="styles.css?v=20260328k" />
+  <link rel="stylesheet" href="styles.css?v=20260328l" />
   <style>
     body {
       padding: 24px;
@@ -106,20 +106,25 @@
   <main class="print-panel">
     <h2>Painel de Etiquetas</h2>
     <div id="printAuthStatus" class="print-status">Aguardando autenticacao...</div>
-    <div id="printQueueStatus" class="summary"></div>
     <section class="print-reprint">
       <h3>Reimprimir etiquetas</h3>
-      <label class="field checkbox-field">
-        <span>Selecionar todos</span>
-        <input id="printSelectAllStudents" type="checkbox" />
-      </label>
       <div id="printStudentList" class="print-student-list"></div>
-      <button id="btnPrintSelected" class="primary">Reimprimir selecionados</button>
     </section>
     <div id="printLabel" class="label"></div>
   </main>
 
-  <script src="vendor/supabase-js.js?v=20260328k"></script>
-  <script src="print.js?v=20260328k"></script>
+  <dialog id="reprintDialog" class="dialog">
+    <div class="dialog-body">
+      <h3>Reimprimir etiqueta</h3>
+      <div id="reprintDialogText" class="summary"></div>
+      <div class="dialog-actions">
+        <button id="btnCloseReprintDialog" class="ghost" type="button">Nao</button>
+        <button id="btnConfirmReprintDialog" class="primary" type="button">Sim, reimprimir</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="vendor/supabase-js.js?v=20260328l"></script>
+  <script src="print.js?v=20260328l"></script>
 </body>
 </html>
