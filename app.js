@@ -3326,7 +3326,7 @@ function isSadmin() {
 }
 
 function canAccessManagementPanel() {
-  return isSadmin() || isAdmin() || isEquipe();
+  return isSadmin() || isAdmin();
 }
 
 function formatRole(role) {
