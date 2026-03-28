@@ -1783,6 +1783,10 @@ async function handleSignupSubmit(event) {
     alert("Preencha os campos obrigatorios.");
     return;
   }
+  if (!isInviteFlow && phoneNumber.length < 8) {
+    alert("Informe um celular valido do responsavel.");
+    return;
+  }
   if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneDdd.length !== 2)) {
     alert("Preencha todos os campos obrigatorios.");
     return;
