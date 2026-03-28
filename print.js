@@ -236,10 +236,20 @@ async function handleConfirmReprintFromDialog() {
     }
     return;
   }
-  enqueueCheckin(latest, { markPrinted: false, queueId: `reprint-${latest.id}-${studentId}-${Date.now()}` });
   els.reprintDialog?.close();
-  updateQueueStatus();
-  await processQueue();
+  if (isPrinting) {
+    if (els.printAuthStatus) {
+      els.printAuthStatus.textContent = "Aguarde a impressao atual terminar para reimprimir.";
+    }
+    return;
+  }
+  isPrinting = true;
+  try {
+    await printCheckin({ ...latest, markPrinted: false });
+  } finally {
+    isPrinting = false;
+  }
+  processQueue();
   if (els.printAuthStatus) {
     els.printAuthStatus.textContent = `Etiqueta reimpressa para ${reprintContext.studentName}.`;
   }
