@@ -3,6 +3,7 @@ const STORAGE_BUCKET = "dnms-photos";
 const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
+const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
@@ -105,6 +106,8 @@ const els = {
   inviteEmail: document.getElementById("inviteEmail"),
   btnSendInvite: document.getElementById("btnSendInvite"),
   inviteStatus: document.getElementById("inviteStatus"),
+  manageUsersStatus: document.getElementById("manageUsersStatus"),
+  manageUsersList: document.getElementById("manageUsersList"),
   studentDialog: document.getElementById("studentDialog"),
   studentDialogTitle: document.getElementById("studentDialogTitle"),
   studentId: document.getElementById("studentId"),
@@ -124,6 +127,7 @@ const els = {
   studentNotes: document.getElementById("studentNotes"),
   studentVisitorField: document.getElementById("studentVisitorField"),
   studentIsVisitor: document.getElementById("studentIsVisitor"),
+  btnDeleteStudent: document.getElementById("btnDeleteStudent"),
   btnSaveStudent: document.getElementById("btnSaveStudent"),
   studentDetailsDialog: document.getElementById("studentDetailsDialog"),
   studentDetailsTitle: document.getElementById("studentDetailsTitle"),
@@ -209,6 +213,7 @@ function bindEvents() {
   els.logStart.addEventListener("change", renderLog);
   els.logEnd.addEventListener("change", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
+  els.btnDeleteStudent?.addEventListener("click", deleteStudentFromDialog);
   els.btnStudentDetailsEdit?.addEventListener("click", handleStudentDetailsEdit);
   els.btnStudentDetailsCheckout?.addEventListener("click", handleStudentDetailsCheckout);
   els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
@@ -255,6 +260,7 @@ function render() {
   renderRooms();
   renderStudents();
   renderLog();
+  renderManagementPanel();
   saveState();
 }
 
@@ -283,7 +289,7 @@ function renderSession() {
       els.btnLogPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
     }
     if (els.btnInvitePanel) {
-      els.btnInvitePanel.style.display = isAdmin() ? "inline-flex" : "none";
+      els.btnInvitePanel.style.display = canAccessManagementPanel() ? "inline-flex" : "none";
     }
   } else {
     els.sessionRole.textContent = "Deslogado";
@@ -315,7 +321,7 @@ function renderSession() {
 }
 
 async function fetchProfile(userId) {
-  const primaryResult = await supabaseClient.from("profiles").select("id,name,role").eq("id", userId).single();
+  const primaryResult = await supabaseClient.from("profiles").select("id,name,role,email").eq("id", userId).single();
   if (!primaryResult.error && primaryResult.data) {
     return primaryResult.data;
   }
@@ -333,7 +339,8 @@ async function fetchProfile(userId) {
   return {
     id: legacyResult.data.id,
     name: legacyResult.data.nome || "",
-    role: legacyResult.data.role
+    role: legacyResult.data.role,
+    email: ""
   };
 }
 
@@ -586,7 +593,7 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
-    state.session = { id: profile.id, name: profile.name, role: normalizeRole(profile.role) };
+    state.session = { id: profile.id, name: profile.name, role: normalizeRole(profile.role), email: profile.email || "" };
     await uploadPendingProfilePhoto(session.user);
     await fetchRooms();
     await fetchStudents();
@@ -1208,7 +1215,7 @@ function renderRoleVisibility() {
     }
     return;
   }
-  if (activePanel === "invite" && isAdmin()) {
+  if (activePanel === "invite" && canAccessManagementPanel()) {
     if (dashboardCard) {
       dashboardCard.style.display = "none";
     }
@@ -1279,7 +1286,7 @@ function toggleLogPanel() {
 }
 
 function toggleInvitePanel() {
-  if (!state.session || !isAdmin()) {
+  if (!state.session || !canAccessManagementPanel()) {
     return;
   }
   setActivePanel(getActivePanel() === "invite" ? "dashboard" : "invite");
@@ -1906,6 +1913,155 @@ async function acceptInviteToken(token, email) {
   return { ok: true };
 }
 
+function canManageProfileTarget(targetProfile) {
+  if (!state.session || !targetProfile) {
+    return false;
+  }
+  if (targetProfile.id === state.session.id) {
+    return false;
+  }
+  const targetRole = normalizeRole(targetProfile.role);
+  if (isSadmin()) {
+    return true;
+  }
+  if (isAdmin()) {
+    return targetRole === "equipe" || targetRole === "responsavel" || targetRole === "dnms_kids";
+  }
+  if (isEquipe()) {
+    return targetRole === "responsavel" || targetRole === "dnms_kids";
+  }
+  return false;
+}
+
+function canDeleteProfileTarget(targetProfile) {
+  if (!state.session || !targetProfile) {
+    return false;
+  }
+  if (targetProfile.id === state.session.id) {
+    return false;
+  }
+  if (isSadmin()) {
+    return true;
+  }
+  if (isAdmin()) {
+    const targetRole = normalizeRole(targetProfile.role);
+    return targetRole === "equipe" || targetRole === "responsavel" || targetRole === "dnms_kids";
+  }
+  return false;
+}
+
+function getAllowedRoleTargets() {
+  if (isSadmin()) {
+    return ["responsavel", "equipe", "admin"];
+  }
+  if (isAdmin()) {
+    return ["responsavel", "equipe"];
+  }
+  return ["responsavel"];
+}
+
+function renderManagementPanel() {
+  if (!els.manageUsersList || !els.manageUsersStatus) {
+    return;
+  }
+  if (!state.session || !canAccessManagementPanel()) {
+    els.manageUsersStatus.textContent = "";
+    els.manageUsersList.innerHTML = "";
+    return;
+  }
+
+  const roleLabel = isSadmin() ? "SADMIN" : formatRole(state.session.role);
+  els.manageUsersStatus.textContent = `Nivel atual: ${roleLabel}.`;
+  const sortedProfiles = state.profiles.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  if (!sortedProfiles.length) {
+    els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado.</div>`;
+    return;
+  }
+
+  els.manageUsersList.innerHTML = "";
+  sortedProfiles.forEach((profile) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    const canManage = canManageProfileTarget(profile);
+    const canDelete = canDeleteProfileTarget(profile);
+    const canChangeRole = canManage && (isSadmin() || isAdmin());
+    const roleOptions = getAllowedRoleTargets()
+      .map((role) => `<option value="${role}" ${normalizeRole(profile.role) === role ? "selected" : ""}>${formatRole(role)}</option>`)
+      .join("");
+
+    item.innerHTML = `
+      <strong>${profile.name || "Usuario"} ${profile.id === state.session.id ? "(Voce)" : ""}</strong>
+      <span class="muted">${profile.email || "-"}</span>
+      <span class="muted">Acesso atual: ${formatRole(profile.role)}</span>
+      <div class="actions">
+        <select data-manage-role="${profile.id}" ${canChangeRole ? "" : "disabled"}>
+          ${roleOptions}
+        </select>
+        <button class="primary" type="button" data-manage-save="${profile.id}" ${canChangeRole ? "" : "disabled"}>Salvar acesso</button>
+        <button class="danger" type="button" data-manage-delete="${profile.id}" ${canDelete ? "" : "disabled"}>Excluir usuario</button>
+      </div>
+    `;
+
+    const saveBtn = item.querySelector(`[data-manage-save="${profile.id}"]`);
+    const deleteBtn = item.querySelector(`[data-manage-delete="${profile.id}"]`);
+    const roleSelect = item.querySelector(`[data-manage-role="${profile.id}"]`);
+    saveBtn?.addEventListener("click", async () => {
+      const nextRole = normalizeRole(roleSelect?.value || "");
+      await updateUserAccess(profile, nextRole);
+    });
+    deleteBtn?.addEventListener("click", async () => {
+      await deleteUserProfile(profile);
+    });
+
+    els.manageUsersList.appendChild(item);
+  });
+}
+
+async function updateUserAccess(profile, nextRole) {
+  if (!profile || !nextRole) {
+    return;
+  }
+  if (!canManageProfileTarget(profile) || !(isSadmin() || isAdmin())) {
+    alert("Sem permissao para alterar este usuario.");
+    return;
+  }
+  const allowedRoles = new Set(getAllowedRoleTargets());
+  if (!allowedRoles.has(nextRole)) {
+    alert("Nivel de acesso nao permitido para seu perfil.");
+    return;
+  }
+  if (normalizeRole(profile.role) === nextRole) {
+    return;
+  }
+  const { error } = await supabaseClient.from("profiles").update({ role: nextRole }).eq("id", profile.id);
+  if (error) {
+    alert(`Falha ao atualizar acesso: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  await fetchProfiles();
+  render();
+}
+
+async function deleteUserProfile(profile) {
+  if (!profile) {
+    return;
+  }
+  if (!canDeleteProfileTarget(profile)) {
+    alert("Sem permissao para excluir este usuario.");
+    return;
+  }
+  if (!confirm(`Confirma excluir o usuario ${profile.name || profile.email || profile.id}?`)) {
+    return;
+  }
+  const { error } = await supabaseClient.from("profiles").delete().eq("id", profile.id);
+  if (error) {
+    alert(`Falha ao excluir usuario: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  await fetchProfiles();
+  render();
+}
+
 async function handleSendInvite(event) {
   event.preventDefault();
   if (!supabaseClient) {
@@ -2459,6 +2615,9 @@ function openStudentDialog(student) {
   if (els.studentVisitorField) {
     els.studentVisitorField.style.display = isResponsavel ? "none" : "flex";
   }
+  if (els.btnDeleteStudent) {
+    els.btnDeleteStudent.style.display = student && canDeleteStudent(student) ? "inline-flex" : "none";
+  }
   els.studentGuardian.required = !isResponsavel;
   els.studentPhone.required = !isResponsavel;
   els.studentAddress.required = !isResponsavel;
@@ -2547,6 +2706,43 @@ async function saveStudent(event) {
   }
 
   els.studentDialog.close();
+  render();
+}
+
+async function deleteStudentFromDialog(event) {
+  if (event) {
+    event.preventDefault();
+  }
+  const studentId = els.studentId?.value;
+  if (!studentId) {
+    return;
+  }
+  const student = state.students.find((item) => item.id === studentId);
+  if (!student) {
+    alert("Crianca nao encontrada.");
+    return;
+  }
+  if (!canDeleteStudent(student)) {
+    alert("Sem permissao para excluir crianca.");
+    return;
+  }
+  if (!confirm(`Confirma excluir a crianca ${student.name}?`)) {
+    return;
+  }
+
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("students").delete().eq("id", studentId);
+    if (error) {
+      alert(`Falha ao excluir crianca: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchStudents();
+    await fetchCheckins();
+  } else {
+    state.students = state.students.filter((item) => item.id !== studentId);
+    state.checkins = state.checkins.filter((item) => item.studentId !== studentId);
+  }
+  els.studentDialog?.close();
   render();
 }
 
@@ -2828,6 +3024,13 @@ function canEditStudent(student) {
   return student.guardian === state.session.name || student.owner === state.session.name;
 }
 
+function canDeleteStudent(student) {
+  if (!state.session || !student) {
+    return false;
+  }
+  return isSadmin() || isAdmin();
+}
+
 function canCheckinStudent(student) {
   if (!state.session) {
     return false;
@@ -2899,6 +3102,14 @@ function isEquipe() {
 
 function isAdmin() {
   return normalizeRole(state.session?.role) === "admin";
+}
+
+function isSadmin() {
+  return String(state.session?.email || "").trim().toLowerCase() === SADMIN_EMAIL;
+}
+
+function canAccessManagementPanel() {
+  return isSadmin() || isAdmin() || isEquipe();
 }
 
 function formatRole(role) {

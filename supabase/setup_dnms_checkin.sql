@@ -155,6 +155,107 @@ $$;
 grant execute on function public.is_staff_user(uuid) to authenticated;
 grant execute on function public.is_admin_user(uuid) to authenticated;
 
+create or replace function public.can_manage_profile(actor uuid, target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_role text;
+  actor_email text;
+  target_role text;
+begin
+  if actor is null or target is null then
+    return false;
+  end if;
+  if actor = target then
+    return false;
+  end if;
+
+  select lower(coalesce(p.email, '')), lower(coalesce(p.role, ''))
+    into actor_email, actor_role
+  from public.profiles p
+  where p.id = actor;
+
+  if actor_role is null then
+    return false;
+  end if;
+
+  if actor_email = 'marvinlabre@gmail.com' then
+    return true;
+  end if;
+
+  select lower(coalesce(p.role, ''))
+    into target_role
+  from public.profiles p
+  where p.id = target;
+
+  if target_role is null then
+    return false;
+  end if;
+
+  if actor_role = 'admin' then
+    return target_role in ('equipe', 'responsavel', 'dnms_kids');
+  end if;
+
+  if actor_role in ('equipe', 'dnms_kids') then
+    return target_role in ('responsavel', 'dnms_kids');
+  end if;
+
+  return false;
+end;
+$$;
+
+grant execute on function public.can_manage_profile(uuid, uuid) to authenticated;
+
+create or replace function public.can_delete_profile(actor uuid, target uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_role text;
+  actor_email text;
+  target_role text;
+begin
+  if actor is null or target is null or actor = target then
+    return false;
+  end if;
+
+  select lower(coalesce(p.email, '')), lower(coalesce(p.role, ''))
+    into actor_email, actor_role
+  from public.profiles p
+  where p.id = actor;
+
+  if actor_role is null then
+    return false;
+  end if;
+
+  if actor_email = 'marvinlabre@gmail.com' then
+    return true;
+  end if;
+
+  select lower(coalesce(p.role, ''))
+    into target_role
+  from public.profiles p
+  where p.id = target;
+
+  if target_role is null then
+    return false;
+  end if;
+
+  if actor_role = 'admin' then
+    return target_role in ('equipe', 'responsavel', 'dnms_kids');
+  end if;
+
+  return false;
+end;
+$$;
+
+grant execute on function public.can_delete_profile(uuid, uuid) to authenticated;
+
 drop policy if exists profiles_select_own_or_staff on public.profiles;
 create policy profiles_select_own_or_staff on public.profiles
 for select to authenticated
@@ -168,8 +269,13 @@ with check (auth.uid() = id);
 drop policy if exists profiles_update_own_or_admin on public.profiles;
 create policy profiles_update_own_or_admin on public.profiles
 for update to authenticated
-using (auth.uid() = id or public.is_admin_user(auth.uid()))
-with check (auth.uid() = id or public.is_admin_user(auth.uid()));
+using (auth.uid() = id or public.can_manage_profile(auth.uid(), id))
+with check (auth.uid() = id or public.can_manage_profile(auth.uid(), id));
+
+drop policy if exists profiles_delete_manageable on public.profiles;
+create policy profiles_delete_manageable on public.profiles
+for delete to authenticated
+using (public.can_delete_profile(auth.uid(), id));
 
 drop policy if exists students_select_staff_or_guardian on public.students;
 create policy students_select_staff_or_guardian on public.students
@@ -217,6 +323,14 @@ with check (
     select 1 from public.student_guardians sg
     where sg.student_id = students.id and sg.guardian_id = auth.uid()
   )
+);
+
+drop policy if exists students_delete_admin_only on public.students;
+create policy students_delete_admin_only on public.students
+for delete to authenticated
+using (
+  public.is_admin_user(auth.uid())
+  or lower(coalesce((select p.email from public.profiles p where p.id = auth.uid()), '')) = 'marvinlabre@gmail.com'
 );
 
 drop policy if exists rooms_select_authenticated on public.rooms;
