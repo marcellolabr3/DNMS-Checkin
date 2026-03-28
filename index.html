@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260328g" />
+  <link rel="manifest" href="manifest.json?v=20260328h" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260328g" />
+  <link rel="stylesheet" href="styles.css?v=20260328h" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -208,7 +208,7 @@
           <input id="studentName" required />
         </label>
         <label class="field">Data de nascimento
-          <input id="studentBirth" type="date" required />
+          <input id="studentBirth" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" required />
         </label>
         <label class="field">
           Foto do aluno
@@ -350,7 +350,7 @@
       </label>
       <div class="grid-2">
         <label class="field" id="signupBirthField">Data de nascimento
-          <input id="signupBirth" type="date" required />
+          <input id="signupBirth" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" required />
         </label>
         <label class="field" id="signupCivilField">Estado civil
           <select id="signupCivilStatus" required>
@@ -388,7 +388,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260328g"></script>
-  <script src="app.js?v=20260328g"></script>
+  <script src="vendor/supabase-js.js?v=20260328h"></script>
+  <script src="app.js?v=20260328h"></script>
 </body>
 </html>

@@ -1767,7 +1767,8 @@ async function handleSignupSubmit(event) {
     return;
   }
   const name = els.signupName.value.trim();
-  const birthDate = els.signupBirth.value;
+  const birthDateRaw = els.signupBirth.value;
+  const birthDate = normalizeBirthDateInput(birthDateRaw);
   const civilStatus = els.signupCivilStatus.value.trim();
   const phoneDdd = (els.signupPhoneDdd?.value || "").replace(/\D/g, "").slice(0, 2);
   const phoneNumber = (els.signupPhone.value || "").replace(/\D/g, "");
@@ -1781,6 +1782,10 @@ async function handleSignupSubmit(event) {
 
   if (!name || !email || !password) {
     alert("Preencha os campos obrigatorios.");
+    return;
+  }
+  if (!isInviteFlow && birthDateRaw && !birthDate) {
+    alert("Data de nascimento invalida. Use dd/mm/aaaa.");
     return;
   }
   if (!isInviteFlow && phoneNumber.length < 8) {
@@ -2644,7 +2649,7 @@ function openStudentDialog(student) {
   const id = student?.id || (supabaseClient ? "" : uid());
   els.studentId.value = id;
   els.studentName.value = student?.name || "";
-  els.studentBirth.value = student?.birth || "";
+  els.studentBirth.value = formatBirthDateForInput(student?.birth || "");
   els.studentGuardian.value = student?.guardian || state.session?.name || "";
   els.studentOther.value = student?.otherGuardians || "";
   els.studentPhone.value = student?.phone || "";
@@ -2689,11 +2694,17 @@ async function saveStudent(event) {
   const ownerName = isAdmin() || isEquipe() ? guardianName : state.session?.name || guardianName;
   const isVisitor = isResponsavel ? false : Boolean(els.studentIsVisitor.checked);
   const existing = state.students.find((student) => student.id === els.studentId.value);
+  const birthRaw = els.studentBirth.value;
+  const birthIso = normalizeBirthDateInput(birthRaw);
+  if (birthRaw && !birthIso) {
+    alert("Data de nascimento invalida. Use dd/mm/aaaa.");
+    return;
+  }
   const payload = {
     id: existing ? els.studentId.value : supabaseClient ? undefined : uid(),
     name: els.studentName.value.trim(),
-    birth: els.studentBirth.value,
-    className: getClassForBirth(els.studentBirth.value),
+    birth: birthIso,
+    className: getClassForBirth(birthIso),
     guardian: guardianName,
     otherGuardians: isResponsavel ? "" : els.studentOther.value.trim(),
     phone: isResponsavel ? "-" : els.studentPhone.value.trim(),
@@ -3456,6 +3467,48 @@ function formatDate(date) {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function isValidDateParts(year, month, day) {
+  if (!year || !month || !day) {
+    return false;
+  }
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function normalizeBirthDateInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number.parseInt(isoMatch[1], 10);
+    const month = Number.parseInt(isoMatch[2], 10);
+    const day = Number.parseInt(isoMatch[3], 10);
+    return isValidDateParts(year, month, day) ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` : "";
+  }
+  const brMatch = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+  if (!brMatch) {
+    return "";
+  }
+  const day = Number.parseInt(brMatch[1], 10);
+  const month = Number.parseInt(brMatch[2], 10);
+  const year = Number.parseInt(brMatch[3], 10);
+  if (!isValidDateParts(year, month, day)) {
+    return "";
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function formatBirthDateForInput(value) {
+  const iso = normalizeBirthDateInput(value);
+  if (!iso) {
+    return "";
+  }
+  const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
 }
 
