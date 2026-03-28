@@ -503,7 +503,7 @@ function renderTipsDialog() {
     wrapper.className = `list-item ${read ? "" : "is-selected"}`;
 
     const title = document.createElement("strong");
-    title.textContent = `${read ? "" : "[Nova] "}Mensagem`;
+    title.textContent = `${read ? "" : "[Nova] "}${resolveTipSenderLabel(tip)}`;
     wrapper.appendChild(title);
 
     const date = document.createElement("span");
@@ -567,6 +567,17 @@ function truncateTipMessage(message, max = 90) {
     return message || "";
   }
   return `${message.slice(0, max).trimEnd()}...`;
+}
+
+function resolveTipSenderLabel(tip) {
+  const senderName = String(tip?.senderName || "").trim();
+  if (senderName) {
+    return senderName;
+  }
+  if (tip?.createdBy && tip.createdBy === state.session?.id) {
+    return state.session?.name || "Voce";
+  }
+  return "Mensagem";
 }
 
 async function deleteTipMessage(tipId) {
@@ -996,7 +1007,9 @@ async function fetchDashboardData() {
       id: tip.id,
       message: tip.message || "",
       recipientId: tip.recipient_id || "",
-      createdAt: tip.created_at || new Date().toISOString()
+      createdAt: tip.created_at || new Date().toISOString(),
+      createdBy: tip.created_by || "",
+      senderName: tip.sender_name || ""
     }));
   } else {
     console.warn("Falha ao buscar tips", tipsError);
@@ -1559,7 +1572,8 @@ async function sendTipMessage() {
     const { error } = await supabaseClient.from("tips").insert({
       message,
       recipient_id: recipient === "all" ? null : recipient,
-      created_by: state.session.id
+      created_by: state.session.id,
+      sender_name: state.session?.name || ""
     });
     if (error) {
       alert(`Falha ao enviar mensagem: ${error.message || "erro inesperado"}`);
@@ -1571,7 +1585,9 @@ async function sendTipMessage() {
       id: uid(),
       message,
       recipientId: recipient === "all" ? "" : recipient,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      createdBy: state.session?.id || "",
+      senderName: state.session?.name || ""
     });
   }
   if (els.tipsMessageInput) {
