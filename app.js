@@ -562,7 +562,11 @@ async function deleteTipMessage(tipId) {
     return;
   }
   if (supabaseClient) {
-    let { error } = await supabaseClient.from("tips").delete().eq("id", tipId);
+    let { data: deletedRows, error } = await supabaseClient
+      .from("tips")
+      .delete()
+      .eq("id", tipId)
+      .select("id");
     if (error) {
       const message = String(error.message || "").toLowerCase();
       const looksLikeFkBlock = message.includes("foreign key") || message.includes("constraint");
@@ -572,12 +576,17 @@ async function deleteTipMessage(tipId) {
           alert(`Falha ao apagar leituras da mensagem: ${readsError.message || "erro inesperado"}`);
           return;
         }
-        const retry = await supabaseClient.from("tips").delete().eq("id", tipId);
+        const retry = await supabaseClient.from("tips").delete().eq("id", tipId).select("id");
+        deletedRows = retry.data;
         error = retry.error;
       }
     }
     if (error) {
       alert(`Falha ao apagar mensagem: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    if (!Array.isArray(deletedRows) || !deletedRows.length) {
+      alert("Mensagem nao apagada. Verifique permissoes RLS de DELETE na tabela tips.");
       return;
     }
     await fetchDashboardData();
@@ -605,7 +614,7 @@ async function deleteAllVisibleTips() {
   }
   if (supabaseClient) {
     const ids = tips.map((tip) => tip.id);
-    let { error } = await supabaseClient.from("tips").delete().in("id", ids);
+    let { data: deletedRows, error } = await supabaseClient.from("tips").delete().in("id", ids).select("id");
     if (error) {
       const message = String(error.message || "").toLowerCase();
       const looksLikeFkBlock = message.includes("foreign key") || message.includes("constraint");
@@ -615,12 +624,17 @@ async function deleteAllVisibleTips() {
           alert(`Falha ao apagar leituras das mensagens: ${readsError.message || "erro inesperado"}`);
           return;
         }
-        const retry = await supabaseClient.from("tips").delete().in("id", ids);
+        const retry = await supabaseClient.from("tips").delete().in("id", ids).select("id");
+        deletedRows = retry.data;
         error = retry.error;
       }
     }
     if (error) {
       alert(`Falha ao apagar mensagens: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    if (!Array.isArray(deletedRows) || !deletedRows.length) {
+      alert("Nenhuma mensagem foi apagada. Verifique permissoes RLS de DELETE na tabela tips.");
       return;
     }
     await fetchDashboardData();
@@ -2232,6 +2246,12 @@ function renderManagementPanel() {
   }
 
   const searchTerm = String(els.manageUserSearch?.value || "").trim().toLowerCase();
+  if (!searchTerm) {
+    els.manageUsersList.innerHTML = "";
+    els.manageUserEditor.innerHTML = "";
+    state.ui.selectedManageUserId = "";
+    return;
+  }
   const filteredProfiles = searchTerm
     ? sortedProfiles.filter((profile) => (profile.name || "").toLowerCase().includes(searchTerm))
     : sortedProfiles;
