@@ -166,12 +166,15 @@ function formatDateTime(value) {
 }
 
 async function fetchStudentsForReprint() {
+  const dayRange = getTodayUtcRange();
   const { data: checkins, error: checkinsError } = await supabaseClient
     .from("checkins")
     .select("student_id,checked_in_at")
     .not("student_id", "is", null)
+    .gte("checked_in_at", dayRange.startIso)
+    .lt("checked_in_at", dayRange.endIso)
     .order("checked_in_at", { ascending: false })
-    .limit(5000);
+    .limit(2000);
   if (checkinsError) {
     if (els.printAuthStatus) {
       els.printAuthStatus.textContent = "Falha ao carregar check-ins para reimpressao.";
@@ -182,6 +185,9 @@ async function fetchStudentsForReprint() {
   if (!studentIds.length) {
     studentsCache = [];
     renderStudentsForReprint();
+    if (els.printAuthStatus) {
+      els.printAuthStatus.textContent = "Nenhuma crianca fez check-in hoje. Nao ha etiquetas para reimprimir.";
+    }
     return;
   }
   const { data, error } = await supabaseClient.from("students").select("id,name").in("id", studentIds).order("name");
@@ -200,6 +206,10 @@ function renderStudentsForReprint() {
     return;
   }
   els.printStudentList.innerHTML = "";
+  if (!studentsCache.length) {
+    els.printStudentList.innerHTML = `<div class="summary">Nenhuma crianca fez check-in hoje.</div>`;
+    return;
+  }
   studentsCache.forEach((student) => {
     const row = document.createElement("button");
     row.type = "button";
@@ -283,14 +293,24 @@ function printCurrentLabel() {
 }
 
 async function fetchLatestCheckinForStudent(studentId) {
+  const dayRange = getTodayUtcRange();
   const { data, error } = await supabaseClient
     .from("checkins")
     .select("*")
     .eq("student_id", studentId)
+    .gte("checked_in_at", dayRange.startIso)
+    .lt("checked_in_at", dayRange.endIso)
     .order("checked_in_at", { ascending: false })
     .limit(1);
   if (error) {
     return null;
   }
   return data?.[0] || null;
+}
+
+function getTodayUtcRange() {
+  const now = new Date();
+  const startLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return { startIso: startLocal.toISOString(), endIso: endLocal.toISOString() };
 }
