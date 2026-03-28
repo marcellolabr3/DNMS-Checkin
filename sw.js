@@ -1,4 +1,4 @@
-const CACHE_NAME = "checkin-cache-v22";
+const CACHE_NAME = "checkin-cache-v23";
 const ASSETS = [
   "./",
   "./index.html",

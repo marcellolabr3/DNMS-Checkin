@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327r" />
+  <link rel="manifest" href="manifest.json?v=20260327s" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327r" />
+  <link rel="stylesheet" href="styles.css?v=20260327s" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -47,6 +47,19 @@
         Ainda não tem cadastro?
         <button id="btnOpenSignup" class="link-button" type="button">Clique aqui!</button>
       </p>
+    </section>
+
+    <section class="card" id="dashboardCard" style="display:none">
+      <div class="card-header">
+        <h2>Dashboard</h2>
+        <span class="pill">Visao geral</span>
+      </div>
+      <div class="dashboard-grid">
+        <div class="summary" id="dashboardAgenda"></div>
+        <div class="summary" id="dashboardAlerts"></div>
+      </div>
+      <h3 class="dashboard-title">Aniversariantes do mes</h3>
+      <div id="dashboardBirthdays" class="dashboard-birthdays"></div>
     </section>
 
     <section class="card" id="roomCard" style="display:none">
@@ -335,7 +348,7 @@
     </form>
   </dialog>
 
-  <script src="vendor/supabase-js.js?v=20260327r"></script>
-  <script src="app.js?v=20260327r"></script>
+  <script src="vendor/supabase-js.js?v=20260327s"></script>
+  <script src="app.js?v=20260327s"></script>
 </body>
 </html>

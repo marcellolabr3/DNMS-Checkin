@@ -31,6 +31,10 @@ const els = {
   btnOpenSignup: document.getElementById("btnOpenSignup"),
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
+  dashboardCard: document.getElementById("dashboardCard"),
+  dashboardAgenda: document.getElementById("dashboardAgenda"),
+  dashboardAlerts: document.getElementById("dashboardAlerts"),
+  dashboardBirthdays: document.getElementById("dashboardBirthdays"),
   roomStatus: document.getElementById("roomStatus"),
   roomCurrent: document.getElementById("roomCurrent"),
   roomList: document.getElementById("roomList"),
@@ -223,6 +227,7 @@ function bindEvents() {
 function render() {
   renderSession();
   renderRoleVisibility();
+  renderDashboard();
   renderRooms();
   renderStudents();
   renderLog();
@@ -643,8 +648,94 @@ function renderStudents() {
 
 function renderCheckins() {}
 
+function renderDashboard() {
+  if (!els.dashboardAgenda || !els.dashboardAlerts || !els.dashboardBirthdays) {
+    return;
+  }
+
+  const canViewDashboard =
+    Boolean(state.session) &&
+    (isAdmin() || isEquipe()) &&
+    !Boolean(state.ui?.showLogPanel) &&
+    !Boolean(state.ui?.showInvitePanel);
+  if (!canViewDashboard) {
+    return;
+  }
+
+  const today = formatToday();
+  const todayRooms = state.rooms
+    .filter((room) => room.date === today && room.status !== "Fechada")
+    .slice()
+    .sort(compareRooms);
+  const upcomingRooms = getUpcomingRooms(30);
+  const nextRoom = upcomingRooms[0] || null;
+  const nextRoomLabel = nextRoom
+    ? `${nextRoom.date} ${nextRoom.startTime || ""}${nextRoom.endTime ? ` - ${nextRoom.endTime}` : ""} | Turma ${nextRoom.classTarget || "-"}`
+    : "Nenhum evento agendado";
+
+  els.dashboardAgenda.innerHTML = `
+    <strong>Agenda</strong><br />
+    Hoje: ${todayRooms.length ? `${todayRooms.length} evento(s)` : "sem eventos"}<br />
+    Proximos 30 dias: ${upcomingRooms.length} evento(s)<br />
+    Proximo evento: ${nextRoomLabel}
+  `;
+
+  const alerts = [];
+  const openRooms = state.rooms.filter((room) => room.status === "Aberta");
+  const roomsWithoutTime = state.rooms.filter(
+    (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
+  );
+  const studentsWithNotes = state.students.filter((student) => (student.notes || "").trim().length > 0);
+
+  if (openRooms.length) {
+    alerts.push(`${openRooms.length} sala(s) aberta(s) neste momento.`);
+  }
+  if (roomsWithoutTime.length) {
+    alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
+  }
+  if (studentsWithNotes.length) {
+    alerts.push(`${studentsWithNotes.length} crianca(s) com observacoes cadastradas.`);
+  }
+  if (!alerts.length) {
+    alerts.push("Sem alertas pendentes.");
+  }
+  els.dashboardAlerts.innerHTML = `<strong>Atencao</strong><br />${alerts.join("<br />")}`;
+
+  const birthdayStudents = getCurrentMonthBirthdays();
+  if (!birthdayStudents.length) {
+    els.dashboardBirthdays.innerHTML = `<div class="summary">Nenhum aniversariante neste mes.</div>`;
+    return;
+  }
+
+  els.dashboardBirthdays.innerHTML = birthdayStudents
+    .map(
+      (student) => `
+        <div class="dashboard-birthday-item" data-birthday-student="${student.id}">
+          <div class="dashboard-balloon">
+            <img src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
+          </div>
+          <div class="dashboard-birthday-name">${student.name}</div>
+          <div class="dashboard-birthday-date">${formatBirthdayLabel(student.birth)}</div>
+        </div>
+      `
+    )
+    .join("");
+
+  const birthdayCards = els.dashboardBirthdays.querySelectorAll("[data-birthday-student]");
+  birthdayCards.forEach((card) => {
+    card.addEventListener("click", () => {
+      const id = card.getAttribute("data-birthday-student");
+      const student = state.students.find((item) => item.id === id);
+      if (student) {
+        openStudentDetailsDialog(student);
+      }
+    });
+  });
+}
+
 function renderRoleVisibility() {
   const session = state.session;
+  const dashboardCard = document.getElementById("dashboardCard");
   const roomCard = document.getElementById("roomCard");
   const studentCard = document.getElementById("studentCard");
   const logCard = document.getElementById("logCard");
@@ -657,6 +748,9 @@ function renderRoleVisibility() {
   }
 
   if (!session) {
+    if (dashboardCard) {
+      dashboardCard.style.display = "none";
+    }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
     logCard.style.display = "none";
@@ -667,6 +761,9 @@ function renderRoleVisibility() {
   }
 
   if (isResponsavel) {
+    if (dashboardCard) {
+      dashboardCard.style.display = "none";
+    }
     roomCard.style.display = "none";
     logCard.style.display = "none";
     if (inviteCard) {
@@ -679,6 +776,9 @@ function renderRoleVisibility() {
   const showLogOnly = Boolean(state.ui?.showLogPanel) && (isAdmin() || isEquipe());
   const showInviteOnly = Boolean(state.ui?.showInvitePanel) && isAdmin();
   if (showLogOnly) {
+    if (dashboardCard) {
+      dashboardCard.style.display = "none";
+    }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
     logCard.style.display = "flex";
@@ -688,6 +788,9 @@ function renderRoleVisibility() {
     return;
   }
   if (showInviteOnly) {
+    if (dashboardCard) {
+      dashboardCard.style.display = "none";
+    }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
     logCard.style.display = "none";
@@ -695,6 +798,9 @@ function renderRoleVisibility() {
       inviteCard.style.display = "flex";
     }
     return;
+  }
+  if (dashboardCard) {
+    dashboardCard.style.display = "flex";
   }
   roomCard.style.display = "flex";
   studentCard.style.display = "flex";
@@ -2102,6 +2208,49 @@ function canCheckinStudent(student) {
 function getRoomsToday() {
   const today = formatToday();
   return state.rooms.filter((room) => room.date === today);
+}
+
+function getUpcomingRooms(daysAhead = 30) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = addDays(start, daysAhead);
+  return state.rooms
+    .filter((room) => room.status !== "Fechada")
+    .map((room) => ({ room, dateObj: parseRoomDate(room.date) }))
+    .filter((item) => item.dateObj && item.dateObj >= start && item.dateObj <= end)
+    .map((item) => item.room)
+    .sort(compareRooms);
+}
+
+function getCurrentMonthBirthdays() {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  return state.students
+    .filter((student) => {
+      if (!student.birth) {
+        return false;
+      }
+      const [, month] = student.birth.split("-").map((item) => Number.parseInt(item, 10));
+      return month === currentMonth;
+    })
+    .slice()
+    .sort((a, b) => {
+      const dayA = Number.parseInt((a.birth || "").split("-")[2], 10) || 0;
+      const dayB = Number.parseInt((b.birth || "").split("-")[2], 10) || 0;
+      return dayA - dayB;
+    });
+}
+
+function formatBirthdayLabel(birth) {
+  if (!birth) {
+    return "";
+  }
+  const [year, month, day] = birth.split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return "";
+  }
+  const date = new Date(year, month - 1, day);
+  return formatDate(date);
 }
 
 function normalizeRole(role) {
