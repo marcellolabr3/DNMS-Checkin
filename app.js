@@ -1041,7 +1041,6 @@ function renderDashboard() {
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
-  const studentsWithNotes = state.students.filter((student) => (student.notes || "").trim().length > 0);
   const neuroStudents = state.students.filter((student) => {
     const notes = String(student.notes || "").toLowerCase();
     return /neuro|tea|autismo|autista|tdah/.test(notes);
@@ -1053,9 +1052,6 @@ function renderDashboard() {
   if (roomsWithoutTime.length) {
     alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
   }
-  if (studentsWithNotes.length) {
-    alerts.push(`${studentsWithNotes.length} crianca(s) com observacoes cadastradas.`);
-  }
   if (!alerts.length) {
     alerts.push("Sem alertas pendentes.");
   }
@@ -1066,9 +1062,9 @@ function renderDashboard() {
   els.dashboardAlerts.innerHTML = `
     <strong>Informacoes</strong><br />
     ${infoText}<br />
+    ${alerts.join("<br />")}<br />
     <strong>Atencao</strong><br />
-    ${neuroLine}<br />
-    ${alerts.join("<br />")}
+    ${neuroLine}
   `;
 
   const mySchedules = state.schedules
