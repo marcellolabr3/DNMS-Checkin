@@ -530,6 +530,9 @@ function renderStudents() {
   if (!isResponsavel && classFilter && classFilter !== "all" && classFilter !== "none") {
     items = items.filter((student) => (student.className || getClassForBirth(student.birth)) === classFilter);
   }
+  if (!isResponsavel && classFilter === "none") {
+    items = [];
+  }
 
   if (search) {
     items = items.filter((student) => {
