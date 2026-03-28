@@ -33,6 +33,7 @@ const els = {
   btnInvitePanel: document.getElementById("btnInvitePanel"),
   btnLogout: document.getElementById("btnLogout"),
   btnLogin: document.getElementById("btnLogin"),
+  btnForgotPassword: document.getElementById("btnForgotPassword"),
   btnOpenSignup: document.getElementById("btnOpenSignup"),
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
@@ -165,7 +166,14 @@ const els = {
   signupPassword: document.getElementById("signupPassword"),
   signupVisitorField: document.getElementById("signupVisitorField"),
   signupIsVisitor: document.getElementById("signupIsVisitor"),
-  btnSubmitSignup: document.getElementById("btnSubmitSignup")
+  btnSubmitSignup: document.getElementById("btnSubmitSignup"),
+  forgotPasswordDialog: document.getElementById("forgotPasswordDialog"),
+  forgotPasswordEmail: document.getElementById("forgotPasswordEmail"),
+  btnSendPasswordReset: document.getElementById("btnSendPasswordReset"),
+  resetPasswordDialog: document.getElementById("resetPasswordDialog"),
+  resetPasswordNew: document.getElementById("resetPasswordNew"),
+  resetPasswordConfirm: document.getElementById("resetPasswordConfirm"),
+  btnSubmitPasswordReset: document.getElementById("btnSubmitPasswordReset")
 };
 
 boot();
@@ -188,13 +196,17 @@ async function boot() {
     normalizeStudents();
     render();
   }
+  await maybeOpenPasswordResetDialog();
   registerServiceWorker();
 }
 
 function bindEvents() {
   els.btnLogin.addEventListener("click", handleLogin);
+  els.btnForgotPassword?.addEventListener("click", openForgotPasswordDialog);
   els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
+  els.btnSendPasswordReset?.addEventListener("click", handleSendPasswordResetEmail);
+  els.btnSubmitPasswordReset?.addEventListener("click", handleSubmitPasswordReset);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
@@ -2115,6 +2127,84 @@ async function handleSignupSubmit(event) {
     return;
   }
   alert("Cadastro criado com sucesso. Voce ja pode fazer login.");
+}
+
+function openForgotPasswordDialog() {
+  const email = (els.loginEmail?.value || "").trim();
+  if (els.forgotPasswordEmail) {
+    els.forgotPasswordEmail.value = email;
+  }
+  els.forgotPasswordDialog?.showModal();
+}
+
+async function handleSendPasswordResetEmail(event) {
+  event.preventDefault();
+  if (!supabaseClient) {
+    alert("Supabase nao configurado.");
+    return;
+  }
+  const email = (els.forgotPasswordEmail?.value || "").trim().toLowerCase();
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido.");
+    return;
+  }
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) {
+    alert(`Falha ao enviar link de redefinicao: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  els.forgotPasswordDialog?.close();
+  alert("Link de redefinicao enviado. Verifique email e spam.");
+}
+
+async function maybeOpenPasswordResetDialog() {
+  if (!supabaseClient) {
+    return;
+  }
+  const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hashParams = new URLSearchParams(hashValue || "");
+  const queryParams = new URLSearchParams(window.location.search || "");
+  const type = (hashParams.get("type") || queryParams.get("type") || "").toLowerCase();
+  if (type !== "recovery") {
+    return;
+  }
+  if (els.resetPasswordNew) {
+    els.resetPasswordNew.value = "";
+  }
+  if (els.resetPasswordConfirm) {
+    els.resetPasswordConfirm.value = "";
+  }
+  els.resetPasswordDialog?.showModal();
+}
+
+async function handleSubmitPasswordReset(event) {
+  event.preventDefault();
+  if (!supabaseClient) {
+    alert("Supabase nao configurado.");
+    return;
+  }
+  const newPassword = els.resetPasswordNew?.value || "";
+  const confirmPassword = els.resetPasswordConfirm?.value || "";
+  if (newPassword.length < 6) {
+    alert("A senha deve ter pelo menos 6 caracteres.");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    alert("As senhas nao conferem.");
+    return;
+  }
+  const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+  if (error) {
+    alert(`Falha ao redefinir senha: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  els.resetPasswordDialog?.close();
+  try {
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  } catch (_) {}
+  alert("Senha atualizada com sucesso. Faça login com a nova senha.");
 }
 
 async function verifyInviteToken(token, email) {

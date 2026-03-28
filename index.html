@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260328s" />
+  <link rel="manifest" href="manifest.json?v=20260328t" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260328s" />
+  <link rel="stylesheet" href="styles.css?v=20260328t" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -48,6 +48,9 @@
         <input id="loginPassword" type="password" placeholder="Senha" />
       </label>
       <button id="btnLogin" class="primary">Entrar</button>
+      <p class="muted auth-signup-text">
+        <button id="btnForgotPassword" class="link-button" type="button">Esqueceu a senha?</button>
+      </p>
       <p class="muted auth-signup-text">
         Ainda não tem cadastro?
         <button id="btnOpenSignup" class="link-button" type="button">Clique aqui!</button>
@@ -422,8 +425,37 @@
     </form>
   </dialog>
 
+  <dialog id="forgotPasswordDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Recuperar senha</h3>
+      <label class="field">Email
+        <input id="forgotPasswordEmail" type="email" placeholder="exemplo@email.com" required />
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnSendPasswordReset" value="default" class="primary">Enviar link</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="resetPasswordDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Redefinir senha</h3>
+      <label class="field">Nova senha
+        <input id="resetPasswordNew" type="password" placeholder="Nova senha" required />
+      </label>
+      <label class="field">Confirmar senha
+        <input id="resetPasswordConfirm" type="password" placeholder="Repita a senha" required />
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnSubmitPasswordReset" value="default" class="primary">Atualizar senha</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260328s"></script>
-  <script src="app.js?v=20260328s"></script>
+  <script src="vendor/supabase-js.js?v=20260328t"></script>
+  <script src="app.js?v=20260328t"></script>
 </body>
 </html>
