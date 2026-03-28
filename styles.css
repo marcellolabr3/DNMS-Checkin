@@ -353,6 +353,17 @@ button:disabled,
   color: #c0392b;
 }
 
+.tip-message-preview {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1.35;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

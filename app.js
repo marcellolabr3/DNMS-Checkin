@@ -448,19 +448,59 @@ function renderTipsDialog() {
     els.tipsList.innerHTML = `<div class="summary">Nenhuma mensagem disponivel.</div>`;
     return;
   }
-  els.tipsList.innerHTML = tips
-    .map((tip) => {
-      const read = isTipReadByCurrentUser(tip.id);
-      const dateText = formatDateTimeFromIso(tip.createdAt);
-      return `
-        <div class="list-item ${read ? "" : "is-selected"}">
-          <strong>${read ? "" : "[Nova] "}Mensagem</strong>
-          <span class="muted">${dateText}</span>
-          <span>${tip.message || ""}</span>
-        </div>
-      `;
-    })
-    .join("");
+  const expandedTips = new Set(state.ui?.expandedTips || []);
+  els.tipsList.innerHTML = "";
+  tips.forEach((tip) => {
+    const read = isTipReadByCurrentUser(tip.id);
+    const dateText = formatDateTimeFromIso(tip.createdAt);
+    const message = String(tip.message || "");
+    const wrapper = document.createElement("div");
+    wrapper.className = `list-item ${read ? "" : "is-selected"}`;
+
+    const title = document.createElement("strong");
+    title.textContent = `${read ? "" : "[Nova] "}Mensagem`;
+    wrapper.appendChild(title);
+
+    const date = document.createElement("span");
+    date.className = "muted";
+    date.textContent = dateText;
+    wrapper.appendChild(date);
+
+    const preview = document.createElement("button");
+    preview.type = "button";
+    preview.className = "tip-message-preview";
+    preview.setAttribute("data-tip-id", tip.id);
+    const expanded = expandedTips.has(tip.id);
+    preview.textContent = expanded ? message : truncateTipMessage(message, 90);
+    wrapper.appendChild(preview);
+
+    if (expanded && message.length > 90) {
+      const hint = document.createElement("span");
+      hint.className = "muted";
+      hint.textContent = "Clique para recolher";
+      wrapper.appendChild(hint);
+    }
+
+    preview.addEventListener("click", () => {
+      const current = new Set(state.ui?.expandedTips || []);
+      if (current.has(tip.id)) {
+        current.delete(tip.id);
+      } else {
+        current.add(tip.id);
+      }
+      state.ui.expandedTips = Array.from(current);
+      renderTipsDialog();
+    });
+
+    els.tipsList.appendChild(wrapper);
+  });
+}
+
+function truncateTipMessage(message, max = 90) {
+  if (!message || message.length <= max) {
+    return message || "";
+  }
+  return `${message.slice(0, max).trimEnd()}...`;
 }
 
 async function markAllTipsAsRead() {
@@ -1587,7 +1627,7 @@ async function handleLogout() {
   state.dashboardInfo = "";
   state.activeRoomId = "";
   state.selectedRoomId = "";
-  state.ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false };
+  state.ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false, expandedTips: [] };
   render();
 }
 
@@ -4277,7 +4317,13 @@ function loadState() {
         const rooms = Array.isArray(parsed.rooms)
           ? parsed.rooms.map((room) => ({ ...room, classTarget: room.classTarget || "" }))
           : [];
-        const ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false, ...(parsed.ui || {}) };
+        const ui = {
+          activePanel: "dashboard",
+          showLogPanel: false,
+          showInvitePanel: false,
+          expandedTips: [],
+          ...(parsed.ui || {})
+        };
         return {
           activeRoomId: "",
           selectedRoomId: "",
@@ -4313,7 +4359,8 @@ function loadState() {
     ui: {
       activePanel: "dashboard",
       showLogPanel: false,
-      showInvitePanel: false
+      showInvitePanel: false,
+      expandedTips: []
     }
   };
 }
