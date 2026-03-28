@@ -474,6 +474,7 @@ function renderTipsDialog() {
     return;
   }
   const tips = getVisibleTipsForCurrentUser();
+  const canDeleteTips = canAccessManagementPanel();
   if (!tips.length) {
     els.tipsList.innerHTML = `<div class="summary">Nenhuma mensagem disponivel.</div>`;
     return;
@@ -511,6 +512,24 @@ function renderTipsDialog() {
       wrapper.appendChild(hint);
     }
 
+    if (canDeleteTips) {
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const btnDelete = document.createElement("button");
+      btnDelete.type = "button";
+      btnDelete.className = "danger";
+      btnDelete.textContent = "Apagar mensagem";
+      btnDelete.addEventListener("click", async () => {
+        const confirmed = confirm("Deseja apagar esta mensagem?");
+        if (!confirmed) {
+          return;
+        }
+        await deleteTipMessage(tip.id);
+      });
+      actions.appendChild(btnDelete);
+      wrapper.appendChild(actions);
+    }
+
     preview.addEventListener("click", async () => {
       const current = new Set(state.ui?.expandedTips || []);
       if (current.has(tip.id)) {
@@ -534,6 +553,32 @@ function truncateTipMessage(message, max = 90) {
     return message || "";
   }
   return `${message.slice(0, max).trimEnd()}...`;
+}
+
+async function deleteTipMessage(tipId) {
+  if (!tipId || !state.session || !canAccessManagementPanel()) {
+    return;
+  }
+  if (supabaseClient) {
+    const { error: readsError } = await supabaseClient.from("tip_reads").delete().eq("tip_id", tipId);
+    if (readsError) {
+      alert(`Falha ao apagar leituras da mensagem: ${readsError.message || "erro inesperado"}`);
+      return;
+    }
+    const { error } = await supabaseClient.from("tips").delete().eq("id", tipId);
+    if (error) {
+      alert(`Falha ao apagar mensagem: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    state.tipReads = state.tipReads.filter((item) => item.tipId !== tipId);
+    state.tips = state.tips.filter((item) => item.id !== tipId);
+  }
+  state.ui.expandedTips = (state.ui.expandedTips || []).filter((id) => id !== tipId);
+  updateTipsUnreadBadge();
+  renderTipsDialog();
+  render();
 }
 
 async function markTipAsRead(tipId) {
@@ -2129,13 +2174,9 @@ function renderManagementPanel() {
   }
 
   const searchTerm = String(els.manageUserSearch?.value || "").trim().toLowerCase();
-  if (!searchTerm) {
-    els.manageUsersList.innerHTML = `<div class="summary">Digite um nome para buscar usuarios.</div>`;
-    els.manageUserEditor.innerHTML = `<strong>Nenhum usuario selecionado.</strong>`;
-    return;
-  }
-
-  const filteredProfiles = sortedProfiles.filter((profile) => (profile.name || "").toLowerCase().includes(searchTerm));
+  const filteredProfiles = searchTerm
+    ? sortedProfiles.filter((profile) => (profile.name || "").toLowerCase().includes(searchTerm))
+    : sortedProfiles;
   if (!filteredProfiles.length) {
     els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado para "${searchTerm}".</div>`;
     els.manageUserEditor.innerHTML = `<strong>Nenhum usuario selecionado.</strong>`;
