@@ -1065,8 +1065,8 @@ function renderDashboard() {
   els.dashboardAlerts.innerHTML = `
     <strong>Informacoes</strong><br />
     ${infoText}<br />
-    ${neuroLine}<br />
     <strong>Atencao</strong><br />
+    ${neuroLine}<br />
     ${alerts.join("<br />")}
   `;
 
