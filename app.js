@@ -841,6 +841,7 @@ async function fetchDashboardData() {
       id: item.id,
       date: item.date,
       profileId: item.profile_id || "",
+      targetUser: item.target_user || "",
       lessonTheme: item.lesson_theme || "",
       details: item.details || ""
     }));
@@ -1017,7 +1018,6 @@ function renderDashboard() {
     return;
   }
 
-  const currentUserId = state.session.id;
   const today = formatToday();
   const todayRooms = state.rooms
     .filter((room) => room.date === today && room.status !== "Fechada")
@@ -1068,7 +1068,7 @@ function renderDashboard() {
   `;
 
   const mySchedules = state.schedules
-    .filter((item) => !item.profileId || item.profileId === currentUserId)
+    .filter((item) => scheduleBelongsToCurrentUser(item))
     .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
   const upcomingMySchedules = mySchedules.filter((item) => {
@@ -1363,6 +1363,7 @@ async function importScheduleFromFile() {
       payload.map((row) => ({
         date: row.date,
         profile_id: row.profileId || null,
+        target_user: row.targetUser || null,
         lesson_theme: row.lessonTheme,
         details: row.details || "",
         created_by: state.session.id
@@ -1449,17 +1450,14 @@ function normalizeScheduleRow(row) {
   const date = normalizeScheduleDate(rawDate);
   const lessonTheme = String(rawTheme || "").trim();
   const details = String(rawDetails || "").trim();
-  const userToken = String(rawUser || "").trim().toLowerCase();
-  const matchedProfile = state.profiles.find((profile) => {
-    const byEmail = profile.email && profile.email.toLowerCase() === userToken;
-    const byName = profile.name && profile.name.toLowerCase() === userToken;
-    return byEmail || byName;
-  });
+  const userToken = String(rawUser || "").trim();
+  const matchedProfile = findProfileByUserToken(userToken);
   return {
     date,
     lessonTheme,
     details,
-    profileId: matchedProfile?.id || ""
+    profileId: matchedProfile?.id || "",
+    targetUser: userToken || matchedProfile?.email || matchedProfile?.name || ""
   };
 }
 
@@ -1512,6 +1510,74 @@ async function parseScheduleFile(file) {
   }
   alert("Formato nao suportado. Use CSV ou Excel (.xlsx).");
   return [];
+}
+
+function normalizeMatchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function findProfileByUserToken(rawToken) {
+  const token = normalizeMatchText(rawToken);
+  if (!token) {
+    return null;
+  }
+  const tokenParts = token.split(" ").filter((part) => part.length >= 2);
+  return (
+    state.profiles.find((profile) => {
+      const email = normalizeMatchText(profile.email || "");
+      if (email && (email === token || email.includes(token) || token.includes(email))) {
+        return true;
+      }
+      const name = normalizeMatchText(profile.name || "");
+      if (!name) {
+        return false;
+      }
+      if (name === token || name.includes(token) || token.includes(name)) {
+        return true;
+      }
+      if (!tokenParts.length) {
+        return false;
+      }
+      const overlap = tokenParts.filter((part) => name.includes(part)).length;
+      return overlap >= Math.min(2, tokenParts.length);
+    }) || null
+  );
+}
+
+function scheduleBelongsToCurrentUser(schedule) {
+  if (!state.session || !schedule) {
+    return false;
+  }
+  if (schedule.profileId) {
+    return schedule.profileId === state.session.id;
+  }
+  const sessionEmail = normalizeMatchText(state.session.email || "");
+  const sessionName = normalizeMatchText(state.session.name || "");
+  const sessionParts = sessionName.split(" ").filter((part) => part.length >= 2);
+  const candidates = [schedule.targetUser, schedule.details]
+    .map((value) => normalizeMatchText(value))
+    .filter(Boolean);
+  if (!candidates.length) {
+    return true;
+  }
+  return candidates.some((candidate) => {
+    if (sessionEmail && (candidate === sessionEmail || candidate.includes(sessionEmail) || sessionEmail.includes(candidate))) {
+      return true;
+    }
+    if (sessionName && (candidate === sessionName || candidate.includes(sessionName) || sessionName.includes(candidate))) {
+      return true;
+    }
+    if (!sessionParts.length) {
+      return false;
+    }
+    const overlap = sessionParts.filter((part) => candidate.includes(part)).length;
+    return overlap >= Math.min(2, sessionParts.length);
+  });
 }
 
 function parseCsvRows(text) {

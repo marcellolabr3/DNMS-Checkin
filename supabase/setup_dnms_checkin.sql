@@ -92,11 +92,15 @@ create table if not exists public.schedules (
   id uuid primary key default gen_random_uuid(),
   date date not null,
   profile_id uuid null references public.profiles (id) on delete set null,
+  target_user text null,
   lesson_theme text not null,
   details text not null default '',
   created_by uuid null references public.profiles (id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.schedules
+  add column if not exists target_user text null;
 
 create table if not exists public.tips (
   id uuid primary key default gen_random_uuid(),
@@ -119,6 +123,7 @@ create index if not exists idx_checkins_room_student on public.checkins (room_id
 create index if not exists idx_checkins_student_checkedin on public.checkins (student_id, checked_in_at desc);
 create index if not exists idx_invites_token on public.invites (token);
 create index if not exists idx_schedules_date on public.schedules (date);
+create index if not exists idx_schedules_target_user on public.schedules (target_user);
 create index if not exists idx_tips_recipient on public.tips (recipient_id, created_at desc);
 create index if not exists idx_tip_reads_user on public.tip_reads (user_id, read_at desc);
 
