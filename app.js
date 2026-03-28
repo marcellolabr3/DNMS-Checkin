@@ -88,6 +88,7 @@ const els = {
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
   tipsDialog: document.getElementById("tipsDialog"),
   tipsList: document.getElementById("tipsList"),
+  btnDeleteAllTips: document.getElementById("btnDeleteAllTips"),
   btnMarkAllTipsRead: document.getElementById("btnMarkAllTipsRead"),
   roomDetailsDialog: document.getElementById("roomDetailsDialog"),
   roomDetailsTitle: document.getElementById("roomDetailsTitle"),
@@ -239,6 +240,7 @@ function bindEvents() {
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSendTip?.addEventListener("click", sendTipMessage);
   els.btnClearTipMessage?.addEventListener("click", clearTipMessageBox);
+  els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
@@ -560,12 +562,20 @@ async function deleteTipMessage(tipId) {
     return;
   }
   if (supabaseClient) {
-    const { error: readsError } = await supabaseClient.from("tip_reads").delete().eq("tip_id", tipId);
-    if (readsError) {
-      alert(`Falha ao apagar leituras da mensagem: ${readsError.message || "erro inesperado"}`);
-      return;
+    let { error } = await supabaseClient.from("tips").delete().eq("id", tipId);
+    if (error) {
+      const message = String(error.message || "").toLowerCase();
+      const looksLikeFkBlock = message.includes("foreign key") || message.includes("constraint");
+      if (looksLikeFkBlock) {
+        const { error: readsError } = await supabaseClient.from("tip_reads").delete().eq("tip_id", tipId);
+        if (readsError) {
+          alert(`Falha ao apagar leituras da mensagem: ${readsError.message || "erro inesperado"}`);
+          return;
+        }
+        const retry = await supabaseClient.from("tips").delete().eq("id", tipId);
+        error = retry.error;
+      }
     }
-    const { error } = await supabaseClient.from("tips").delete().eq("id", tipId);
     if (error) {
       alert(`Falha ao apagar mensagem: ${error.message || "erro inesperado"}`);
       return;
@@ -576,6 +586,50 @@ async function deleteTipMessage(tipId) {
     state.tips = state.tips.filter((item) => item.id !== tipId);
   }
   state.ui.expandedTips = (state.ui.expandedTips || []).filter((id) => id !== tipId);
+  updateTipsUnreadBadge();
+  renderTipsDialog();
+  render();
+}
+
+async function deleteAllVisibleTips() {
+  if (!state.session || !canAccessManagementPanel()) {
+    return;
+  }
+  const tips = getVisibleTipsForCurrentUser();
+  if (!tips.length) {
+    return;
+  }
+  const confirmed = confirm(`Deseja apagar ${tips.length} mensagem(ns)?`);
+  if (!confirmed) {
+    return;
+  }
+  if (supabaseClient) {
+    const ids = tips.map((tip) => tip.id);
+    let { error } = await supabaseClient.from("tips").delete().in("id", ids);
+    if (error) {
+      const message = String(error.message || "").toLowerCase();
+      const looksLikeFkBlock = message.includes("foreign key") || message.includes("constraint");
+      if (looksLikeFkBlock) {
+        const { error: readsError } = await supabaseClient.from("tip_reads").delete().in("tip_id", ids);
+        if (readsError) {
+          alert(`Falha ao apagar leituras das mensagens: ${readsError.message || "erro inesperado"}`);
+          return;
+        }
+        const retry = await supabaseClient.from("tips").delete().in("id", ids);
+        error = retry.error;
+      }
+    }
+    if (error) {
+      alert(`Falha ao apagar mensagens: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchDashboardData();
+  } else {
+    const ids = new Set(tips.map((tip) => tip.id));
+    state.tipReads = state.tipReads.filter((item) => !ids.has(item.tipId));
+    state.tips = state.tips.filter((item) => !ids.has(item.id));
+  }
+  state.ui.expandedTips = [];
   updateTipsUnreadBadge();
   renderTipsDialog();
   render();
@@ -860,7 +914,7 @@ function renderRooms() {
 }
 
 async function fetchProfiles() {
-  if (!supabaseClient || !state.session || !(isAdmin() || isEquipe())) {
+  if (!supabaseClient || !state.session || !canAccessManagementPanel()) {
     state.profiles = [];
     return;
   }
@@ -1390,7 +1444,11 @@ function toggleInvitePanel() {
   if (!state.session || !canAccessManagementPanel()) {
     return;
   }
-  setActivePanel(getActivePanel() === "invite" ? "dashboard" : "invite");
+  const nextPanel = getActivePanel() === "invite" ? "dashboard" : "invite";
+  setActivePanel(nextPanel);
+  if (nextPanel === "invite") {
+    fetchProfiles().then(() => renderManagementPanel());
+  }
 }
 
 async function saveDashboardInfo() {
