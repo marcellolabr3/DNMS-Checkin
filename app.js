@@ -483,13 +483,14 @@ async function fetchCheckins() {
 
 function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
-  const openRooms = sortedRooms.filter((room) => room.status === "Aberta");
+  const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada");
+  const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = isAdmin() || isEquipe();
 
   els.btnCreateRoom.disabled = !canManageRoom;
-  if (!sortedRooms.length) {
+  if (!visibleRooms.length) {
     els.roomStatus.textContent = "Nenhuma sala aberta";
-    els.roomCurrent.textContent = "Nenhuma sala cadastrada.";
+    els.roomCurrent.textContent = "Nenhuma sala ativa na aba Eventos.";
   } else if (openRooms.length) {
     els.roomStatus.textContent = openRooms.length > 1 ? "Salas abertas" : "Sala aberta";
     els.roomCurrent.textContent = "Clique em uma sala para abrir/fechar e gerenciar.";
@@ -499,7 +500,7 @@ function renderRooms() {
   }
 
   els.roomList.innerHTML = "";
-  sortedRooms.forEach((room) => {
+  visibleRooms.forEach((room) => {
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
