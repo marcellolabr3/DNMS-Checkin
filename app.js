@@ -1010,7 +1010,8 @@ function renderDashboard() {
     return;
   }
 
-  const canViewDashboard = Boolean(state.session) && (isAdmin() || isEquipe()) && getActivePanel() === "dashboard";
+  const canViewDashboard =
+    Boolean(state.session) && (getActivePanel() === "dashboard" || state.session?.role === "responsavel");
   if (!canViewDashboard) {
     return;
   }
@@ -1196,7 +1197,7 @@ function renderRoleVisibility() {
 
   if (isResponsavel) {
     if (dashboardCard) {
-      dashboardCard.style.display = "none";
+      dashboardCard.style.display = "flex";
     }
     roomCard.style.display = "none";
     logCard.style.display = "none";
