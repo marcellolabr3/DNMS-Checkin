@@ -503,7 +503,7 @@ function renderTipsDialog() {
     wrapper.className = `list-item ${read ? "" : "is-selected"}`;
 
     const title = document.createElement("strong");
-    title.textContent = `${read ? "" : "[Nova] "}${resolveTipSenderLabel(tip)}`;
+    title.textContent = `[${resolveTipRecipientLabel(tip)}] Mensagem`;
     wrapper.appendChild(title);
 
     const date = document.createElement("span");
@@ -569,15 +569,16 @@ function truncateTipMessage(message, max = 90) {
   return `${message.slice(0, max).trimEnd()}...`;
 }
 
-function resolveTipSenderLabel(tip) {
-  const senderName = String(tip?.senderName || "").trim();
-  if (senderName) {
-    return senderName;
+function resolveTipRecipientLabel(tip) {
+  const recipientId = String(tip?.recipientId || "").trim();
+  if (!recipientId) {
+    return "Todos";
   }
-  if (tip?.createdBy && tip.createdBy === state.session?.id) {
-    return state.session?.name || "Voce";
+  if (recipientId === state.session?.id) {
+    return state.session?.name || "Usuario";
   }
-  return "Mensagem";
+  const profile = state.profiles.find((item) => item.id === recipientId);
+  return profile?.name || "Usuario";
 }
 
 async function deleteTipMessage(tipId) {
