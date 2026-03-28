@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260327y" />
+  <link rel="manifest" href="manifest.json?v=20260327z" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260327y" />
+  <link rel="stylesheet" href="styles.css?v=20260327z" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -188,19 +188,14 @@
       <div class="card-header">
         <h2>Gestao</h2>
       </div>
-      <p class="muted">Gestao de acessos e convites.</p>
+      <p class="muted">Gestao de acessos de usuarios.</p>
       <div id="manageUsersStatus" class="summary"></div>
-      <div id="manageUsersList" class="list"></div>
-      <hr />
-      <p class="muted">Envio de convite para cadastro com perfil DNMS Kids.</p>
       <label class="field">
-        Email do convite
-        <input id="inviteEmail" type="email" placeholder="equipe@email.com" />
+        Buscar usuario por nome
+        <input id="manageUserSearch" placeholder="Digite o nome para localizar" />
       </label>
-      <div class="actions">
-        <button id="btnSendInvite" class="primary">Enviar convite</button>
-      </div>
-      <div id="inviteStatus" class="summary"></div>
+      <div id="manageUsersList" class="list"></div>
+      <div id="manageUserEditor" class="summary"></div>
     </section>
   </main>
 
@@ -393,7 +388,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260327y"></script>
-  <script src="app.js?v=20260327y"></script>
+  <script src="vendor/supabase-js.js?v=20260327z"></script>
+  <script src="app.js?v=20260327z"></script>
 </body>
 </html>

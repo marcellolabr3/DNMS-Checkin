@@ -256,6 +256,69 @@ $$;
 
 grant execute on function public.can_delete_profile(uuid, uuid) to authenticated;
 
+create or replace function public.can_update_profile_with_role(actor uuid, target uuid, new_role text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_role text;
+  actor_email text;
+  target_role text;
+  normalized_new_role text;
+begin
+  if actor is null or target is null then
+    return false;
+  end if;
+
+  normalized_new_role := lower(coalesce(new_role, ''));
+  if normalized_new_role not in ('admin', 'equipe', 'responsavel', 'dnms_kids') then
+    return false;
+  end if;
+
+  select lower(coalesce(p.email, '')), lower(coalesce(p.role, ''))
+    into actor_email, actor_role
+  from public.profiles p
+  where p.id = actor;
+
+  if actor_role is null then
+    return false;
+  end if;
+
+  select lower(coalesce(p.role, ''))
+    into target_role
+  from public.profiles p
+  where p.id = target;
+
+  if target_role is null then
+    return false;
+  end if;
+
+  if actor = target then
+    return normalized_new_role = target_role;
+  end if;
+
+  if actor_email = 'marvinlabre@gmail.com' then
+    return true;
+  end if;
+
+  if actor_role = 'admin' then
+    return target_role in ('equipe', 'responsavel', 'dnms_kids')
+      and normalized_new_role in ('equipe', 'responsavel', 'dnms_kids');
+  end if;
+
+  if actor_role in ('equipe', 'dnms_kids') then
+    return target_role in ('responsavel', 'dnms_kids')
+      and normalized_new_role = target_role;
+  end if;
+
+  return false;
+end;
+$$;
+
+grant execute on function public.can_update_profile_with_role(uuid, uuid, text) to authenticated;
+
 drop policy if exists profiles_select_own_or_staff on public.profiles;
 create policy profiles_select_own_or_staff on public.profiles
 for select to authenticated
@@ -270,7 +333,7 @@ drop policy if exists profiles_update_own_or_admin on public.profiles;
 create policy profiles_update_own_or_admin on public.profiles
 for update to authenticated
 using (auth.uid() = id or public.can_manage_profile(auth.uid(), id))
-with check (auth.uid() = id or public.can_manage_profile(auth.uid(), id));
+with check (public.can_update_profile_with_role(auth.uid(), id, role));
 
 drop policy if exists profiles_delete_manageable on public.profiles;
 create policy profiles_delete_manageable on public.profiles

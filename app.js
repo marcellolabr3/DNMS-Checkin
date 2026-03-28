@@ -103,11 +103,10 @@ const els = {
   logCounts: document.getElementById("logCounts"),
   logList: document.getElementById("logList"),
   inviteCard: document.getElementById("inviteCard"),
-  inviteEmail: document.getElementById("inviteEmail"),
-  btnSendInvite: document.getElementById("btnSendInvite"),
-  inviteStatus: document.getElementById("inviteStatus"),
+  manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
   manageUsersList: document.getElementById("manageUsersList"),
+  manageUserEditor: document.getElementById("manageUserEditor"),
   studentDialog: document.getElementById("studentDialog"),
   studentDialogTitle: document.getElementById("studentDialogTitle"),
   studentId: document.getElementById("studentId"),
@@ -186,7 +185,6 @@ function bindEvents() {
   els.btnLogin.addEventListener("click", handleLogin);
   els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
-  els.btnSendInvite?.addEventListener("click", handleSendInvite);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
@@ -224,6 +222,7 @@ function bindEvents() {
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSendTip?.addEventListener("click", sendTipMessage);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
+  els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
   window.addEventListener("afterprint", () => {
@@ -1671,7 +1670,13 @@ async function handleLogout() {
   state.dashboardInfo = "";
   state.activeRoomId = "";
   state.selectedRoomId = "";
-  state.ui = { activePanel: "dashboard", showLogPanel: false, showInvitePanel: false, expandedTips: [] };
+  state.ui = {
+    activePanel: "dashboard",
+    showLogPanel: false,
+    showInvitePanel: false,
+    expandedTips: [],
+    selectedManageUserId: ""
+  };
   render();
 }
 
@@ -1961,59 +1966,96 @@ function getAllowedRoleTargets() {
 }
 
 function renderManagementPanel() {
-  if (!els.manageUsersList || !els.manageUsersStatus) {
+  if (!els.manageUsersList || !els.manageUsersStatus || !els.manageUserEditor) {
     return;
   }
   if (!state.session || !canAccessManagementPanel()) {
     els.manageUsersStatus.textContent = "";
     els.manageUsersList.innerHTML = "";
+    els.manageUserEditor.innerHTML = "";
     return;
   }
 
   const roleLabel = isSadmin() ? "SADMIN" : formatRole(state.session.role);
-  els.manageUsersStatus.textContent = `Nivel atual: ${roleLabel}.`;
-  const sortedProfiles = state.profiles.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  els.manageUsersStatus.textContent = `Nivel atual: ${roleLabel}. Busque e selecione um usuario para editar.`;
+  const sortedProfiles = state.profiles
+    .filter((profile) => profile.id !== state.session.id)
+    .slice()
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   if (!sortedProfiles.length) {
     els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado.</div>`;
+    els.manageUserEditor.innerHTML = "";
     return;
   }
 
-  els.manageUsersList.innerHTML = "";
-  sortedProfiles.forEach((profile) => {
-    const item = document.createElement("div");
-    item.className = "list-item";
-    const canManage = canManageProfileTarget(profile);
-    const canDelete = canDeleteProfileTarget(profile);
-    const canChangeRole = canManage && (isSadmin() || isAdmin());
-    const roleOptions = getAllowedRoleTargets()
-      .map((role) => `<option value="${role}" ${normalizeRole(profile.role) === role ? "selected" : ""}>${formatRole(role)}</option>`)
-      .join("");
+  const searchTerm = String(els.manageUserSearch?.value || "").trim().toLowerCase();
+  if (!searchTerm) {
+    els.manageUsersList.innerHTML = `<div class="summary">Digite um nome para buscar usuarios.</div>`;
+    els.manageUserEditor.innerHTML = `<strong>Nenhum usuario selecionado.</strong>`;
+    return;
+  }
 
+  const filteredProfiles = sortedProfiles.filter((profile) => (profile.name || "").toLowerCase().includes(searchTerm));
+  if (!filteredProfiles.length) {
+    els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado para "${searchTerm}".</div>`;
+    els.manageUserEditor.innerHTML = `<strong>Nenhum usuario selecionado.</strong>`;
+    return;
+  }
+
+  const selectedId = state.ui.selectedManageUserId || "";
+  const selectedProfile = filteredProfiles.find((profile) => profile.id === selectedId) || null;
+
+  els.manageUsersList.innerHTML = "";
+  filteredProfiles.forEach((profile) => {
+    const item = document.createElement("div");
+    item.className = `list-item ${selectedId === profile.id ? "is-selected" : ""}`;
     item.innerHTML = `
-      <strong>${profile.name || "Usuario"} ${profile.id === state.session.id ? "(Voce)" : ""}</strong>
+      <strong>${profile.name || "Usuario"}</strong>
       <span class="muted">${profile.email || "-"}</span>
       <span class="muted">Acesso atual: ${formatRole(profile.role)}</span>
-      <div class="actions">
-        <select data-manage-role="${profile.id}" ${canChangeRole ? "" : "disabled"}>
-          ${roleOptions}
-        </select>
-        <button class="primary" type="button" data-manage-save="${profile.id}" ${canChangeRole ? "" : "disabled"}>Salvar acesso</button>
-        <button class="danger" type="button" data-manage-delete="${profile.id}" ${canDelete ? "" : "disabled"}>Excluir usuario</button>
-      </div>
     `;
-
-    const saveBtn = item.querySelector(`[data-manage-save="${profile.id}"]`);
-    const deleteBtn = item.querySelector(`[data-manage-delete="${profile.id}"]`);
-    const roleSelect = item.querySelector(`[data-manage-role="${profile.id}"]`);
-    saveBtn?.addEventListener("click", async () => {
-      const nextRole = normalizeRole(roleSelect?.value || "");
-      await updateUserAccess(profile, nextRole);
+    item.style.cursor = "pointer";
+    item.addEventListener("click", () => {
+      state.ui.selectedManageUserId = profile.id;
+      renderManagementPanel();
     });
-    deleteBtn?.addEventListener("click", async () => {
-      await deleteUserProfile(profile);
-    });
-
     els.manageUsersList.appendChild(item);
+  });
+
+  if (!selectedProfile) {
+    els.manageUserEditor.innerHTML = `<strong>Selecione um usuario para editar.</strong>`;
+    return;
+  }
+
+  const canManage = canManageProfileTarget(selectedProfile);
+  const canDelete = canDeleteProfileTarget(selectedProfile);
+  const canChangeRole = canManage && (isSadmin() || isAdmin());
+  const roleOptions = getAllowedRoleTargets()
+    .map(
+      (role) =>
+        `<option value="${role}" ${normalizeRole(selectedProfile.role) === role ? "selected" : ""}>${formatRole(role)}</option>`
+    )
+    .join("");
+  els.manageUserEditor.innerHTML = `
+    <strong>Usuario selecionado: ${selectedProfile.name || "Usuario"}</strong><br />
+    <span class="muted">${selectedProfile.email || "-"}</span>
+    <div class="actions" style="margin-top:10px">
+      <select id="manageSelectedRole" ${canChangeRole ? "" : "disabled"}>
+        ${roleOptions}
+      </select>
+      <button id="btnManageSaveRole" class="primary" type="button" ${canChangeRole ? "" : "disabled"}>Salvar acesso</button>
+      <button id="btnManageDeleteUser" class="danger" type="button" ${canDelete ? "" : "disabled"}>Excluir usuario</button>
+    </div>
+  `;
+  const btnSaveRole = document.getElementById("btnManageSaveRole");
+  const btnDeleteUser = document.getElementById("btnManageDeleteUser");
+  const roleSelect = document.getElementById("manageSelectedRole");
+  btnSaveRole?.addEventListener("click", async () => {
+    const nextRole = normalizeRole(roleSelect?.value || "");
+    await updateUserAccess(selectedProfile, nextRole);
+  });
+  btnDeleteUser?.addEventListener("click", async () => {
+    await deleteUserProfile(selectedProfile);
   });
 }
 
@@ -2053,10 +2095,16 @@ async function deleteUserProfile(profile) {
   if (!confirm(`Confirma excluir o usuario ${profile.name || profile.email || profile.id}?`)) {
     return;
   }
+  if (!confirm("Confirmacao final: deseja realmente excluir este usuario?")) {
+    return;
+  }
   const { error } = await supabaseClient.from("profiles").delete().eq("id", profile.id);
   if (error) {
     alert(`Falha ao excluir usuario: ${error.message || "erro inesperado"}`);
     return;
+  }
+  if (state.ui.selectedManageUserId === profile.id) {
+    state.ui.selectedManageUserId = "";
   }
   await fetchProfiles();
   render();
@@ -4570,6 +4618,7 @@ function loadState() {
           showLogPanel: false,
           showInvitePanel: false,
           expandedTips: [],
+          selectedManageUserId: "",
           ...(parsed.ui || {})
         };
         return {
@@ -4608,7 +4657,8 @@ function loadState() {
       activePanel: "dashboard",
       showLogPanel: false,
       showInvitePanel: false,
-      expandedTips: []
+      expandedTips: [],
+      selectedManageUserId: ""
     }
   };
 }
