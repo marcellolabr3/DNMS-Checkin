@@ -354,12 +354,12 @@ function setActivePanel(panel) {
   if (!state.session) {
     return;
   }
-  if (panel === "invite") {
+  if (panel === "invite" && !canAccessManagementPanel()) {
     panel = "dashboard";
   }
   state.ui.activePanel = panel;
   state.ui.showLogPanel = panel === "log";
-  state.ui.showInvitePanel = false;
+  state.ui.showInvitePanel = panel === "invite";
   render();
 }
 
@@ -373,15 +373,15 @@ function ensureDefaultActivePanel() {
     state.ui.showInvitePanel = false;
     return;
   }
-  const allowed = new Set(["dashboard", "rooms", "students", "log"]);
+  const allowed = new Set(["dashboard", "rooms", "students", "log", "invite"]);
   if (!allowed.has(state.ui.activePanel || "")) {
     state.ui.activePanel = "dashboard";
   }
-  if (state.ui.activePanel === "invite") {
+  if (state.ui.activePanel === "invite" && !canAccessManagementPanel()) {
     state.ui.activePanel = "dashboard";
   }
   state.ui.showLogPanel = state.ui.activePanel === "log";
-  state.ui.showInvitePanel = false;
+  state.ui.showInvitePanel = state.ui.activePanel === "invite";
 }
 
 function getActivePanel() {
