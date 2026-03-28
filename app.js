@@ -570,7 +570,7 @@ function renderStudents() {
   items.forEach((student) => {
     const item = document.createElement("div");
     item.className = "list-item";
-    const observationFlag = student.notes ? "Sim" : "Nao";
+    const observationText = student.notes || "";
     const className = student.className || getClassForBirth(student.birth);
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
@@ -584,7 +584,7 @@ function renderStudents() {
       ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
       <strong>${student.name}</strong>
       <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
-      <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes especiais: ${observationFlag}</span>
+      <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes: ${observationText}</span>
       <div class="actions">
         <button class="ghost" data-edit="${student.id}">Editar</button>
         ${checkoutButton}
