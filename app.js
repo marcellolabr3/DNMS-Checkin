@@ -96,9 +96,10 @@ const els = {
   btnRoomDialogEdit: document.getElementById("btnRoomDialogEdit"),
   btnRoomDialogClose: document.getElementById("btnRoomDialogClose"),
   btnExport: document.getElementById("btnExport"),
-  btnLogSummary: document.getElementById("btnLogSummary"),
+  btnShareWhatsapp: document.getElementById("btnShareWhatsapp"),
   logStart: document.getElementById("logStart"),
   logEnd: document.getElementById("logEnd"),
+  logStudentFilter: document.getElementById("logStudentFilter"),
   logSummary: document.getElementById("logSummary"),
   logCounts: document.getElementById("logCounts"),
   logList: document.getElementById("logList"),
@@ -207,9 +208,10 @@ function bindEvents() {
     handleQrCheckin(els.qrDialogInput, els.qrDialogStatus, event)
   );
   els.btnExport.addEventListener("click", exportCsv);
-  els.btnLogSummary.addEventListener("click", renderLogSummaryToday);
+  els.btnShareWhatsapp?.addEventListener("click", shareLogWhatsapp);
   els.logStart.addEventListener("change", renderLog);
   els.logEnd.addEventListener("change", renderLog);
+  els.logStudentFilter?.addEventListener("input", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
   els.btnDeleteStudent?.addEventListener("click", deleteStudentFromDialog);
   els.btnStudentDetailsEdit?.addEventListener("click", handleStudentDetailsEdit);
@@ -1251,27 +1253,50 @@ function renderLog() {
     return;
   }
 
-  const items = getFilteredCheckins().slice().reverse();
+  renderLogStudentFilterOptions();
+  const startValue = els.logStart?.value || "";
+  const endValue = els.logEnd?.value || "";
+  if (!startValue || !endValue) {
+    els.logSummary.textContent = "Selecione o periodo (De e Ate) para gerar a lista de frequencia.";
+    els.logCounts.textContent = "";
+    els.logList.innerHTML = "";
+    if (els.btnExport) {
+      els.btnExport.disabled = true;
+    }
+    if (els.btnShareWhatsapp) {
+      els.btnShareWhatsapp.disabled = true;
+    }
+    return;
+  }
+
+  const items = getFilteredCheckins();
+  const rows = buildLogFrequencyRows(items);
   els.logList.innerHTML = "";
-  items.forEach((checkin) => {
-    const student = state.students.find((s) => s.id === checkin.studentId);
+  rows.forEach((row) => {
     const item = document.createElement("div");
     item.className = "list-item";
-    const checkoutInfo = checkin.checkedOutAt ? ` | Checkout: ${checkin.checkedOutAt}` : "";
     item.innerHTML = `
-      <strong>${student ? student.name : "Visitante"}</strong>
-      <span class="muted">${checkin.roomName} | ${checkin.dateTime}${checkoutInfo}</span>
-      <span class="muted">Turma: ${checkin.className || "Visitante"} | Observacoes: ${checkin.notes ? "Sim" : "Nao"}</span>
+      <strong>${row.studentName}</strong>
+      <span class="muted">Turma: ${row.className}</span>
+      <span class="muted">Horarios de check-in: ${row.timesLabel || "-"}</span>
     `;
     els.logList.appendChild(item);
   });
 
-  if (!els.logSummary.textContent) {
-    els.logSummary.textContent = "Clique em Resumo do dia para ver o panorama.";
+  const totalRows = rows.length;
+  const totalCheckins = rows.reduce((acc, row) => acc + row.checkinCount, 0);
+  if (!totalRows) {
+    els.logSummary.textContent = "Nenhuma frequencia encontrada para o periodo selecionado.";
     els.logCounts.textContent = "";
+  } else {
+    els.logSummary.textContent = `Frequencia do periodo: ${totalRows} crianca(s) com presenca.`;
+    els.logCounts.textContent = `Total de check-ins no periodo: ${totalCheckins}.`;
   }
 
-  els.btnExport.disabled = !isAdmin();
+  els.btnExport.disabled = !totalRows;
+  if (els.btnShareWhatsapp) {
+    els.btnShareWhatsapp.disabled = !totalRows;
+  }
 }
 
 function renderLogSummaryToday() {
@@ -3054,33 +3079,56 @@ function showLabel(person, checkin, options = {}) {
 }
 
 function exportCsv() {
-  if (!isAdmin()) {
-    alert("Somente administradores podem exportar.");
+  if (!state.session || !(isAdmin() || isEquipe())) {
+    alert("Sem permissao para exportar.");
     return;
   }
-  const header = ["Evento", "DataHora", "Aluno", "Turma", "Observacao", "Responsavel"];
-  const rows = getFilteredCheckins().map((checkin) => {
-    const student = state.students.find((s) => s.id === checkin.studentId);
-    return [
-      checkin.roomName,
-      checkin.dateTime,
-      student ? student.name : "Visitante",
-      checkin.className,
-      checkin.notes ? "Sim" : "Nao",
-      student ? student.guardian : "-"
-    ];
-  });
-  const csv = [header, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const rows = buildLogFrequencyRows(getFilteredCheckins());
+  if (!rows.length) {
+    alert("Nenhuma frequencia encontrada para exportar.");
+    return;
+  }
+  const header = ["Aluno", "Turma", "Presencas", "Horarios de check-in"];
+  const csvRows = rows.map((row) => [row.studentName, row.className, row.checkinCount, row.timesLabel]);
+  const periodStart = els.logStart?.value || "";
+  const periodEnd = els.logEnd?.value || "";
+  const periodLabel = periodStart && periodEnd ? `${periodStart}_${periodEnd}` : "periodo";
+  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "checkins.csv";
+  link.download = `frequencia_${periodLabel}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
   render();
+}
+
+function shareLogWhatsapp() {
+  if (!state.session || !(isAdmin() || isEquipe())) {
+    alert("Sem permissao para compartilhar.");
+    return;
+  }
+  const periodStart = els.logStart?.value || "";
+  const periodEnd = els.logEnd?.value || "";
+  if (!periodStart || !periodEnd) {
+    alert("Selecione o periodo para compartilhar.");
+    return;
+  }
+  const rows = buildLogFrequencyRows(getFilteredCheckins());
+  if (!rows.length) {
+    alert("Nenhuma frequencia encontrada para compartilhar.");
+    return;
+  }
+  const lines = rows.map((row) => `${row.studentName} | ${row.className} | ${row.timesLabel}`);
+  const message = [
+    `Frequencia de ${periodStart} ate ${periodEnd}`,
+    "Nome | Turma | Horarios de check-in",
+    ...lines
+  ].join("\n");
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
 }
 
 function canEditStudent(student) {
@@ -3584,6 +3632,82 @@ function formatCounts(counts) {
     return "Nenhum check-in registrado.";
   }
   return entries.map(([key, value]) => `${key}: ${value}`).join(" | ");
+}
+
+function parseLogDateTimeLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+  const [datePart = "", timePart = ""] = raw.split(" ");
+  const dateObj = parseRoomDate(datePart);
+  if (!dateObj) {
+    return null;
+  }
+  const [hour = "0", minute = "0"] = timePart.split(":");
+  dateObj.setHours(Number.parseInt(hour, 10) || 0, Number.parseInt(minute, 10) || 0, 0, 0);
+  return dateObj;
+}
+
+function buildLogFrequencyRows(checkins) {
+  const filterTerm = String(els.logStudentFilter?.value || "").trim().toLowerCase();
+  const grouped = new Map();
+  for (const checkin of checkins) {
+    const student = state.students.find((item) => item.id === checkin.studentId);
+    const studentName = student?.name || "Visitante";
+    if (filterTerm && !studentName.toLowerCase().includes(filterTerm)) {
+      continue;
+    }
+    const className = checkin.className || student?.className || "Visitante";
+    const key = `${checkin.studentId || studentName}|${className}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { studentName, className, checkinTimes: [] });
+    }
+    grouped.get(key).checkinTimes.push(checkin.dateTime || "");
+  }
+  return Array.from(grouped.values())
+    .map((item) => {
+      const orderedTimes = item.checkinTimes
+        .slice()
+        .sort((a, b) => {
+          const da = parseLogDateTimeLabel(a);
+          const db = parseLogDateTimeLabel(b);
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return da.getTime() - db.getTime();
+        });
+      return {
+        studentName: item.studentName,
+        className: item.className,
+        checkinCount: orderedTimes.length,
+        timesLabel: orderedTimes.join(" | ")
+      };
+    })
+    .sort((a, b) => a.studentName.localeCompare(b.studentName));
+}
+
+function renderLogStudentFilterOptions() {
+  const datalist = document.getElementById("logStudentOptions");
+  if (!datalist) {
+    return;
+  }
+  const names = Array.from(
+    new Set(
+      getFilteredCheckins()
+        .map((checkin) => {
+          const student = state.students.find((item) => item.id === checkin.studentId);
+          return student?.name || "Visitante";
+        })
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  datalist.innerHTML = "";
+  names.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    datalist.appendChild(option);
+  });
 }
 
 function normalizeStudents() {

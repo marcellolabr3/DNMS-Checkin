@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260328h" />
+  <link rel="manifest" href="manifest.json?v=20260328i" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260328h" />
+  <link rel="stylesheet" href="styles.css?v=20260328i" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -167,8 +167,8 @@
       <div class="card-header">
         <h2>Log</h2>
         <div class="actions">
-          <button id="btnLogSummary" class="ghost">Resumo do dia</button>
-          <button id="btnExport" class="ghost">Exportar CSV</button>
+          <button id="btnExport" class="ghost">Exportar planilha</button>
+          <button id="btnShareWhatsapp" class="ghost">Enviar WhatsApp</button>
         </div>
       </div>
       <div class="filters">
@@ -177,6 +177,10 @@
         </label>
         <label class="field">Ate
           <input id="logEnd" type="date" />
+        </label>
+        <label class="field">Crianca
+          <input id="logStudentFilter" type="text" placeholder="Digite o nome da crianca" list="logStudentOptions" />
+          <datalist id="logStudentOptions"></datalist>
         </label>
       </div>
       <div id="logSummary" class="summary"></div>
@@ -388,7 +392,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260328h"></script>
-  <script src="app.js?v=20260328h"></script>
+  <script src="vendor/supabase-js.js?v=20260328i"></script>
+  <script src="app.js?v=20260328i"></script>
 </body>
 </html>
