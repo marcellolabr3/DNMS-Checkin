@@ -126,17 +126,39 @@ alter table public.schedules enable row level security;
 alter table public.tips enable row level security;
 alter table public.tip_reads enable row level security;
 
+create or replace function public.is_staff_user(uid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = uid and p.role in ('admin', 'equipe')
+  );
+$$;
+
+create or replace function public.is_admin_user(uid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = uid and p.role = 'admin'
+  );
+$$;
+
+grant execute on function public.is_staff_user(uuid) to authenticated;
+grant execute on function public.is_admin_user(uuid) to authenticated;
+
 drop policy if exists profiles_select_own_or_staff on public.profiles;
 create policy profiles_select_own_or_staff on public.profiles
 for select to authenticated
-using (
-  auth.uid() = id
-  or exists (
-    select 1
-    from public.profiles p
-    where p.id = auth.uid() and p.role in ('admin', 'equipe')
-  )
-);
+using (auth.uid() = id or public.is_staff_user(auth.uid()));
 
 drop policy if exists profiles_insert_own on public.profiles;
 create policy profiles_insert_own on public.profiles
@@ -146,22 +168,8 @@ with check (auth.uid() = id);
 drop policy if exists profiles_update_own_or_admin on public.profiles;
 create policy profiles_update_own_or_admin on public.profiles
 for update to authenticated
-using (
-  auth.uid() = id
-  or exists (
-    select 1
-    from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
-  )
-)
-with check (
-  auth.uid() = id
-  or exists (
-    select 1
-    from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
-  )
-);
+using (auth.uid() = id or public.is_admin_user(auth.uid()))
+with check (auth.uid() = id or public.is_admin_user(auth.uid()));
 
 drop policy if exists students_select_staff_or_guardian on public.students;
 create policy students_select_staff_or_guardian on public.students
