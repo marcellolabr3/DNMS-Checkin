@@ -3483,6 +3483,13 @@ async function saveStudent(event) {
   }
 
   if (supabaseClient) {
+    if (existing?.id) {
+      const linkedBeforeUpdate = await linkGuardianToStudent(existing.id, payload.guardian, guardianProfileId);
+      if (!linkedBeforeUpdate) {
+        alert("A crianca so pode ser vinculada a um usuario valido.");
+        return;
+      }
+    }
     const dbPayload = {
       name: payload.name,
       birth_date: payload.birth,
@@ -3514,14 +3521,12 @@ async function saveStudent(event) {
         await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
       }
     }
-    const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
-    if (!linked) {
-      const warning = isResponsavel
-        ? "Aluno salvo sem vinculo em student_guardians; usando fallback por nome do responsavel."
-        : "Aluno salvo, mas nao foi possivel vincular ao usuario selecionado.";
-      console.warn(warning);
-      if (!isResponsavel) {
-        alert(warning);
+    if (!existing?.id) {
+      const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
+      if (!linked) {
+        await supabaseClient.from("students").delete().eq("id", data.id);
+        alert("A crianca so pode ser cadastrada a um usuario valido.");
+        return;
       }
     }
     await fetchStudents();
