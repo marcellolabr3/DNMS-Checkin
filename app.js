@@ -21,7 +21,7 @@ const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
-const myDataContext = { email: "", phone: "", address: "", photoUrl: "" };
+const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -2403,6 +2403,7 @@ async function openMyDataDialog() {
   }
 
   myDataContext.email = profile.email || "";
+  myDataContext.name = profile.name || "";
   myDataContext.phone = profile.phone || "";
   myDataContext.address = profile.address || "";
   myDataContext.photoUrl = profile.photo_url || "";
@@ -2427,6 +2428,9 @@ async function openMyDataDialog() {
 }
 
 function resetMyDataDialogDraft() {
+  if (els.myDataName) {
+    els.myDataName.value = myDataContext.name || "";
+  }
   if (els.myDataEmail) {
     els.myDataEmail.value = myDataContext.email || "";
   }
@@ -2447,17 +2451,23 @@ async function handleSaveMyData(event) {
   if (!state.session) {
     return;
   }
+  const name = String(els.myDataName?.value || "").trim();
   const email = String(els.myDataEmail?.value || "").trim().toLowerCase();
   const phone = String(els.myDataPhone?.value || "").trim();
   const address = String(els.myDataAddress?.value || "").trim();
   const photoFile = els.myDataPhoto?.files?.[0] || null;
+  const nameChanged = name && name !== String(myDataContext.name || "");
   const emailChanged = email && email !== String(myDataContext.email || "").trim().toLowerCase();
   const phoneChanged = phone !== String(myDataContext.phone || "");
   const addressChanged = address !== String(myDataContext.address || "");
-  const hasChanges = emailChanged || phoneChanged || addressChanged || Boolean(photoFile);
+  const hasChanges = nameChanged || emailChanged || phoneChanged || addressChanged || Boolean(photoFile);
 
   if (!hasChanges) {
     els.myDataDialog?.close();
+    return;
+  }
+  if (!name) {
+    alert("Informe o nome.");
     return;
   }
   if (!email || !isValidEmail(email)) {
@@ -2469,10 +2479,10 @@ async function handleSaveMyData(event) {
   }
 
   if (supabaseClient) {
-    if (phoneChanged || addressChanged) {
+    if (nameChanged || phoneChanged || addressChanged) {
       const { error } = await supabaseClient
         .from("profiles")
-        .update({ phone, address })
+        .update({ name, nome: name, phone, address })
         .eq("id", state.session.id);
       if (error) {
         alert(`Falha ao atualizar dados do perfil: ${error.message || "erro inesperado"}`);
@@ -2494,12 +2504,16 @@ async function handleSaveMyData(event) {
     }
 
     if (emailChanged) {
-      const { error } = await supabaseClient.auth.updateUser({ email });
+      const emailRedirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabaseClient.auth.updateUser({
+        email,
+        options: { emailRedirectTo }
+      });
       if (error) {
         alert(`Falha ao solicitar troca de email: ${error.message || "erro inesperado"}`);
         return;
       }
-      alert("Solicitacao de troca de email enviada. Confirme no novo email para concluir.");
+      alert("Solicitacao enviada. O novo email so sera aplicado apos validacao no link recebido.");
     }
 
     const refreshed = await fetchProfile(state.session.id);
@@ -2515,13 +2529,16 @@ async function handleSaveMyData(event) {
     } else {
       state.session = {
         ...state.session,
+        name,
         phone,
         address
       };
     }
-    await fetchProfiles();
+    if (canAccessManagementPanel() || isEquipe()) {
+      await fetchProfiles();
+    }
   } else {
-    state.session = { ...state.session, email, phone, address };
+    state.session = { ...state.session, name, email, phone, address };
   }
 
   els.myDataDialog?.close();
@@ -2700,6 +2717,7 @@ function renderManagementPanel() {
   const canManage = canManageProfileTarget(selectedProfile);
   const canDelete = canDeleteProfileTarget(selectedProfile);
   const canChangeRole = canManage && (isSadmin() || isAdmin());
+  const canChangeName = canManage && (isSadmin() || isAdmin());
   const roleOptions = getAllowedRoleTargets()
     .map(
       (role) =>
@@ -2710,6 +2728,10 @@ function renderManagementPanel() {
     <strong>Usuario selecionado: ${selectedProfile.name || "Usuario"}</strong><br />
     <span class="muted">${selectedProfile.email || "-"}</span>
     <div class="actions" style="margin-top:10px">
+      <input id="manageSelectedName" type="text" ${canChangeName ? "" : "disabled"} />
+      <button id="btnManageSaveName" class="ghost" type="button" ${canChangeName ? "" : "disabled"}>Salvar nome</button>
+    </div>
+    <div class="actions" style="margin-top:10px">
       <select id="manageSelectedRole" ${canChangeRole ? "" : "disabled"}>
         ${roleOptions}
       </select>
@@ -2718,8 +2740,17 @@ function renderManagementPanel() {
     </div>
   `;
   const btnSaveRole = document.getElementById("btnManageSaveRole");
+  const btnSaveName = document.getElementById("btnManageSaveName");
   const btnDeleteUser = document.getElementById("btnManageDeleteUser");
+  const nameInput = document.getElementById("manageSelectedName");
+  if (nameInput) {
+    nameInput.value = selectedProfile.name || "";
+  }
   const roleSelect = document.getElementById("manageSelectedRole");
+  btnSaveName?.addEventListener("click", async () => {
+    const nextName = String(nameInput?.value || "").trim();
+    await updateUserName(selectedProfile, nextName);
+  });
   btnSaveRole?.addEventListener("click", async () => {
     const nextRole = normalizeRole(roleSelect?.value || "");
     await updateUserAccess(selectedProfile, nextRole);
@@ -2751,6 +2782,38 @@ async function updateUserAccess(profile, nextRole) {
     return;
   }
   await fetchProfiles();
+  render();
+}
+
+async function updateUserName(profile, nextName) {
+  if (!profile) {
+    return;
+  }
+  if (!canManageProfileTarget(profile) || !(isSadmin() || isAdmin())) {
+    alert("Sem permissao para alterar este usuario.");
+    return;
+  }
+  const sanitizedName = String(nextName || "").trim();
+  if (!sanitizedName) {
+    alert("Informe um nome valido.");
+    return;
+  }
+  if (sanitizedName === String(profile.name || "").trim()) {
+    return;
+  }
+  if (!confirm(`Confirma alterar o nome para "${sanitizedName}"?`)) {
+    return;
+  }
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ name: sanitizedName, nome: sanitizedName })
+    .eq("id", profile.id);
+  if (error) {
+    alert(`Falha ao atualizar nome: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  await fetchProfiles();
+  await fetchStudents();
   render();
 }
 
