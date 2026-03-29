@@ -131,6 +131,12 @@ const els = {
   logStudentsList: document.getElementById("logStudentsList"),
   btnApplyLogStudents: document.getElementById("btnApplyLogStudents"),
   inviteCard: document.getElementById("inviteCard"),
+  manageInviteEmail: document.getElementById("manageInviteEmail"),
+  manageInviteRole: document.getElementById("manageInviteRole"),
+  btnGenerateInviteLink: document.getElementById("btnGenerateInviteLink"),
+  btnCopyInviteLink: document.getElementById("btnCopyInviteLink"),
+  manageInviteStatus: document.getElementById("manageInviteStatus"),
+  manageInviteLink: document.getElementById("manageInviteLink"),
   familiesCard: document.getElementById("familiesCard"),
   manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
@@ -222,7 +228,7 @@ boot();
 
 async function boot() {
   bindEvents();
-  handleInviteQueryParams();
+  await handleInviteQueryParams();
   seedRoomDefaults();
   renderSession();
   renderRoleVisibility();
@@ -308,6 +314,8 @@ function bindEvents() {
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
+  els.btnGenerateInviteLink?.addEventListener("click", handleGenerateAccessInviteLink);
+  els.btnCopyInviteLink?.addEventListener("click", copyGeneratedAccessInviteLink);
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
@@ -961,8 +969,8 @@ async function ensureProfileFromAuthUser(user) {
     phone: metadata.phone || null,
     is_visitor: Boolean(metadata.is_visitor)
   };
-  if (role === "dnms_kids") {
-    const inviteResult = await acceptInviteToken(metadata.invite_token, user.email || "");
+  if (metadata.invite_token) {
+    const inviteResult = await acceptInviteToken(metadata.invite_token, user.email || "", role);
     if (!inviteResult.ok) {
       return null;
     }
@@ -2591,26 +2599,37 @@ async function handleLogout() {
     expandedTips: [],
     selectedManageUserId: "",
     logSelectedStudentIds: [],
-    dashboardNeuroExpanded: false
+    dashboardNeuroExpanded: false,
+    generatedInviteLink: ""
   };
   render();
 }
 
-function handleInviteQueryParams() {
+async function handleInviteQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("invite");
   if (!token) {
     return;
   }
-  openSignupDialog("dnms_kids", token);
+  let inviteRole = "dnms_kids";
+  if (supabaseClient) {
+    const meta = await getInviteMeta(token);
+    if (!meta.ok) {
+      alert(meta.message || "Convite invalido.");
+      return;
+    }
+    inviteRole = meta.role || "dnms_kids";
+  }
+  openSignupDialog(inviteRole, token);
 }
 
 function openSignupDialog(role, inviteToken = "") {
   signupContext.role = role;
   signupContext.inviteToken = inviteToken || "";
-  const isInvite = role === "dnms_kids";
+  const isInvite = Boolean(signupContext.inviteToken);
+  const inviteLabel = role === "admin" ? "Admin" : role === "equipe" ? "Equipe" : "DNMS Kids";
   if (els.signupDialogTitle) {
-    els.signupDialogTitle.textContent = isInvite ? "Cadastro DNMS Kids" : "Cadastro de Responsavel";
+    els.signupDialogTitle.textContent = isInvite ? `Cadastro por convite (${inviteLabel})` : "Cadastro de Responsavel";
   }
   if (els.signupInviteToken) {
     els.signupInviteToken.value = signupContext.inviteToken;
@@ -2699,7 +2718,7 @@ async function handleSignupSubmit(event) {
   const email = els.signupEmail.value.trim().toLowerCase();
   const password = els.signupPassword.value;
   const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
-  const isInviteFlow = signupContext.role === "dnms_kids";
+  const isInviteFlow = Boolean(signupContext.inviteToken);
   const signupPhotoFile = els.signupPhoto?.files?.[0] || null;
   const pendingPhotoData = signupPhotoFile ? await readFileAsDataUrl(signupPhotoFile) : "";
 
@@ -2737,7 +2756,7 @@ async function handleSignupSubmit(event) {
   }
 
   if (isInviteFlow) {
-    const inviteValid = await verifyInviteToken(signupContext.inviteToken, email);
+    const inviteValid = await verifyInviteToken(signupContext.inviteToken, email, signupContext.role);
     if (!inviteValid.ok) {
       alert(inviteValid.message);
       return;
@@ -3048,7 +3067,7 @@ async function handleSaveMyData(event) {
   render();
 }
 
-async function verifyInviteToken(token, email) {
+async function getInviteMeta(token) {
   if (!token) {
     return { ok: false, message: "Convite invalido." };
   }
@@ -3063,41 +3082,48 @@ async function verifyInviteToken(token, email) {
   if (data.status && data.status !== "pending") {
     return { ok: false, message: "Convite ja utilizado." };
   }
-  if (data.role !== "dnms_kids") {
+  const inviteRole = normalizeRole(data.role || "");
+  if (!["dnms_kids", "equipe", "admin"].includes(inviteRole)) {
     return { ok: false, message: "Convite invalido para este cadastro." };
-  }
-  if (data.email && data.email.toLowerCase() !== email.toLowerCase()) {
-    return { ok: false, message: "Este convite pertence a outro email." };
   }
   if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
     return { ok: false, message: "Convite expirado." };
+  }
+  return { ok: true, role: inviteRole, data };
+}
+
+async function verifyInviteToken(token, email, expectedRole = "") {
+  const meta = await getInviteMeta(token);
+  if (!meta.ok) {
+    return meta;
+  }
+  const data = meta.data;
+  if (data.email && data.email.toLowerCase() !== email.toLowerCase()) {
+    return { ok: false, message: "Este convite pertence a outro email." };
+  }
+  if (expectedRole) {
+    const normalizedExpected = normalizeRole(expectedRole);
+    if (normalizedExpected !== normalizeRole(data.role || "")) {
+      return { ok: false, message: "Convite invalido para este tipo de acesso." };
+    }
   }
   return { ok: true };
 }
 
-async function acceptInviteToken(token, email) {
-  if (!token) {
-    return { ok: false, message: "Convite invalido." };
+async function acceptInviteToken(token, email, expectedRole = "") {
+  const meta = await getInviteMeta(token);
+  if (!meta.ok) {
+    return meta;
   }
-  const { data, error } = await supabaseClient
-    .from("invites")
-    .select("id,email,role,status,expires_at")
-    .eq("token", token)
-    .single();
-  if (error || !data) {
-    return { ok: false, message: "Convite nao encontrado." };
-  }
-  if (data.status && data.status !== "pending") {
-    return { ok: false, message: "Convite ja utilizado." };
-  }
-  if (data.role !== "dnms_kids") {
-    return { ok: false, message: "Convite invalido para este cadastro." };
-  }
+  const data = meta.data;
   if (data.email && data.email.toLowerCase() !== email.toLowerCase()) {
     return { ok: false, message: "Este convite pertence a outro email." };
   }
-  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
-    return { ok: false, message: "Convite expirado." };
+  if (expectedRole) {
+    const normalizedExpected = normalizeRole(expectedRole);
+    if (normalizedExpected !== normalizeRole(data.role || "")) {
+      return { ok: false, message: "Convite invalido para este tipo de acesso." };
+    }
   }
   await supabaseClient
     .from("invites")
@@ -3153,6 +3179,113 @@ function getAllowedRoleTargets() {
   return ["responsavel"];
 }
 
+function getAllowedInviteRoleTargets() {
+  if (isSadmin()) {
+    return ["equipe", "admin"];
+  }
+  if (isAdmin()) {
+    return ["equipe"];
+  }
+  return [];
+}
+
+function renderManagementInviteControls() {
+  const allowedRoles = getAllowedInviteRoleTargets();
+  const canInvite = allowedRoles.length > 0;
+  if (els.manageInviteRole) {
+    const current = normalizeRole(els.manageInviteRole.value || "");
+    els.manageInviteRole.innerHTML = allowedRoles
+      .map((role) => `<option value="${role}">${formatRole(role)}</option>`)
+      .join("");
+    if (allowedRoles.includes(current)) {
+      els.manageInviteRole.value = current;
+    }
+    els.manageInviteRole.disabled = !canInvite;
+  }
+  if (els.manageInviteEmail) {
+    els.manageInviteEmail.disabled = !canInvite;
+  }
+  if (els.btnGenerateInviteLink) {
+    els.btnGenerateInviteLink.disabled = !canInvite;
+  }
+  if (els.btnCopyInviteLink) {
+    els.btnCopyInviteLink.disabled = !state.ui.generatedInviteLink;
+  }
+  if (els.manageInviteStatus && !canInvite) {
+    els.manageInviteStatus.textContent = "Sem permissao para gerar convites.";
+  }
+  if (els.manageInviteLink) {
+    els.manageInviteLink.textContent = state.ui.generatedInviteLink || "";
+  }
+}
+
+async function handleGenerateAccessInviteLink() {
+  if (!supabaseClient) {
+    alert("Convites disponiveis apenas com Supabase.");
+    return;
+  }
+  if (!state.session || !canAccessManagementPanel()) {
+    alert("Sem permissao para gerar convites.");
+    return;
+  }
+  const email = String(els.manageInviteEmail?.value || "").trim().toLowerCase();
+  const role = normalizeRole(els.manageInviteRole?.value || "");
+  const allowedRoles = getAllowedInviteRoleTargets();
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido.");
+    return;
+  }
+  if (!allowedRoles.includes(role)) {
+    alert("Tipo de acesso invalido para o seu nivel.");
+    return;
+  }
+
+  const token = uid();
+  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabaseClient.from("invites").insert({
+    email,
+    role,
+    token,
+    status: "pending",
+    expires_at: expiresAt,
+    created_by: state.session?.id || null
+  });
+  if (error) {
+    alert(`Falha ao gerar convite: ${error.message || "erro inesperado"}`);
+    return;
+  }
+
+  state.ui.generatedInviteLink = inviteUrl;
+  if (els.manageInviteStatus) {
+    els.manageInviteStatus.textContent = `Convite gerado para ${email} com perfil ${formatRole(role)}.`;
+  }
+  if (els.manageInviteLink) {
+    els.manageInviteLink.textContent = inviteUrl;
+  }
+  if (els.btnCopyInviteLink) {
+    els.btnCopyInviteLink.disabled = false;
+  }
+  if (els.manageInviteEmail) {
+    els.manageInviteEmail.value = "";
+  }
+}
+
+async function copyGeneratedAccessInviteLink() {
+  const link = String(state.ui.generatedInviteLink || "").trim();
+  if (!link) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    if (els.manageInviteStatus) {
+      els.manageInviteStatus.textContent = "Link copiado para a area de transferencia.";
+    }
+  } catch (_) {
+    alert("Nao foi possivel copiar automaticamente. Copie manualmente o link exibido.");
+  }
+}
+
 function renderManagementPanel() {
   if (!els.manageUsersList || !els.manageUsersStatus || !els.manageUserEditor) {
     return;
@@ -3165,8 +3298,16 @@ function renderManagementPanel() {
     if (els.scheduleSheetSyncStatus) {
       els.scheduleSheetSyncStatus.textContent = "";
     }
+    if (els.manageInviteStatus) {
+      els.manageInviteStatus.textContent = "";
+    }
+    if (els.manageInviteLink) {
+      els.manageInviteLink.textContent = "";
+    }
     return;
   }
+
+  renderManagementInviteControls();
 
   if (els.scheduleSheetUrl) {
     els.scheduleSheetUrl.value = scheduleSheetContext.config.url || "";
@@ -6836,6 +6977,7 @@ function loadState() {
           selectedManageUserId: "",
           logSelectedStudentIds: [],
           dashboardNeuroExpanded: false,
+          generatedInviteLink: "",
           ...(parsed.ui || {})
         };
         return {
@@ -6877,7 +7019,8 @@ function loadState() {
       expandedTips: [],
       selectedManageUserId: "",
       logSelectedStudentIds: [],
-      dashboardNeuroExpanded: false
+      dashboardNeuroExpanded: false,
+      generatedInviteLink: ""
     }
   };
 }
