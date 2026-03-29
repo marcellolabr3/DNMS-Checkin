@@ -1082,11 +1082,11 @@ async function fetchProfiles() {
     state.profiles = [];
     return;
   }
-  let { data, error } = await supabaseClient.from("profiles").select("id,name,role,email,phone");
+  let { data, error } = await supabaseClient.from("profiles").select("id,name,role,email,phone,address");
   if (error) {
     const message = String(error.message || "").toLowerCase();
-    const missingPhoneColumn = message.includes("column") && message.includes("phone");
-    if (missingPhoneColumn) {
+    const missingAddressColumn = message.includes("column") && message.includes("address");
+    if (missingAddressColumn) {
       const fallback = await supabaseClient.from("profiles").select("id,name,role,email");
       data = fallback.data;
       error = fallback.error;
@@ -1102,7 +1102,8 @@ async function fetchProfiles() {
     name: profile.name || "Usuario",
     role: normalizeRole(profile.role),
     email: profile.email || "",
-    phone: profile.phone || ""
+    phone: profile.phone || "",
+    address: profile.address || ""
   }));
 }
 
@@ -1225,6 +1226,8 @@ function renderStudents() {
     const item = document.createElement("div");
     item.className = "list-item";
     const observationText = student.notes || "";
+    const contact = getResponsibleContactForStudent(student);
+    const birthLabel = formatBirthDateShort(student.birth) || "-";
     const className = student.className || getClassForBirth(student.birth);
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
@@ -1238,7 +1241,9 @@ function renderStudents() {
       ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
       <strong>${student.name}</strong>
       <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
-      <span class="muted">Nascimento: ${student.birth || "-"} | Observacoes: ${observationText}</span>
+      <span class="muted">Nascimento: ${birthLabel} | Observacoes: ${observationText}</span>
+      <span class="muted">Telefone do responsavel: ${contact.phone || "-"}</span>
+      <span class="muted">Endereco do responsavel: ${contact.address || "-"}</span>
       <div class="actions">
         <button class="ghost" data-edit="${student.id}">Editar</button>
         ${checkoutButton}
@@ -3743,6 +3748,33 @@ function normalizePhoneDigits(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function getResponsibleContactForStudent(student) {
+  if (!student) {
+    return { phone: "", address: "" };
+  }
+  const guardianProfileId = String(student.guardianProfileId || "").trim();
+  if (guardianProfileId) {
+    const profile = (state.profiles || []).find((item) => item.id === guardianProfileId);
+    if (profile) {
+      return {
+        phone: String(profile.phone || "").trim(),
+        address: String(profile.address || "").trim()
+      };
+    }
+  }
+  const guardianName = String(student.guardian || "").trim().toLowerCase();
+  if (guardianName && String(state.session?.name || "").trim().toLowerCase() === guardianName) {
+    return {
+      phone: String(state.session?.phone || "").trim(),
+      address: String(state.session?.address || "").trim()
+    };
+  }
+  return {
+    phone: String(student.phone || "").trim(),
+    address: String(student.address || "").trim()
+  };
+}
+
 async function openQrDialog() {
   if (!state.session) {
     alert("Autenticacao obrigatoria.");
@@ -4187,12 +4219,14 @@ function openStudentDetailsDialog(student) {
   }
   if (els.studentDetailsInfo) {
     const className = student.className || getClassForBirth(student.birth);
+    const contact = getResponsibleContactForStudent(student);
+    const birthLabel = formatBirthDateShort(student.birth) || "-";
     els.studentDetailsInfo.innerHTML = `
       <strong>Turma:</strong> ${className || "-"}<br />
-      <strong>Nascimento:</strong> ${student.birth || "-"}<br />
+      <strong>Nascimento:</strong> ${birthLabel}<br />
       <strong>Responsavel:</strong> ${student.guardian || "-"}<br />
-      <strong>Telefone:</strong> ${student.phone || "-"}<br />
-      <strong>Endereco:</strong> ${student.address || "-"}<br />
+      <strong>Telefone:</strong> ${contact.phone || "-"}<br />
+      <strong>Endereco:</strong> ${contact.address || "-"}<br />
       <strong>Observacoes:</strong> ${student.notes || "-"}
     `;
   }
@@ -4440,6 +4474,15 @@ function formatBirthDateForInput(value) {
   }
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatBirthDateShort(value) {
+  const iso = normalizeBirthDateInput(value);
+  if (!iso) {
+    return "";
+  }
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year.slice(-2)}`;
 }
 
 function parseInputDate(value) {
