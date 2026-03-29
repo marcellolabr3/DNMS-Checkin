@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329r" />
+  <link rel="manifest" href="manifest.json?v=20260329s" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329r" />
+  <link rel="stylesheet" href="styles.css?v=20260329s" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -79,18 +79,6 @@
           <textarea id="dashboardInfoText" placeholder="Informacoes gerais para equipe e responsaveis"></textarea>
         </label>
         <button id="btnSaveDashboardInfo" class="primary">Salvar informacoes</button>
-        <label class="field">Dicas / Mensagem
-          <select id="tipsRecipientSelect">
-            <option value="all">Todos os usuarios</option>
-          </select>
-        </label>
-        <label class="field">Mensagem
-          <textarea id="tipsMessageInput" placeholder="Digite a mensagem para o usuario selecionado"></textarea>
-        </label>
-        <div class="actions">
-          <button id="btnSendTip" class="primary">Enviar mensagem</button>
-          <button id="btnClearTipMessage" type="button" class="ghost">Limpar mensagem</button>
-        </div>
       </section>
     </section>
 
@@ -422,6 +410,20 @@
   <dialog id="tipsDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h3>Mensagens</h3>
+      <div id="tipsComposer" class="summary">
+        <label class="field">Enviar para
+          <select id="tipsRecipientSelect">
+            <option value="all">Todos os usuarios</option>
+          </select>
+        </label>
+        <label class="field">Mensagem
+          <textarea id="tipsMessageInput" placeholder="Digite a mensagem"></textarea>
+        </label>
+        <div class="actions">
+          <button id="btnSendTip" class="primary" type="button">Enviar mensagem</button>
+          <button id="btnClearTipMessage" type="button" class="ghost">Limpar mensagem</button>
+        </div>
+      </div>
       <div id="tipsList" class="list"></div>
       <div class="dialog-actions">
         <button id="btnDeleteAllTips" type="button" class="danger">Apagar todas</button>
@@ -570,7 +572,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329r"></script>
-  <script src="app.js?v=20260329r"></script>
+  <script src="vendor/supabase-js.js?v=20260329s"></script>
+  <script src="app.js?v=20260329s"></script>
 </body>
 </html>

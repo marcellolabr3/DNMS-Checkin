@@ -108,6 +108,7 @@ const els = {
   checkoutCheckinId: document.getElementById("checkoutCheckinId"),
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
   tipsDialog: document.getElementById("tipsDialog"),
+  tipsComposer: document.getElementById("tipsComposer"),
   tipsList: document.getElementById("tipsList"),
   btnDeleteAllTips: document.getElementById("btnDeleteAllTips"),
   btnMarkAllTipsRead: document.getElementById("btnMarkAllTipsRead"),
@@ -632,7 +633,7 @@ function getVisibleTipsForCurrentUser() {
   }
   const myId = state.session.id;
   return state.tips
-    .filter((tip) => !tip.recipientId || tip.recipientId === myId || isAdmin())
+    .filter((tip) => !tip.recipientId || tip.recipientId === myId || canAccessManagementPanel())
     .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
@@ -656,6 +657,7 @@ function renderTipsDialog() {
   if (!els.tipsList) {
     return;
   }
+  renderTipsComposerControls();
   const tips = getVisibleTipsForCurrentUser();
   const canDeleteTips = canAccessManagementPanel();
   if (!tips.length) {
@@ -729,6 +731,28 @@ function renderTipsDialog() {
 
     els.tipsList.appendChild(wrapper);
   });
+}
+
+function renderTipsComposerControls() {
+  const canSend = canAccessManagementPanel();
+  if (els.tipsComposer) {
+    els.tipsComposer.style.display = canSend ? "block" : "none";
+  }
+  if (!canSend || !els.tipsRecipientSelect) {
+    return;
+  }
+  const current = els.tipsRecipientSelect.value || "all";
+  const options = ['<option value="all">Todos os usuarios</option>']
+    .concat(
+      state.profiles
+        .filter((profile) => profile.id !== state.session?.id)
+        .map((profile) => `<option value="${profile.id}">${profile.name} (${formatRole(profile.role)})</option>`)
+    )
+    .join("");
+  els.tipsRecipientSelect.innerHTML = options;
+  if (Array.from(els.tipsRecipientSelect.options).some((option) => option.value === current)) {
+    els.tipsRecipientSelect.value = current;
+  }
 }
 
 function truncateTipMessage(message, max = 90) {
@@ -1734,20 +1758,6 @@ function renderAdminDashboardTools() {
   if (els.dashboardInfoText) {
     els.dashboardInfoText.value = state.dashboardInfo || "";
   }
-  if (els.tipsRecipientSelect) {
-    const current = els.tipsRecipientSelect.value || "all";
-    const options = ['<option value="all">Todos os usuarios</option>']
-      .concat(
-        state.profiles
-          .filter((profile) => profile.id !== state.session?.id)
-          .map((profile) => `<option value="${profile.id}">${profile.name} (${formatRole(profile.role)})</option>`)
-      )
-      .join("");
-    els.tipsRecipientSelect.innerHTML = options;
-    if (Array.from(els.tipsRecipientSelect.options).some((option) => option.value === current)) {
-      els.tipsRecipientSelect.value = current;
-    }
-  }
 }
 
 function renderRoleVisibility() {
@@ -2384,7 +2394,7 @@ function simpleHash(input) {
 }
 
 async function sendTipMessage() {
-  if (!state.session || !isAdmin()) {
+  if (!state.session || !canAccessManagementPanel()) {
     return;
   }
   const message = (els.tipsMessageInput?.value || "").trim();
