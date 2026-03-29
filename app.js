@@ -279,6 +279,11 @@ function bindEvents() {
       updatePhotoPreview(els.signupPhoto, els.signupPhotoPreview);
     });
   }
+  [els.studentBirth, els.signupBirth].forEach((input) => {
+    input?.addEventListener("input", () => {
+      input.value = applyBirthDateMask(input.value);
+    });
+  });
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
   }
@@ -3875,6 +3880,19 @@ function normalizeBirthDateInput(value) {
     return "";
   }
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function applyBirthDateMask(value) {
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
+  if (digits.length <= 2) {
+    return digits;
+  }
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
 function formatBirthDateForInput(value) {
