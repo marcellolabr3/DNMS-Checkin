@@ -1408,8 +1408,7 @@ function renderDashboard() {
       .map((checkin) => checkin.studentId)
   );
   const neuroStudents = state.students.filter((student) => {
-    const notes = String(student.notes || "").toLowerCase();
-    return /neuro|tea|autismo|autista|tdah/.test(notes) && todayCheckinStudentIds.has(student.id);
+    return hasNeuroatypicalCondition(student.notes) && todayCheckinStudentIds.has(student.id);
   });
 
   if (openRooms.length) {
@@ -1420,16 +1419,42 @@ function renderDashboard() {
   }
   const alertsLine = alerts.length ? `${alerts.join("<br />")}<br />` : "";
   const infoText = state.dashboardInfo || "Nenhuma informacao cadastrada.";
-  const neuroLine = neuroStudents.length
-    ? `Criancas neuroatipicas: ${neuroStudents.map((student) => student.name).join(", ")}`
-    : "Criancas neuroatipicas em check-in hoje: nenhuma.";
+  const neuroExpanded = Boolean(state.ui.dashboardNeuroExpanded);
+  const neuroSummaryHtml = neuroStudents.length
+    ? `<button type="button" id="btnDashboardNeuroList" class="link-button">Criancas neuroatipicas ${neuroStudents.length}</button>`
+    : "";
+  const neuroListHtml =
+    neuroStudents.length && neuroExpanded
+      ? `<div class="list" style="margin-top:8px">
+          ${neuroStudents
+            .map(
+              (student) =>
+                `<button type="button" class="ghost" data-dashboard-neuro-student="${student.id}" style="text-align:left;justify-content:flex-start">${student.name}</button>`
+            )
+            .join("")}
+        </div>`
+      : "";
   els.dashboardAlerts.innerHTML = `
     <strong>Informacoes</strong><br />
     ${infoText}<br />
     ${alertsLine}
-    <strong>Atencao</strong><br />
-    ${neuroLine}
+    <strong>Atencao:</strong><br />
+    ${neuroSummaryHtml}
+    ${neuroListHtml}
   `;
+  document.getElementById("btnDashboardNeuroList")?.addEventListener("click", () => {
+    state.ui.dashboardNeuroExpanded = !state.ui.dashboardNeuroExpanded;
+    renderDashboard();
+  });
+  document.querySelectorAll("[data-dashboard-neuro-student]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-dashboard-neuro-student");
+      const student = state.students.find((item) => item.id === id);
+      if (student) {
+        openStudentDetailsDialog(student);
+      }
+    });
+  });
 
   const mySchedules = state.schedules
     .filter((item) => scheduleBelongsToCurrentUser(item))
@@ -2307,6 +2332,11 @@ function normalizeMatchText(value) {
     .replace(/\s+/g, " ");
 }
 
+function hasNeuroatypicalCondition(notes) {
+  const value = normalizeMatchText(notes);
+  return /neuro|tea|tdah|autis|asperger|espectro/.test(value);
+}
+
 function findProfileByUserToken(rawToken) {
   const token = normalizeMatchText(rawToken);
   if (!token) {
@@ -2556,7 +2586,8 @@ async function handleLogout() {
     showInvitePanel: false,
     expandedTips: [],
     selectedManageUserId: "",
-    logSelectedStudentIds: []
+    logSelectedStudentIds: [],
+    dashboardNeuroExpanded: false
   };
   render();
 }
@@ -6800,6 +6831,7 @@ function loadState() {
           expandedTips: [],
           selectedManageUserId: "",
           logSelectedStudentIds: [],
+          dashboardNeuroExpanded: false,
           ...(parsed.ui || {})
         };
         return {
@@ -6840,7 +6872,8 @@ function loadState() {
       showInvitePanel: false,
       expandedTips: [],
       selectedManageUserId: "",
-      logSelectedStudentIds: []
+      logSelectedStudentIds: [],
+      dashboardNeuroExpanded: false
     }
   };
 }
