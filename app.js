@@ -927,6 +927,11 @@ async function hydrateFromSupabase() {
     await fetchDashboardData();
     normalizeStudents();
     ensureDefaultActivePanel();
+    if (canAccessManagementPanel()) {
+      startGoogleSheetWatcher();
+    } else {
+      stopGoogleSheetWatcher();
+    }
     render();
   } catch (err) {
     console.warn("Falha ao carregar dados", err);
@@ -1385,16 +1390,11 @@ function renderDashboard() {
     .slice()
     .sort(compareRooms);
   const upcomingRooms = getUpcomingRooms(30);
-  const nextRoom = upcomingRooms[0] || null;
-  const nextRoomLabel = nextRoom
-    ? `${nextRoom.date} ${nextRoom.startTime || ""}${nextRoom.endTime ? ` - ${nextRoom.endTime}` : ""} | Turma ${nextRoom.classTarget || "-"}`
-    : "Nenhum evento agendado";
 
   els.dashboardAgenda.innerHTML = `
     <strong>Agenda</strong><br />
     Hoje: ${todayRooms.length ? `${todayRooms.length} evento(s)` : "sem eventos"}<br />
-    Proximos 30 dias: ${upcomingRooms.length} evento(s)<br />
-    Proximo evento: ${nextRoomLabel}
+    Proximos 30 dias: ${upcomingRooms.length} evento(s)
   `;
 
   const alerts = [];
@@ -1402,9 +1402,14 @@ function renderDashboard() {
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
+  const todayCheckinStudentIds = new Set(
+    (state.checkins || [])
+      .filter((checkin) => String(checkin.dateTime || "").startsWith(today))
+      .map((checkin) => checkin.studentId)
+  );
   const neuroStudents = state.students.filter((student) => {
     const notes = String(student.notes || "").toLowerCase();
-    return /neuro|tea|autismo|autista|tdah/.test(notes);
+    return /neuro|tea|autismo|autista|tdah/.test(notes) && todayCheckinStudentIds.has(student.id);
   });
 
   if (openRooms.length) {
@@ -1413,17 +1418,15 @@ function renderDashboard() {
   if (roomsWithoutTime.length) {
     alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
   }
-  if (!alerts.length) {
-    alerts.push("Sem alertas pendentes.");
-  }
+  const alertsLine = alerts.length ? `${alerts.join("<br />")}<br />` : "";
   const infoText = state.dashboardInfo || "Nenhuma informacao cadastrada.";
   const neuroLine = neuroStudents.length
     ? `Criancas neuroatipicas: ${neuroStudents.map((student) => student.name).join(", ")}`
-    : "Criancas neuroatipicas: nenhuma identificada.";
+    : "Criancas neuroatipicas em check-in hoje: nenhuma.";
   els.dashboardAlerts.innerHTML = `
     <strong>Informacoes</strong><br />
     ${infoText}<br />
-    ${alerts.join("<br />")}<br />
+    ${alertsLine}
     <strong>Atencao</strong><br />
     ${neuroLine}
   `;
@@ -1505,7 +1508,6 @@ function renderAdminDashboardTools() {
   const canManageDashboard = isAdmin();
   els.dashboardAdminTools.style.display = canManageDashboard ? "flex" : "none";
   if (!canManageDashboard) {
-    stopGoogleSheetWatcher();
     return;
   }
   if (els.dashboardInfoText) {
@@ -1525,14 +1527,6 @@ function renderAdminDashboardTools() {
       els.tipsRecipientSelect.value = current;
     }
   }
-  if (els.scheduleSheetUrl) {
-    els.scheduleSheetUrl.value = scheduleSheetContext.config.url || "";
-  }
-  if (els.btnSyncScheduleSheet) {
-    els.btnSyncScheduleSheet.disabled = !scheduleSheetContext.config.spreadsheetId;
-  }
-  renderScheduleSheetSyncStatus();
-  startGoogleSheetWatcher();
 }
 
 function renderRoleVisibility() {
@@ -1857,7 +1851,7 @@ function extractSpreadsheetIdFromUrl(url) {
 }
 
 function saveScheduleSheetUrl() {
-  if (!state.session || !isAdmin()) {
+  if (!state.session || !canAccessManagementPanel()) {
     return;
   }
   const input = String(els.scheduleSheetUrl?.value || "").trim();
@@ -1877,7 +1871,7 @@ function saveScheduleSheetUrl() {
 }
 
 function startGoogleSheetWatcher() {
-  if (!state.session || !isAdmin() || !supabaseClient) {
+  if (!state.session || !canAccessManagementPanel() || !supabaseClient) {
     stopGoogleSheetWatcher();
     return;
   }
@@ -1903,7 +1897,7 @@ function stopGoogleSheetWatcher() {
 async function syncSchedulesFromGoogleSheet(options = {}) {
   const manual = options.manual === true;
   const silentNoChanges = options.silentNoChanges === true;
-  if (!state.session || !isAdmin()) {
+  if (!state.session || !canAccessManagementPanel()) {
     return;
   }
   if (!supabaseClient) {
@@ -3129,11 +3123,24 @@ function renderManagementPanel() {
     return;
   }
   if (!state.session || !canAccessManagementPanel()) {
+    stopGoogleSheetWatcher();
     els.manageUsersStatus.textContent = "";
     els.manageUsersList.innerHTML = "";
     els.manageUserEditor.innerHTML = "";
+    if (els.scheduleSheetSyncStatus) {
+      els.scheduleSheetSyncStatus.textContent = "";
+    }
     return;
   }
+
+  if (els.scheduleSheetUrl) {
+    els.scheduleSheetUrl.value = scheduleSheetContext.config.url || "";
+  }
+  if (els.btnSyncScheduleSheet) {
+    els.btnSyncScheduleSheet.disabled = !scheduleSheetContext.config.spreadsheetId;
+  }
+  renderScheduleSheetSyncStatus();
+  startGoogleSheetWatcher();
 
   const roleLabel = isSadmin() ? "SADMIN" : formatRole(state.session.role);
   els.manageUsersStatus.textContent = `Nivel atual: ${roleLabel}. Busque e selecione um usuario para editar.`;

@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329l" />
+  <link rel="manifest" href="manifest.json?v=20260329m" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329l" />
+  <link rel="stylesheet" href="styles.css?v=20260329m" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -78,18 +78,6 @@
           <textarea id="dashboardInfoText" placeholder="Informacoes gerais para equipe e responsaveis"></textarea>
         </label>
         <button id="btnSaveDashboardInfo" class="primary">Salvar informacoes</button>
-        <label class="field">Escala do mes (Excel ou CSV)
-          <input id="scheduleFileInput" type="file" accept=".xlsx,.xls,.csv" />
-        </label>
-        <button id="btnImportScheduleFile" class="primary">Importar escala</button>
-        <label class="field">Escala automatica (Google Sheets)
-          <input id="scheduleSheetUrl" type="url" placeholder="Cole o link da planilha Google" />
-        </label>
-        <div class="actions">
-          <button id="btnSaveScheduleSheetUrl" class="ghost" type="button">Salvar link</button>
-          <button id="btnSyncScheduleSheet" class="primary" type="button">Verificar e sincronizar</button>
-        </div>
-        <div id="scheduleSheetSyncStatus" class="summary"></div>
         <label class="field">Dicas / Mensagem
           <select id="tipsRecipientSelect">
             <option value="all">Todos os usuarios</option>
@@ -225,6 +213,16 @@
         Buscar usuario por nome
         <input id="manageUserSearch" placeholder="Digite o nome para localizar" />
       </label>
+      <h3 class="dashboard-title">Escala automatica (Google Sheets)</h3>
+      <label class="field">
+        Link da planilha
+        <input id="scheduleSheetUrl" type="url" placeholder="Cole o link da planilha Google" />
+      </label>
+      <div class="actions">
+        <button id="btnSaveScheduleSheetUrl" class="ghost" type="button">Salvar link</button>
+        <button id="btnSyncScheduleSheet" class="primary" type="button">Verificar e sincronizar</button>
+      </div>
+      <div id="scheduleSheetSyncStatus" class="summary"></div>
       <div id="manageUsersList" class="list"></div>
       <div id="manageUserEditor" class="summary"></div>
     </section>
@@ -548,7 +546,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329l"></script>
-  <script src="app.js?v=20260329l"></script>
+  <script src="vendor/supabase-js.js?v=20260329m"></script>
+  <script src="app.js?v=20260329m"></script>
 </body>
 </html>
