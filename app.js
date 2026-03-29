@@ -149,7 +149,6 @@ const els = {
   familyCreateName: document.getElementById("familyCreateName"),
   familyCreateBirth: document.getElementById("familyCreateBirth"),
   familyCreateCivil: document.getElementById("familyCreateCivil"),
-  familyCreatePhoneDdd: document.getElementById("familyCreatePhoneDdd"),
   familyCreatePhone: document.getElementById("familyCreatePhone"),
   familyCreateEmail: document.getElementById("familyCreateEmail"),
   familyCreateAddress: document.getElementById("familyCreateAddress"),
@@ -3740,7 +3739,6 @@ function clearFamilyCreateForm() {
   if (els.familyCreateName) els.familyCreateName.value = "";
   if (els.familyCreateBirth) els.familyCreateBirth.value = "";
   if (els.familyCreateCivil) els.familyCreateCivil.value = "";
-  if (els.familyCreatePhoneDdd) els.familyCreatePhoneDdd.value = "21";
   if (els.familyCreatePhone) els.familyCreatePhone.value = "";
   if (els.familyCreateEmail) els.familyCreateEmail.value = "";
   if (els.familyCreateAddress) els.familyCreateAddress.value = "";
@@ -3755,8 +3753,10 @@ async function handleCreateFamilyResponsible() {
   const birthRaw = String(els.familyCreateBirth?.value || "").trim();
   const birthDate = normalizeBirthDateInput(birthRaw);
   const civilStatus = String(els.familyCreateCivil?.value || "").trim();
-  const phoneDdd = String(els.familyCreatePhoneDdd?.value || "").replace(/\D/g, "").slice(0, 2);
-  const phoneNumber = String(els.familyCreatePhone?.value || "").replace(/\D/g, "");
+  const phoneDigits = String(els.familyCreatePhone?.value || "").replace(/\D/g, "");
+  const normalizedPhoneDigits = phoneDigits.startsWith("55") ? phoneDigits.slice(2) : phoneDigits;
+  const phoneDdd = normalizedPhoneDigits.slice(0, 2);
+  const phoneNumber = normalizedPhoneDigits.slice(2);
   const phone = phoneDdd && phoneNumber ? `+55(${phoneDdd})${phoneNumber}` : "";
   const email = String(els.familyCreateEmail?.value || "").trim().toLowerCase();
   const address = String(els.familyCreateAddress?.value || "").trim();
@@ -3764,7 +3764,7 @@ async function handleCreateFamilyResponsible() {
     alert("Preencha os dados obrigatorios do responsavel.");
     return;
   }
-  if (phoneNumber.length < 8) {
+  if (phoneDdd.length !== 2 || phoneNumber.length < 8) {
     alert("Informe um celular valido.");
     return;
   }
