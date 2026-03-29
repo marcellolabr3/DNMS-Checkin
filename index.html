@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329b" />
+  <link rel="manifest" href="manifest.json?v=20260329c" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329b" />
+  <link rel="stylesheet" href="styles.css?v=20260329c" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -21,7 +21,7 @@
       </div>
     </div>
     <div class="session">
-      <div id="sessionRole" class="pill">Deslogado</div>
+      <div id="sessionRole" class="pill" role="button" tabindex="0" title="Meus dados">Deslogado</div>
       <button id="btnHomePanel" class="ghost" style="display:none">Dashboard</button>
       <button id="btnRoomsPanel" class="ghost" style="display:none">Salas</button>
       <button id="btnStudentsPanel" class="ghost" style="display:none">Alunos</button>
@@ -461,8 +461,35 @@
     </form>
   </dialog>
 
+  <dialog id="myDataDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Meus dados</h3>
+      <label class="field">Nome
+        <input id="myDataName" type="text" readonly />
+      </label>
+      <label class="field">Email
+        <input id="myDataEmail" type="email" placeholder="exemplo@email.com" />
+      </label>
+      <label class="field">Telefone
+        <input id="myDataPhone" type="text" placeholder="(11) 99999-9999" />
+      </label>
+      <label class="field">Endereco
+        <input id="myDataAddress" type="text" placeholder="Rua, numero, bairro" />
+      </label>
+      <label class="field">
+        Foto de perfil
+        <input id="myDataPhoto" type="file" accept="image/*" />
+        <img id="myDataPhotoPreview" class="photo-preview" alt="Foto de perfil" />
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button id="btnSaveMyData" value="default" class="primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329b"></script>
-  <script src="app.js?v=20260329b"></script>
+  <script src="vendor/supabase-js.js?v=20260329c"></script>
+  <script src="app.js?v=20260329c"></script>
 </body>
 </html>

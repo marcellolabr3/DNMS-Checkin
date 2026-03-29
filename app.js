@@ -21,6 +21,7 @@ const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
+const myDataContext = { email: "", phone: "", address: "", photoUrl: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -176,7 +177,15 @@ const els = {
   resetPasswordDialog: document.getElementById("resetPasswordDialog"),
   resetPasswordNew: document.getElementById("resetPasswordNew"),
   resetPasswordConfirm: document.getElementById("resetPasswordConfirm"),
-  btnSubmitPasswordReset: document.getElementById("btnSubmitPasswordReset")
+  btnSubmitPasswordReset: document.getElementById("btnSubmitPasswordReset"),
+  myDataDialog: document.getElementById("myDataDialog"),
+  myDataName: document.getElementById("myDataName"),
+  myDataEmail: document.getElementById("myDataEmail"),
+  myDataPhone: document.getElementById("myDataPhone"),
+  myDataAddress: document.getElementById("myDataAddress"),
+  myDataPhoto: document.getElementById("myDataPhoto"),
+  myDataPhotoPreview: document.getElementById("myDataPhotoPreview"),
+  btnSaveMyData: document.getElementById("btnSaveMyData")
 };
 
 boot();
@@ -205,11 +214,19 @@ async function boot() {
 
 function bindEvents() {
   els.btnLogin.addEventListener("click", handleLogin);
+  els.sessionRole?.addEventListener("click", openMyDataDialog);
+  els.sessionRole?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openMyDataDialog();
+    }
+  });
   els.btnForgotPassword?.addEventListener("click", openForgotPasswordDialog);
   els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
   els.btnSendPasswordReset?.addEventListener("click", handleSendPasswordResetEmail);
   els.btnSubmitPasswordReset?.addEventListener("click", handleSubmitPasswordReset);
+  els.btnSaveMyData?.addEventListener("click", handleSaveMyData);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
@@ -282,6 +299,11 @@ function bindEvents() {
       updatePhotoPreview(els.signupPhoto, els.signupPhotoPreview);
     });
   }
+  if (els.myDataPhoto) {
+    els.myDataPhoto.addEventListener("change", () => {
+      updatePhotoPreview(els.myDataPhoto, els.myDataPhotoPreview);
+    });
+  }
   els.studentGuardian?.addEventListener("input", () => {
     renderGuardianOptions(els.studentGuardian.value);
     syncGuardianSelectionFromInput();
@@ -316,6 +338,8 @@ function renderSession() {
   if (state.session) {
     const sessionName = state.session.name || formatRole(state.session.role);
     els.sessionRole.textContent = sessionName;
+    els.sessionRole.style.cursor = "pointer";
+    els.sessionRole.setAttribute("aria-disabled", "false");
     ensureDefaultActivePanel();
     els.btnLogout.style.display = "inline-flex";
     if (els.btnHomePanel) {
@@ -341,6 +365,8 @@ function renderSession() {
     }
   } else {
     els.sessionRole.textContent = "Deslogado";
+    els.sessionRole.style.cursor = "default";
+    els.sessionRole.setAttribute("aria-disabled", "true");
     els.btnLogout.style.display = "none";
     if (els.btnRoomsPanel) {
       els.btnRoomsPanel.style.display = "none";
@@ -391,7 +417,22 @@ function applyRoleTheme() {
 }
 
 async function fetchProfile(userId) {
-  const primaryResult = await supabaseClient.from("profiles").select("id,name,role,email").eq("id", userId).single();
+  let primaryResult = await supabaseClient
+    .from("profiles")
+    .select("id,name,role,email,phone,address,photo_url")
+    .eq("id", userId)
+    .single();
+  if (primaryResult.error) {
+    const message = String(primaryResult.error.message || "").toLowerCase();
+    const missingAddressColumn = message.includes("column") && message.includes("address");
+    if (missingAddressColumn) {
+      primaryResult = await supabaseClient
+        .from("profiles")
+        .select("id,name,role,email,phone,photo_url")
+        .eq("id", userId)
+        .single();
+    }
+  }
   if (!primaryResult.error && primaryResult.data) {
     return primaryResult.data;
   }
@@ -410,7 +451,10 @@ async function fetchProfile(userId) {
     id: legacyResult.data.id,
     name: legacyResult.data.nome || "",
     role: legacyResult.data.role,
-    email: ""
+    email: "",
+    phone: "",
+    address: "",
+    photo_url: ""
   };
 }
 
@@ -792,12 +836,22 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
-    state.session = { id: profile.id, name: profile.name, role: normalizeRole(profile.role), email: profile.email || "" };
+    state.session = {
+      id: profile.id,
+      name: profile.name,
+      role: normalizeRole(profile.role),
+      email: profile.email || "",
+      phone: profile.phone || "",
+      address: profile.address || "",
+      photoUrl: profile.photo_url || ""
+    };
     await uploadPendingProfilePhoto(session.user);
     await fetchRooms();
     await fetchStudents();
     await fetchCheckins();
-    await fetchProfiles();
+    if (canAccessManagementPanel() || isEquipe()) {
+      await fetchProfiles();
+    }
     await fetchDashboardData();
     normalizeStudents();
     ensureDefaultActivePanel();
@@ -2289,6 +2343,142 @@ async function handleSubmitPasswordReset(event) {
     window.history.replaceState({}, document.title, cleanUrl);
   } catch (_) {}
   alert("Senha atualizada com sucesso. Faça login com a nova senha.");
+}
+
+async function openMyDataDialog() {
+  if (!state.session) {
+    return;
+  }
+  let profile = {
+    id: state.session.id,
+    name: state.session.name || "",
+    email: state.session.email || "",
+    phone: state.session.phone || "",
+    address: state.session.address || "",
+    photo_url: state.session.photoUrl || ""
+  };
+  if (supabaseClient) {
+    const remote = await fetchProfile(state.session.id);
+    if (remote) {
+      profile = {
+        ...profile,
+        name: remote.name || profile.name,
+        email: remote.email || profile.email,
+        phone: remote.phone || "",
+        address: remote.address || "",
+        photo_url: remote.photo_url || ""
+      };
+    }
+  }
+
+  myDataContext.email = profile.email || "";
+  myDataContext.phone = profile.phone || "";
+  myDataContext.address = profile.address || "";
+  myDataContext.photoUrl = profile.photo_url || "";
+
+  if (els.myDataName) {
+    els.myDataName.value = profile.name || "";
+  }
+  if (els.myDataEmail) {
+    els.myDataEmail.value = profile.email || "";
+  }
+  if (els.myDataPhone) {
+    els.myDataPhone.value = profile.phone || "";
+  }
+  if (els.myDataAddress) {
+    els.myDataAddress.value = profile.address || "";
+  }
+  if (els.myDataPhoto) {
+    els.myDataPhoto.value = "";
+  }
+  setPhotoPreviewUrl(els.myDataPhotoPreview, profile.photo_url || getStudentPhotoPlaceholderUrl());
+  els.myDataDialog?.showModal();
+}
+
+async function handleSaveMyData(event) {
+  event.preventDefault();
+  if (!state.session) {
+    return;
+  }
+  const email = String(els.myDataEmail?.value || "").trim().toLowerCase();
+  const phone = String(els.myDataPhone?.value || "").trim();
+  const address = String(els.myDataAddress?.value || "").trim();
+  const photoFile = els.myDataPhoto?.files?.[0] || null;
+  const emailChanged = email && email !== String(myDataContext.email || "").trim().toLowerCase();
+  const phoneChanged = phone !== String(myDataContext.phone || "");
+  const addressChanged = address !== String(myDataContext.address || "");
+  const hasChanges = emailChanged || phoneChanged || addressChanged || Boolean(photoFile);
+
+  if (!hasChanges) {
+    els.myDataDialog?.close();
+    return;
+  }
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido.");
+    return;
+  }
+  if (!confirm("Confirma salvar as alteracoes em Meus dados?")) {
+    return;
+  }
+
+  if (supabaseClient) {
+    if (phoneChanged || addressChanged) {
+      const { error } = await supabaseClient
+        .from("profiles")
+        .update({ phone, address })
+        .eq("id", state.session.id);
+      if (error) {
+        alert(`Falha ao atualizar dados do perfil: ${error.message || "erro inesperado"}`);
+        return;
+      }
+    }
+
+    if (photoFile) {
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+      if (userError || !userData?.user) {
+        alert(`Falha ao carregar usuario para atualizar foto: ${userError?.message || "erro inesperado"}`);
+        return;
+      }
+      const upload = await uploadProfilePhotoForUser(userData.user, photoFile);
+      if (!upload.ok) {
+        alert(`Falha ao atualizar foto: ${upload.error || "erro inesperado"}`);
+        return;
+      }
+    }
+
+    if (emailChanged) {
+      const { error } = await supabaseClient.auth.updateUser({ email });
+      if (error) {
+        alert(`Falha ao solicitar troca de email: ${error.message || "erro inesperado"}`);
+        return;
+      }
+      alert("Solicitacao de troca de email enviada. Confirme no novo email para concluir.");
+    }
+
+    const refreshed = await fetchProfile(state.session.id);
+    if (refreshed) {
+      state.session = {
+        ...state.session,
+        name: refreshed.name || state.session.name,
+        email: refreshed.email || state.session.email,
+        phone: refreshed.phone || "",
+        address: refreshed.address || "",
+        photoUrl: refreshed.photo_url || ""
+      };
+    } else {
+      state.session = {
+        ...state.session,
+        phone,
+        address
+      };
+    }
+    await fetchProfiles();
+  } else {
+    state.session = { ...state.session, email, phone, address };
+  }
+
+  els.myDataDialog?.close();
+  render();
 }
 
 async function verifyInviteToken(token, email) {
