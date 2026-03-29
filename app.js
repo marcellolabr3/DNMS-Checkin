@@ -22,12 +22,14 @@ const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
+const familyContext = { selectedProfileId: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
   btnHomePanel: document.getElementById("btnHomePanel"),
   btnRoomsPanel: document.getElementById("btnRoomsPanel"),
   btnStudentsPanel: document.getElementById("btnStudentsPanel"),
+  btnFamiliesPanel: document.getElementById("btnFamiliesPanel"),
   btnTipsInbox: document.getElementById("btnTipsInbox"),
   tipsUnreadCount: document.getElementById("tipsUnreadCount"),
   btnPrintPanel: document.getElementById("btnPrintPanel"),
@@ -116,10 +118,24 @@ const els = {
   logStudentsList: document.getElementById("logStudentsList"),
   btnApplyLogStudents: document.getElementById("btnApplyLogStudents"),
   inviteCard: document.getElementById("inviteCard"),
+  familiesCard: document.getElementById("familiesCard"),
   manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
   manageUsersList: document.getElementById("manageUsersList"),
   manageUserEditor: document.getElementById("manageUserEditor"),
+  familySearch: document.getElementById("familySearch"),
+  familyList: document.getElementById("familyList"),
+  familyEditor: document.getElementById("familyEditor"),
+  familyCreateName: document.getElementById("familyCreateName"),
+  familyCreateBirth: document.getElementById("familyCreateBirth"),
+  familyCreateCivil: document.getElementById("familyCreateCivil"),
+  familyCreatePhoneDdd: document.getElementById("familyCreatePhoneDdd"),
+  familyCreatePhone: document.getElementById("familyCreatePhone"),
+  familyCreateEmail: document.getElementById("familyCreateEmail"),
+  familyCreateAddress: document.getElementById("familyCreateAddress"),
+  btnFamilyCreateResponsible: document.getElementById("btnFamilyCreateResponsible"),
+  btnFamilyClearCreate: document.getElementById("btnFamilyClearCreate"),
+  familyCreateStatus: document.getElementById("familyCreateStatus"),
   studentDialog: document.getElementById("studentDialog"),
   studentDialogTitle: document.getElementById("studentDialogTitle"),
   studentId: document.getElementById("studentId"),
@@ -230,6 +246,7 @@ function bindEvents() {
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
+  els.btnFamiliesPanel?.addEventListener("click", () => setActivePanel("families"));
   els.btnTipsInbox?.addEventListener("click", openTipsDialog);
   els.btnLogPanel?.addEventListener("click", toggleLogPanel);
   els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
@@ -275,6 +292,9 @@ function bindEvents() {
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
+  els.familySearch?.addEventListener("input", renderFamiliesPanel);
+  els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
+  els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
   window.addEventListener("afterprint", () => {
@@ -332,6 +352,11 @@ function bindEvents() {
       input.value = applyBirthDateMask(input.value);
     });
   });
+  [els.familyCreateBirth].forEach((input) => {
+    input?.addEventListener("input", () => {
+      input.value = applyBirthDateMask(input.value);
+    });
+  });
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
   }
@@ -343,6 +368,7 @@ function render() {
   renderDashboard();
   renderRooms();
   renderStudents();
+  renderFamiliesPanel();
   renderLog();
   renderManagementPanel();
   saveState();
@@ -366,6 +392,9 @@ function renderSession() {
     if (els.btnStudentsPanel) {
       els.btnStudentsPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
     }
+    if (els.btnFamiliesPanel) {
+      els.btnFamiliesPanel.style.display = isAdmin() || isEquipe() ? "inline-flex" : "none";
+    }
     if (els.btnTipsInbox) {
       els.btnTipsInbox.style.display = "inline-flex";
     }
@@ -388,6 +417,9 @@ function renderSession() {
     }
     if (els.btnStudentsPanel) {
       els.btnStudentsPanel.style.display = "none";
+    }
+    if (els.btnFamiliesPanel) {
+      els.btnFamiliesPanel.style.display = "none";
     }
     if (els.btnTipsInbox) {
       els.btnTipsInbox.style.display = "none";
@@ -484,6 +516,9 @@ function setActivePanel(panel) {
   if (!state.session) {
     return;
   }
+  if (panel === "families" && !(isAdmin() || isEquipe())) {
+    panel = "dashboard";
+  }
   if (panel === "invite" && !canAccessManagementPanel()) {
     panel = "dashboard";
   }
@@ -503,8 +538,11 @@ function ensureDefaultActivePanel() {
     state.ui.showInvitePanel = false;
     return;
   }
-  const allowed = new Set(["dashboard", "rooms", "students", "log", "invite"]);
+  const allowed = new Set(["dashboard", "rooms", "students", "families", "log", "invite"]);
   if (!allowed.has(state.ui.activePanel || "")) {
+    state.ui.activePanel = "dashboard";
+  }
+  if (state.ui.activePanel === "families" && !(isAdmin() || isEquipe())) {
     state.ui.activePanel = "dashboard";
   }
   if (state.ui.activePanel === "invite" && !canAccessManagementPanel()) {
@@ -528,6 +566,9 @@ function updateHeaderPanelButtons() {
   }
   if (els.btnStudentsPanel) {
     els.btnStudentsPanel.className = active === "students" ? "primary" : "ghost";
+  }
+  if (els.btnFamiliesPanel) {
+    els.btnFamiliesPanel.className = active === "families" ? "primary" : "ghost";
   }
 }
 
@@ -1466,6 +1507,7 @@ function renderRoleVisibility() {
   const dashboardCard = document.getElementById("dashboardCard");
   const roomCard = document.getElementById("roomCard");
   const studentCard = document.getElementById("studentCard");
+  const familiesCard = document.getElementById("familiesCard");
   const logCard = document.getElementById("logCard");
   const inviteCard = document.getElementById("inviteCard");
   const authCard = document.getElementById("authCard");
@@ -1481,6 +1523,9 @@ function renderRoleVisibility() {
     }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
+    if (familiesCard) {
+      familiesCard.style.display = "none";
+    }
     logCard.style.display = "none";
     if (inviteCard) {
       inviteCard.style.display = "none";
@@ -1494,6 +1539,9 @@ function renderRoleVisibility() {
     }
     roomCard.style.display = "none";
     logCard.style.display = "none";
+    if (familiesCard) {
+      familiesCard.style.display = "none";
+    }
     if (inviteCard) {
       inviteCard.style.display = "none";
     }
@@ -1508,6 +1556,9 @@ function renderRoleVisibility() {
     }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
+    if (familiesCard) {
+      familiesCard.style.display = "none";
+    }
     logCard.style.display = "flex";
     if (inviteCard) {
       inviteCard.style.display = "none";
@@ -1520,9 +1571,27 @@ function renderRoleVisibility() {
     }
     roomCard.style.display = "none";
     studentCard.style.display = "none";
+    if (familiesCard) {
+      familiesCard.style.display = "none";
+    }
     logCard.style.display = "none";
     if (inviteCard) {
       inviteCard.style.display = "flex";
+    }
+    return;
+  }
+  if (activePanel === "families" && (isAdmin() || isEquipe())) {
+    if (dashboardCard) {
+      dashboardCard.style.display = "none";
+    }
+    roomCard.style.display = "none";
+    studentCard.style.display = "none";
+    if (familiesCard) {
+      familiesCard.style.display = "flex";
+    }
+    logCard.style.display = "none";
+    if (inviteCard) {
+      inviteCard.style.display = "none";
     }
     return;
   }
@@ -1531,6 +1600,9 @@ function renderRoleVisibility() {
   }
   roomCard.style.display = activePanel === "rooms" ? "flex" : "none";
   studentCard.style.display = activePanel === "students" ? "flex" : "none";
+  if (familiesCard) {
+    familiesCard.style.display = "none";
+  }
   logCard.style.display = "none";
   if (inviteCard) {
     inviteCard.style.display = "none";
@@ -2763,6 +2835,339 @@ function renderManagementPanel() {
   btnDeleteUser?.addEventListener("click", async () => {
     await deleteUserProfile(selectedProfile);
   });
+}
+
+function renderFamiliesPanel() {
+  if (!els.familiesCard || !els.familyList || !els.familyEditor) {
+    return;
+  }
+  const canAccess = Boolean(state.session) && (isAdmin() || isEquipe()) && getActivePanel() === "families";
+  if (!canAccess) {
+    return;
+  }
+  const families = getFamiliesWithChildren();
+  const search = String(els.familySearch?.value || "").trim().toLowerCase();
+  const filtered = families.filter((entry) => {
+    if (!search) {
+      return true;
+    }
+    const blob = `${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`.toLowerCase();
+    return blob.includes(search);
+  });
+
+  if (!filtered.length) {
+    els.familyList.innerHTML = `<div class="summary">Nenhuma familia encontrada.</div>`;
+    els.familyEditor.innerHTML = "";
+    familyContext.selectedProfileId = "";
+    return;
+  }
+
+  if (!filtered.some((entry) => entry.profile.id === familyContext.selectedProfileId)) {
+    familyContext.selectedProfileId = filtered[0].profile.id;
+  }
+
+  els.familyList.innerHTML = "";
+  filtered.forEach((entry) => {
+    const item = document.createElement("div");
+    item.className = `list-item ${familyContext.selectedProfileId === entry.profile.id ? "is-selected" : ""}`;
+    item.style.cursor = "pointer";
+    item.innerHTML = `
+      <strong>${entry.profile.name || "Responsavel"}</strong>
+      <span class="muted">${entry.profile.email || "-"}</span>
+      <span class="muted">Filhos: ${entry.children.length}</span>
+    `;
+    item.addEventListener("click", () => {
+      familyContext.selectedProfileId = entry.profile.id;
+      renderFamiliesPanel();
+    });
+    els.familyList.appendChild(item);
+  });
+
+  const selected = filtered.find((entry) => entry.profile.id === familyContext.selectedProfileId) || null;
+  if (!selected) {
+    els.familyEditor.innerHTML = "";
+    return;
+  }
+  const canDelete = isSadmin() || isAdmin();
+  const childrenHtml = selected.children.length
+    ? selected.children
+        .map(
+          (child) => `
+      <div class="list-item">
+        <strong>${child.name}</strong>
+        <span class="muted">Turma: ${child.className || getClassForBirth(child.birth)}</span>
+        <div class="actions">
+          <button type="button" class="ghost" data-family-edit-child="${child.id}">Editar crianca</button>
+          <button type="button" class="primary" data-family-checkin-child="${child.id}">Check-in</button>
+        </div>
+      </div>
+    `
+        )
+        .join("")
+    : `<div class="summary">Nenhuma crianca vinculada.</div>`;
+
+  els.familyEditor.innerHTML = `
+    <strong>Responsavel selecionado</strong>
+    <label class="field">Nome
+      <input id="familyEditName" type="text" value="${selected.profile.name || ""}" />
+    </label>
+    <label class="field">Email
+      <input id="familyEditEmail" type="email" value="${selected.profile.email || ""}" readonly />
+    </label>
+    <label class="field">Telefone
+      <input id="familyEditPhone" type="text" value="${selected.profile.phone || ""}" />
+    </label>
+    <label class="field">Endereco
+      <input id="familyEditAddress" type="text" value="${selected.profile.address || ""}" />
+    </label>
+    <div class="actions">
+      <button id="btnFamilySaveProfile" type="button" class="primary">Salvar responsavel</button>
+      <button id="btnFamilyAddChild" type="button" class="ghost">Adicionar crianca</button>
+    </div>
+    <div class="list">${childrenHtml}</div>
+    ${
+      canDelete
+        ? `
+      <div class="summary" style="margin-top:10px">
+        <strong>Excluir usuario</strong><br />
+        Digite o nome para confirmar: <strong>${selected.profile.name || "-"}</strong>
+        <label class="field">
+          <input id="familyDeleteConfirmName" type="text" placeholder="Digite o nome exatamente" />
+        </label>
+        <button id="btnFamilyDeleteUser" type="button" class="danger">Excluir usuario</button>
+      </div>
+    `
+        : ""
+    }
+  `;
+
+  document.getElementById("btnFamilySaveProfile")?.addEventListener("click", async () => {
+    await saveFamilyProfile(selected.profile.id);
+  });
+  document.getElementById("btnFamilyAddChild")?.addEventListener("click", () => {
+    openStudentDialogForFamily(selected.profile);
+  });
+  document.querySelectorAll("[data-family-edit-child]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const childId = button.getAttribute("data-family-edit-child");
+      const child = state.students.find((item) => item.id === childId);
+      if (child) {
+        openStudentDialog(child);
+      }
+    });
+  });
+  document.querySelectorAll("[data-family-checkin-child]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const childId = button.getAttribute("data-family-checkin-child");
+      const result = await handleManualCheckin(childId, { silent: true });
+      if (!result.ok) {
+        alert(result.message || "Falha ao registrar check-in.");
+      } else {
+        alert("Check-in registrado.");
+      }
+    });
+  });
+  document.getElementById("btnFamilyDeleteUser")?.addEventListener("click", async () => {
+    const typed = String(document.getElementById("familyDeleteConfirmName")?.value || "").trim();
+    await deleteFamilyUser(selected.profile, typed);
+  });
+}
+
+function getFamiliesWithChildren() {
+  const childrenByGuardian = new Map();
+  (state.students || []).forEach((student) => {
+    const key = String(student.guardianProfileId || "").trim();
+    if (!key) {
+      return;
+    }
+    if (!childrenByGuardian.has(key)) {
+      childrenByGuardian.set(key, []);
+    }
+    childrenByGuardian.get(key).push(student);
+  });
+  const result = [];
+  (state.profiles || []).forEach((profile) => {
+    const role = normalizeRole(profile.role);
+    if (role !== "responsavel") {
+      return;
+    }
+    const children = childrenByGuardian.get(profile.id) || [];
+    if (!children.length) {
+      return;
+    }
+    result.push({ profile, children });
+  });
+  result.sort((a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""));
+  return result;
+}
+
+async function saveFamilyProfile(profileId) {
+  if (!supabaseClient || !profileId) {
+    return;
+  }
+  const name = String(document.getElementById("familyEditName")?.value || "").trim();
+  const phone = String(document.getElementById("familyEditPhone")?.value || "").trim();
+  const address = String(document.getElementById("familyEditAddress")?.value || "").trim();
+  if (!name) {
+    alert("Informe o nome do responsavel.");
+    return;
+  }
+  if (!confirm("Confirma salvar as alteracoes do responsavel?")) {
+    return;
+  }
+  const { error } = await supabaseClient.from("profiles").update({ name, nome: name, phone, address }).eq("id", profileId);
+  if (error) {
+    alert(`Falha ao salvar responsavel: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  await fetchProfiles();
+  render();
+}
+
+async function deleteFamilyUser(profile, typedName) {
+  if (!profile) {
+    return;
+  }
+  if (!(isSadmin() || isAdmin())) {
+    alert("Sem permissao para excluir usuario.");
+    return;
+  }
+  const expected = String(profile.name || "").trim();
+  if (!typedName || typedName !== expected) {
+    alert("Nome de confirmacao invalido.");
+    return;
+  }
+  if (!confirm(`Confirmacao final: excluir o usuario ${expected}?`)) {
+    return;
+  }
+  await supabaseClient.from("student_guardians").delete().eq("guardian_id", profile.id);
+  const { error } = await supabaseClient.from("profiles").delete().eq("id", profile.id);
+  if (error) {
+    alert(`Falha ao excluir usuario: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  familyContext.selectedProfileId = "";
+  await fetchProfiles();
+  await fetchStudents();
+  render();
+  const createdProfile = (state.profiles || []).find((item) => item.id === createdUser.id) || {
+    id: createdUser.id,
+    name,
+    phone,
+    email,
+    address
+  };
+  openStudentDialogForFamily(createdProfile);
+}
+
+function openStudentDialogForFamily(profile) {
+  if (!profile) {
+    return;
+  }
+  openStudentDialog();
+  if (els.studentGuardian) {
+    els.studentGuardian.value = formatGuardianOption(profile);
+  }
+  studentDialogContext.guardianProfileId = profile.id;
+  if (els.studentGuardianHint) {
+    els.studentGuardianHint.textContent = `Usuario selecionado: ${profile.name}`;
+  }
+}
+
+function clearFamilyCreateForm() {
+  if (els.familyCreateName) els.familyCreateName.value = "";
+  if (els.familyCreateBirth) els.familyCreateBirth.value = "";
+  if (els.familyCreateCivil) els.familyCreateCivil.value = "";
+  if (els.familyCreatePhoneDdd) els.familyCreatePhoneDdd.value = "21";
+  if (els.familyCreatePhone) els.familyCreatePhone.value = "";
+  if (els.familyCreateEmail) els.familyCreateEmail.value = "";
+  if (els.familyCreateAddress) els.familyCreateAddress.value = "";
+  if (els.familyCreateStatus) els.familyCreateStatus.textContent = "";
+}
+
+async function handleCreateFamilyResponsible() {
+  if (!supabaseClient || !(isAdmin() || isEquipe())) {
+    return;
+  }
+  const name = String(els.familyCreateName?.value || "").trim();
+  const birthRaw = String(els.familyCreateBirth?.value || "").trim();
+  const birthDate = normalizeBirthDateInput(birthRaw);
+  const civilStatus = String(els.familyCreateCivil?.value || "").trim();
+  const phoneDdd = String(els.familyCreatePhoneDdd?.value || "").replace(/\D/g, "").slice(0, 2);
+  const phoneNumber = String(els.familyCreatePhone?.value || "").replace(/\D/g, "");
+  const phone = phoneDdd && phoneNumber ? `+55(${phoneDdd})${phoneNumber}` : "";
+  const email = String(els.familyCreateEmail?.value || "").trim().toLowerCase();
+  const address = String(els.familyCreateAddress?.value || "").trim();
+  if (!name || !birthDate || !civilStatus || !phone || !email || !isValidEmail(email)) {
+    alert("Preencha os dados obrigatorios do responsavel.");
+    return;
+  }
+  if (phoneNumber.length < 8) {
+    alert("Informe um celular valido.");
+    return;
+  }
+  if (!confirm(`Confirma cadastrar o responsavel ${name}?`)) {
+    return;
+  }
+
+  const tempPassword = `Tmp#${uid().slice(0, 10)}A1`;
+  const tempClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  if (!tempClient) {
+    alert("Cliente Supabase indisponivel.");
+    return;
+  }
+  const signup = await tempClient.auth.signUp({
+    email,
+    password: tempPassword,
+    options: {
+      data: {
+        full_name: name,
+        desired_role: "responsavel",
+        birth_date: birthDate,
+        marital_status: civilStatus,
+        phone
+      }
+    }
+  });
+  if (signup.error) {
+    alert(`Falha ao cadastrar responsavel: ${signup.error.message || "erro inesperado"}`);
+    return;
+  }
+  const createdUser = signup.data?.user;
+  if (!createdUser?.id) {
+    alert("Nao foi possivel concluir cadastro do responsavel.");
+    return;
+  }
+  const { error: profileError } = await supabaseClient.from("profiles").upsert({
+    id: createdUser.id,
+    name,
+    nome: name,
+    role: "responsavel",
+    email,
+    birth_date: birthDate,
+    marital_status: civilStatus,
+    phone,
+    address
+  });
+  if (profileError) {
+    alert(`Falha ao salvar perfil do responsavel: ${profileError.message || "erro inesperado"}`);
+    return;
+  }
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const reset = await tempClient.auth.resetPasswordForEmail(email, { redirectTo });
+  if (reset.error) {
+    alert(`Responsavel criado, mas falhou o envio de email de senha: ${reset.error.message || "erro inesperado"}`);
+    return;
+  }
+  clearFamilyCreateForm();
+  if (els.familyCreateStatus) {
+    els.familyCreateStatus.textContent = `Responsavel ${name} cadastrado. Email enviado para definir senha no primeiro acesso.`;
+  }
+  await fetchProfiles();
+  await fetchStudents();
+  render();
 }
 
 async function updateUserAccess(profile, nextRole) {

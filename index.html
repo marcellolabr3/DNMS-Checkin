@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329h" />
+  <link rel="manifest" href="manifest.json?v=20260329i" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329h" />
+  <link rel="stylesheet" href="styles.css?v=20260329i" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -25,6 +25,7 @@
       <button id="btnHomePanel" class="ghost" style="display:none">Dashboard</button>
       <button id="btnRoomsPanel" class="ghost" style="display:none">Salas</button>
       <button id="btnStudentsPanel" class="ghost" style="display:none">Alunos</button>
+      <button id="btnFamiliesPanel" class="ghost" style="display:none">Familias</button>
       <button id="btnTipsInbox" class="ghost message-btn" style="display:none">
         Mensagens
         <span id="tipsUnreadCount" class="message-badge">0</span>
@@ -218,6 +219,55 @@
       </label>
       <div id="manageUsersList" class="list"></div>
       <div id="manageUserEditor" class="summary"></div>
+    </section>
+
+    <section class="card" id="familiesCard" style="display:none">
+      <div class="card-header">
+        <h2>Familias</h2>
+      </div>
+      <p class="muted">Responsaveis com filhos cadastrados.</p>
+      <div class="filters">
+        <input id="familySearch" type="text" placeholder="Buscar por nome, email ou telefone" />
+      </div>
+      <div id="familyList" class="list"></div>
+      <div id="familyEditor" class="summary"></div>
+      <h3 class="dashboard-title">Cadastrar Responsavel</h3>
+      <div class="grid-2">
+        <label class="field">Nome completo
+          <input id="familyCreateName" type="text" />
+        </label>
+        <label class="field">Data de nascimento
+          <input id="familyCreateBirth" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" />
+        </label>
+        <label class="field">Estado civil
+          <select id="familyCreateCivil">
+            <option value="">Selecione</option>
+            <option value="solteiro">Solteiro(a)</option>
+            <option value="casado">Casado(a)</option>
+            <option value="divorciado">Divorciado(a)</option>
+            <option value="viuvo">Viuvo(a)</option>
+          </select>
+        </label>
+        <label class="field">Celular
+          <div class="phone-row">
+            <span class="phone-prefix">+55(</span>
+            <input id="familyCreatePhoneDdd" type="text" inputmode="numeric" maxlength="2" placeholder="21" />
+            <span class="phone-prefix">)</span>
+            <input id="familyCreatePhone" type="text" inputmode="numeric" placeholder="999999999" />
+          </div>
+        </label>
+        <label class="field">Email
+          <input id="familyCreateEmail" type="email" />
+        </label>
+        <label class="field">Endereco
+          <input id="familyCreateAddress" type="text" />
+        </label>
+      </div>
+      <div class="actions">
+        <button id="btnFamilyCreateResponsible" class="primary" type="button">Cadastrar responsavel</button>
+        <button id="btnFamilyClearCreate" class="ghost" type="button">Limpar</button>
+      </div>
+      <div id="familyCreateStatus" class="summary"></div>
     </section>
   </main>
 
@@ -489,7 +539,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329h"></script>
-  <script src="app.js?v=20260329h"></script>
+  <script src="vendor/supabase-js.js?v=20260329i"></script>
+  <script src="app.js?v=20260329i"></script>
 </body>
 </html>
