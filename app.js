@@ -2855,10 +2855,13 @@ function renderFamiliesPanel() {
   }
   const families = getFamiliesWithChildren();
   const search = normalizeMatchText(String(els.familySearch?.value || "").trim());
+  if (!search) {
+    els.familyList.innerHTML = `<div class="summary">Digite um nome, email ou telefone para buscar.</div>`;
+    els.familyEditor.innerHTML = "";
+    familyContext.selectedProfileId = "";
+    return;
+  }
   const filtered = families.filter((entry) => {
-    if (!search) {
-      return true;
-    }
     const blob = normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`);
     return blob.includes(search);
   });
