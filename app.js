@@ -50,7 +50,6 @@ const els = {
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
   dashboardCard: document.getElementById("dashboardCard"),
-  dashboardAgenda: document.getElementById("dashboardAgenda"),
   dashboardAlerts: document.getElementById("dashboardAlerts"),
   dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
@@ -1587,7 +1586,6 @@ function renderCheckins() {}
 
 function renderDashboard() {
   if (
-    !els.dashboardAgenda ||
     !els.dashboardAlerts ||
     !els.dashboardAttention ||
     !els.dashboardBirthdays ||
@@ -1603,17 +1601,6 @@ function renderDashboard() {
   }
 
   const today = formatToday();
-  const todayRooms = state.rooms
-    .filter((room) => room.date === today && room.status !== "Fechada")
-    .slice()
-    .sort(compareRooms);
-  const upcomingRooms = getUpcomingRooms(30);
-
-  els.dashboardAgenda.innerHTML = `
-    <strong>Agenda</strong><br />
-    Hoje: ${todayRooms.length ? `${todayRooms.length} evento(s)` : "sem eventos"}<br />
-    Proximos 30 dias: ${upcomingRooms.length} evento(s)
-  `;
 
   const alerts = [];
   const openRooms = state.rooms.filter((room) => room.status === "Aberta");
