@@ -28,6 +28,30 @@ body {
   min-height: 100vh;
 }
 
+body.role-theme-equipe {
+  --bg: #edf7ef;
+  background:
+    radial-gradient(circle at top left, rgba(114, 192, 129, 0.16), transparent 55%),
+    radial-gradient(circle at 20% 50%, rgba(74, 145, 89, 0.1), transparent 60%),
+    var(--bg);
+}
+
+body.role-theme-admin {
+  --bg: #e3f1e7;
+  background:
+    radial-gradient(circle at top left, rgba(80, 165, 98, 0.2), transparent 55%),
+    radial-gradient(circle at 20% 50%, rgba(52, 121, 69, 0.12), transparent 60%),
+    var(--bg);
+}
+
+body.role-theme-sadmin {
+  --bg: #d7e8dc;
+  background:
+    radial-gradient(circle at top left, rgba(51, 131, 70, 0.24), transparent 55%),
+    radial-gradient(circle at 20% 50%, rgba(33, 97, 50, 0.16), transparent 60%),
+    var(--bg);
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;

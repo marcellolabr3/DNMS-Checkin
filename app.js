@@ -301,6 +301,7 @@ function render() {
 }
 
 function renderSession() {
+  applyRoleTheme();
   if (state.session) {
     const sessionName = state.session.name || formatRole(state.session.role);
     els.sessionRole.textContent = sessionName;
@@ -354,6 +355,28 @@ function renderSession() {
   }
   updateHeaderPanelButtons();
   updateTipsUnreadBadge();
+}
+
+function applyRoleTheme() {
+  const body = document.body;
+  if (!body) {
+    return;
+  }
+  body.classList.remove("role-theme-equipe", "role-theme-admin", "role-theme-sadmin");
+  if (!state.session) {
+    return;
+  }
+  if (isSadmin()) {
+    body.classList.add("role-theme-sadmin");
+    return;
+  }
+  if (isAdmin()) {
+    body.classList.add("role-theme-admin");
+    return;
+  }
+  if (isEquipe()) {
+    body.classList.add("role-theme-equipe");
+  }
 }
 
 async function fetchProfile(userId) {
