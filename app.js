@@ -52,6 +52,7 @@ const els = {
   dashboardCard: document.getElementById("dashboardCard"),
   dashboardAgenda: document.getElementById("dashboardAgenda"),
   dashboardAlerts: document.getElementById("dashboardAlerts"),
+  dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
   dashboardSchedules: document.getElementById("dashboardSchedules"),
   dashboardBirthdays: document.getElementById("dashboardBirthdays"),
@@ -1372,6 +1373,7 @@ function renderDashboard() {
   if (
     !els.dashboardAgenda ||
     !els.dashboardAlerts ||
+    !els.dashboardAttention ||
     !els.dashboardBirthdays ||
     !els.dashboardSchedules ||
     !els.dashboardLessonToday
@@ -1438,6 +1440,8 @@ function renderDashboard() {
     <strong>Informacoes</strong><br />
     ${infoText}<br />
     ${alertsLine}
+  `;
+  els.dashboardAttention.innerHTML = `
     <strong>Atencao:</strong><br />
     ${neuroSummaryHtml}
     ${neuroListHtml}
