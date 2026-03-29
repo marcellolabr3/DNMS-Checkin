@@ -2846,12 +2846,12 @@ function renderFamiliesPanel() {
     return;
   }
   const families = getFamiliesWithChildren();
-  const search = String(els.familySearch?.value || "").trim().toLowerCase();
+  const search = normalizeMatchText(String(els.familySearch?.value || "").trim());
   const filtered = families.filter((entry) => {
     if (!search) {
       return true;
     }
-    const blob = `${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`.toLowerCase();
+    const blob = normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`);
     return blob.includes(search);
   });
 
@@ -2889,6 +2889,10 @@ function renderFamiliesPanel() {
     return;
   }
   const canDelete = isSadmin() || isAdmin();
+  const assignableStudents = getFamilyAssignableStudents(selected.profile.id, selected.children);
+  const assignOptions = assignableStudents
+    .map((student) => `<option value="${student.id}">${student.name} - ${student.className || getClassForBirth(student.birth)}</option>`)
+    .join("");
   const childrenHtml = selected.children.length
     ? selected.children
         .map(
@@ -2924,6 +2928,15 @@ function renderFamiliesPanel() {
       <button id="btnFamilySaveProfile" type="button" class="primary">Salvar responsavel</button>
       <button id="btnFamilyAddChild" type="button" class="ghost">Adicionar crianca</button>
     </div>
+    <label class="field">Vincular crianca existente
+      <select id="familyAssignStudentId">
+        <option value="">Selecione uma crianca</option>
+        ${assignOptions}
+      </select>
+    </label>
+    <div class="actions">
+      <button id="btnFamilyAssignStudent" type="button" class="ghost">Vincular crianca</button>
+    </div>
     <div class="list">${childrenHtml}</div>
     ${
       canDelete
@@ -2946,6 +2959,14 @@ function renderFamiliesPanel() {
   });
   document.getElementById("btnFamilyAddChild")?.addEventListener("click", () => {
     openStudentDialogForFamily(selected.profile);
+  });
+  document.getElementById("btnFamilyAssignStudent")?.addEventListener("click", async () => {
+    const studentId = String(document.getElementById("familyAssignStudentId")?.value || "");
+    if (!studentId) {
+      alert("Selecione uma crianca para vincular.");
+      return;
+    }
+    await assignStudentToFamily(studentId, selected.profile);
   });
   document.querySelectorAll("[data-family-edit-child]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2992,13 +3013,17 @@ function getFamiliesWithChildren() {
       return;
     }
     const children = childrenByGuardian.get(profile.id) || [];
-    if (!children.length) {
-      return;
-    }
     result.push({ profile, children });
   });
   result.sort((a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""));
   return result;
+}
+
+function getFamilyAssignableStudents(profileId, selectedChildren = []) {
+  const selectedIds = new Set((selectedChildren || []).map((child) => child.id));
+  return (state.students || [])
+    .filter((student) => !selectedIds.has(student.id))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
 
 async function saveFamilyProfile(profileId) {
@@ -3072,6 +3097,48 @@ function openStudentDialogForFamily(profile) {
   if (els.studentGuardianHint) {
     els.studentGuardianHint.textContent = `Usuario selecionado: ${profile.name}`;
   }
+}
+
+async function assignStudentToFamily(studentId, profile) {
+  if (!studentId || !profile?.id) {
+    return;
+  }
+  const student = (state.students || []).find((item) => item.id === studentId);
+  if (!student) {
+    alert("Crianca nao encontrada.");
+    return;
+  }
+  if (!confirm(`Vincular ${student.name} ao responsavel ${profile.name}?`)) {
+    return;
+  }
+
+  if (supabaseClient) {
+    const updatePayload = {
+      primary_guardian_name: profile.name || student.guardian || ""
+    };
+    const { error: updateError } = await supabaseClient.from("students").update(updatePayload).eq("id", student.id);
+    if (updateError) {
+      alert(`Falha ao atualizar crianca: ${updateError.message || "erro inesperado"}`);
+      return;
+    }
+    const linked = await linkGuardianToStudent(student.id, profile.name || "", profile.id);
+    if (!linked) {
+      alert("Falha ao vincular crianca ao responsavel selecionado.");
+      return;
+    }
+    await fetchStudents();
+  } else {
+    const index = state.students.findIndex((item) => item.id === student.id);
+    if (index >= 0) {
+      state.students[index] = {
+        ...state.students[index],
+        guardian: profile.name || state.students[index].guardian,
+        guardianProfileId: profile.id
+      };
+    }
+  }
+  familyContext.selectedProfileId = profile.id;
+  render();
 }
 
 function clearFamilyCreateForm() {
@@ -4653,12 +4720,12 @@ function openStudentDetailsDialog(student) {
     const contact = getResponsibleContactForStudent(student);
     const birthLabel = formatBirthDateShort(student.birth) || "-";
     els.studentDetailsInfo.innerHTML = `
-      <strong>Turma:</strong> ${className || "-"}<br />
-      <strong>Nascimento:</strong> ${birthLabel}<br />
-      <strong>Responsavel:</strong> ${student.guardian || "-"}<br />
-      <strong>Telefone:</strong> ${contact.phone || "-"}<br />
-      <strong>Endereco:</strong> ${contact.address || "-"}<br />
-      <strong>Observacoes:</strong> ${student.notes || "-"}
+      <div class="student-details-row"><strong>Turma:</strong><span>${className || "-"}</span></div>
+      <div class="student-details-row"><strong>Nascimento:</strong><span>${birthLabel}</span></div>
+      <div class="student-details-row"><strong>Responsavel:</strong><span>${student.guardian || "-"}</span></div>
+      <div class="student-details-row"><strong>Telefone:</strong><span>${contact.phone || "-"}</span></div>
+      <div class="student-details-row"><strong>Endereco:</strong><span>${contact.address || "-"}</span></div>
+      <div class="student-details-row"><strong>Observacoes:</strong><span>${student.notes || ""}</span></div>
     `;
   }
   const openCheckin = getOpenCheckinForStudent(student.id);

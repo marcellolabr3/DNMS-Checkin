@@ -241,6 +241,32 @@ body.role-theme-sadmin {
   border: 2px solid var(--stroke);
 }
 
+#studentDetailsDialog .dialog-body {
+  width: min(420px, calc(100vw - 18px));
+  max-width: calc(100vw - 18px);
+  min-height: min(74dvh, 700px);
+}
+
+#studentDetailsInfo {
+  width: 100%;
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.student-details-row {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.student-details-row strong,
+.student-details-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .field textarea {
   min-height: 90px;
   resize: vertical;
@@ -524,7 +550,7 @@ button:disabled,
 
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 10px;
 }
 
@@ -641,6 +667,36 @@ button:disabled,
   }
 }
 
+#familiesCard .filters,
+#familiesCard .field,
+#familiesCard .list-item,
+#familyEditor,
+#familyList {
+  min-width: 0;
+}
+
+#familiesCard input,
+#familiesCard select,
+#familiesCard textarea,
+#familyEditor input,
+#familyEditor select,
+#familyEditor textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#familyEditor .actions,
+#familiesCard .actions {
+  flex-wrap: wrap;
+}
+
+#familyEditor .summary,
+#familyEditor .list-item,
+#familyList .list-item {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 420px) {
   .grid-2 {
     grid-template-columns: 1fr;
@@ -651,6 +707,17 @@ button:disabled,
     padding: 14px;
     width: calc(100vw - 14px);
     max-width: calc(100vw - 14px);
+  }
+
+  #studentDetailsDialog .dialog-body {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    min-height: min(80dvh, 760px);
+  }
+
+  .student-details-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 
   .card {
