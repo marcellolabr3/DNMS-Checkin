@@ -124,6 +124,7 @@ const els = {
   manageUsersList: document.getElementById("manageUsersList"),
   manageUserEditor: document.getElementById("manageUserEditor"),
   familySearch: document.getElementById("familySearch"),
+  btnExportFamilies: document.getElementById("btnExportFamilies"),
   familyList: document.getElementById("familyList"),
   familyEditor: document.getElementById("familyEditor"),
   familyCreateName: document.getElementById("familyCreateName"),
@@ -293,6 +294,7 @@ function bindEvents() {
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
+  els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
   els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
   els.btnPrintLabel.addEventListener("click", printCurrentLabel);
@@ -2853,18 +2855,16 @@ function renderFamiliesPanel() {
   if (!canAccess) {
     return;
   }
-  const families = getFamiliesWithChildren();
-  const search = normalizeMatchText(String(els.familySearch?.value || "").trim());
+  const { search, filtered } = getFilteredFamiliesForCurrentSearch();
+  if (els.btnExportFamilies) {
+    els.btnExportFamilies.disabled = !filtered.length;
+  }
   if (!search) {
     els.familyList.innerHTML = `<div class="summary">Digite um nome, email ou telefone para buscar.</div>`;
     els.familyEditor.innerHTML = "";
     familyContext.selectedProfileId = "";
     return;
   }
-  const filtered = families.filter((entry) => {
-    const blob = normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`);
-    return blob.includes(search);
-  });
 
   if (!filtered.length) {
     els.familyList.innerHTML = `<div class="summary">Nenhuma familia encontrada.</div>`;
@@ -3029,6 +3029,19 @@ function getFamiliesWithChildren() {
   });
   result.sort((a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""));
   return result;
+}
+
+function getFilteredFamiliesForCurrentSearch() {
+  const families = getFamiliesWithChildren();
+  const search = normalizeMatchText(String(els.familySearch?.value || "").trim());
+  if (!search) {
+    return { search: "", filtered: [] };
+  }
+  const filtered = families.filter((entry) => {
+    const blob = normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`);
+    return blob.includes(search);
+  });
+  return { search, filtered };
 }
 
 function getFamilyAssignableStudents(profileId, selectedChildren = []) {
@@ -4515,6 +4528,39 @@ function exportCsv() {
   link.remove();
   URL.revokeObjectURL(url);
   render();
+}
+
+function exportFamiliesCsv() {
+  if (!state.session || !(isAdmin() || isEquipe())) {
+    alert("Sem permissao para exportar.");
+    return;
+  }
+  const { filtered } = getFilteredFamiliesForCurrentSearch();
+  if (!filtered.length) {
+    alert("Nenhum usuario encontrado para exportar.");
+    return;
+  }
+  const header = ["Responsavel", "Email", "Telefone", "Endereco", "Qtd filhos", "Filhos"];
+  const csvRows = filtered.map((entry) => [
+    entry.profile.name || "",
+    entry.profile.email || "",
+    entry.profile.phone || "",
+    entry.profile.address || "",
+    entry.children.length,
+    entry.children.map((child) => child.name).join(" | ")
+  ]);
+  const searchRaw = String(els.familySearch?.value || "").trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
+  const fileSuffix = searchRaw || "busca";
+  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `familias_${fileSuffix}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function shareLogWhatsapp() {
