@@ -3762,6 +3762,13 @@ function getResponsibleContactForStudent(student) {
       };
     }
   }
+  const profileByName = findProfileByGuardianName(student.guardian);
+  if (profileByName) {
+    return {
+      phone: String(profileByName.phone || "").trim(),
+      address: String(profileByName.address || "").trim()
+    };
+  }
   const guardianName = String(student.guardian || "").trim().toLowerCase();
   if (guardianName && String(state.session?.name || "").trim().toLowerCase() === guardianName) {
     return {
@@ -3770,9 +3777,23 @@ function getResponsibleContactForStudent(student) {
     };
   }
   return {
-    phone: String(student.phone || "").trim(),
-    address: String(student.address || "").trim()
+    phone: "",
+    address: ""
   };
+}
+
+function findProfileByGuardianName(guardianName) {
+  const target = String(guardianName || "").trim().toLowerCase();
+  if (!target) {
+    return null;
+  }
+  const profiles = state.profiles || [];
+  const exact = profiles.find((item) => String(item?.name || "").trim().toLowerCase() === target);
+  if (exact) {
+    return exact;
+  }
+  const partial = profiles.find((item) => String(item?.name || "").trim().toLowerCase().includes(target));
+  return partial || null;
 }
 
 async function openQrDialog() {
