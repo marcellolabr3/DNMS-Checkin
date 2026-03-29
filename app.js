@@ -1,6 +1,9 @@
 ﻿﻿const STORAGE_KEY = "checkin_app_state_v1";
 const STORAGE_BUCKET = "dnms-photos";
 const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
+const SCHEDULE_SHEET_CONFIG_KEY = "checkin_schedule_sheet_config_v1";
+const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
+const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
@@ -17,6 +20,11 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 });
 
 const state = loadState();
+const scheduleSheetContext = {
+  config: loadScheduleSheetConfig(),
+  timerId: null,
+  inProgress: false
+};
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
@@ -52,6 +60,10 @@ const els = {
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
   scheduleFileInput: document.getElementById("scheduleFileInput"),
   btnImportScheduleFile: document.getElementById("btnImportScheduleFile"),
+  scheduleSheetUrl: document.getElementById("scheduleSheetUrl"),
+  btnSaveScheduleSheetUrl: document.getElementById("btnSaveScheduleSheetUrl"),
+  btnSyncScheduleSheet: document.getElementById("btnSyncScheduleSheet"),
+  scheduleSheetSyncStatus: document.getElementById("scheduleSheetSyncStatus"),
   tipsRecipientSelect: document.getElementById("tipsRecipientSelect"),
   tipsMessageInput: document.getElementById("tipsMessageInput"),
   btnSendTip: document.getElementById("btnSendTip"),
@@ -288,6 +300,8 @@ function bindEvents() {
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
   els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
+  els.btnSaveScheduleSheetUrl?.addEventListener("click", saveScheduleSheetUrl);
+  els.btnSyncScheduleSheet?.addEventListener("click", () => syncSchedulesFromGoogleSheet({ manual: true }));
   els.btnSendTip?.addEventListener("click", sendTipMessage);
   els.btnClearTipMessage?.addEventListener("click", clearTipMessageBox);
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
@@ -1491,6 +1505,7 @@ function renderAdminDashboardTools() {
   const canManageDashboard = isAdmin();
   els.dashboardAdminTools.style.display = canManageDashboard ? "flex" : "none";
   if (!canManageDashboard) {
+    stopGoogleSheetWatcher();
     return;
   }
   if (els.dashboardInfoText) {
@@ -1510,6 +1525,14 @@ function renderAdminDashboardTools() {
       els.tipsRecipientSelect.value = current;
     }
   }
+  if (els.scheduleSheetUrl) {
+    els.scheduleSheetUrl.value = scheduleSheetContext.config.url || "";
+  }
+  if (els.btnSyncScheduleSheet) {
+    els.btnSyncScheduleSheet.disabled = !scheduleSheetContext.config.spreadsheetId;
+  }
+  renderScheduleSheetSyncStatus();
+  startGoogleSheetWatcher();
 }
 
 function renderRoleVisibility() {
@@ -1780,6 +1803,369 @@ async function importScheduleFromFile() {
   }
   alert(`${payload.length} linha(s) de escala importada(s).`);
   render();
+}
+
+function loadScheduleSheetConfig() {
+  try {
+    const raw = localStorage.getItem(SCHEDULE_SHEET_CONFIG_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      url: String(parsed?.url || ""),
+      spreadsheetId: String(parsed?.spreadsheetId || ""),
+      lastHash: String(parsed?.lastHash || ""),
+      lastCheckedAt: String(parsed?.lastCheckedAt || ""),
+      lastSyncedAt: String(parsed?.lastSyncedAt || "")
+    };
+  } catch (err) {
+    return { url: "", spreadsheetId: "", lastHash: "", lastCheckedAt: "", lastSyncedAt: "" };
+  }
+}
+
+function saveScheduleSheetConfig() {
+  try {
+    localStorage.setItem(SCHEDULE_SHEET_CONFIG_KEY, JSON.stringify(scheduleSheetContext.config || {}));
+  } catch (err) {
+    console.warn("Falha ao salvar configuracao da planilha", err);
+  }
+}
+
+function renderScheduleSheetSyncStatus(message = "") {
+  if (!els.scheduleSheetSyncStatus) {
+    return;
+  }
+  if (message) {
+    els.scheduleSheetSyncStatus.textContent = message;
+    return;
+  }
+  const checked = scheduleSheetContext.config.lastCheckedAt
+    ? formatDateTimeFromIso(scheduleSheetContext.config.lastCheckedAt)
+    : "-";
+  const synced = scheduleSheetContext.config.lastSyncedAt
+    ? formatDateTimeFromIso(scheduleSheetContext.config.lastSyncedAt)
+    : "-";
+  const hasLink = scheduleSheetContext.config.spreadsheetId ? "Sim" : "Nao";
+  els.scheduleSheetSyncStatus.textContent = `Link configurado: ${hasLink} | Ultima verificacao: ${checked} | Ultima sincronizacao: ${synced}`;
+}
+
+function extractSpreadsheetIdFromUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const match = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
+  return match?.[1] || "";
+}
+
+function saveScheduleSheetUrl() {
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  const input = String(els.scheduleSheetUrl?.value || "").trim();
+  const spreadsheetId = extractSpreadsheetIdFromUrl(input);
+  if (!spreadsheetId) {
+    alert("Link invalido. Cole o link completo da planilha Google.");
+    return;
+  }
+  scheduleSheetContext.config.url = input;
+  scheduleSheetContext.config.spreadsheetId = spreadsheetId;
+  saveScheduleSheetConfig();
+  if (els.btnSyncScheduleSheet) {
+    els.btnSyncScheduleSheet.disabled = false;
+  }
+  renderScheduleSheetSyncStatus("Link da planilha salvo.");
+  startGoogleSheetWatcher();
+}
+
+function startGoogleSheetWatcher() {
+  if (!state.session || !isAdmin() || !supabaseClient) {
+    stopGoogleSheetWatcher();
+    return;
+  }
+  if (!scheduleSheetContext.config.spreadsheetId) {
+    stopGoogleSheetWatcher();
+    return;
+  }
+  if (!scheduleSheetContext.timerId) {
+    syncSchedulesFromGoogleSheet({ manual: false, silentNoChanges: true });
+    scheduleSheetContext.timerId = window.setInterval(() => {
+      syncSchedulesFromGoogleSheet({ manual: false, silentNoChanges: true });
+    }, SHEET_SYNC_INTERVAL_MS);
+  }
+}
+
+function stopGoogleSheetWatcher() {
+  if (scheduleSheetContext.timerId) {
+    clearInterval(scheduleSheetContext.timerId);
+    scheduleSheetContext.timerId = null;
+  }
+}
+
+async function syncSchedulesFromGoogleSheet(options = {}) {
+  const manual = options.manual === true;
+  const silentNoChanges = options.silentNoChanges === true;
+  if (!state.session || !isAdmin()) {
+    return;
+  }
+  if (!supabaseClient) {
+    if (manual) {
+      alert("Sincronizacao automatica requer Supabase conectado.");
+    }
+    return;
+  }
+  const spreadsheetId = scheduleSheetContext.config.spreadsheetId;
+  if (!spreadsheetId) {
+    if (manual) {
+      alert("Salve primeiro o link da planilha Google.");
+    }
+    return;
+  }
+  if (!window.XLSX) {
+    if (manual) {
+      alert("Biblioteca XLSX indisponivel.");
+    }
+    return;
+  }
+  if (scheduleSheetContext.inProgress) {
+    return;
+  }
+  scheduleSheetContext.inProgress = true;
+  if (els.btnSyncScheduleSheet) {
+    els.btnSyncScheduleSheet.disabled = true;
+  }
+  try {
+    renderScheduleSheetSyncStatus("Verificando alteracoes da planilha...");
+    const workbook = await fetchGoogleSheetWorkbook(spreadsheetId);
+    const payload = extractScheduleRowsFromGridWorkbook(workbook);
+    if (!payload.length) {
+      throw new Error("Nenhuma linha valida encontrada na planilha.");
+    }
+    const hash = hashSchedulePayload(payload);
+    const nowIso = new Date().toISOString();
+    scheduleSheetContext.config.lastCheckedAt = nowIso;
+    if (hash === scheduleSheetContext.config.lastHash) {
+      saveScheduleSheetConfig();
+      if (manual && !silentNoChanges) {
+        alert("Nenhuma alteracao detectada na planilha.");
+      }
+      renderScheduleSheetSyncStatus("Sem alteracoes detectadas.");
+      return;
+    }
+
+    const removeResult = await supabaseClient.from("schedules").delete().like("details", `${AUTO_SHEET_DETAILS_PREFIX}%`);
+    if (removeResult.error) {
+      throw new Error(removeResult.error.message || "Falha ao limpar escalas sincronizadas anteriores.");
+    }
+    const insertPayload = payload.map((row) => ({
+      date: row.date,
+      profile_id: row.profileId || null,
+      target_user: row.targetUser || null,
+      lesson_theme: row.lessonTheme,
+      details: row.details || "",
+      created_by: state.session.id
+    }));
+    const { error: insertError } = await supabaseClient.from("schedules").insert(insertPayload);
+    if (insertError) {
+      throw new Error(insertError.message || "Falha ao inserir escalas sincronizadas.");
+    }
+
+    scheduleSheetContext.config.lastHash = hash;
+    scheduleSheetContext.config.lastSyncedAt = nowIso;
+    saveScheduleSheetConfig();
+    await fetchDashboardData();
+    render();
+    if (manual) {
+      alert(`Sincronizacao concluida: ${payload.length} escala(s) atualizada(s).`);
+    }
+    renderScheduleSheetSyncStatus(`Sincronizacao concluida: ${payload.length} escala(s).`);
+  } catch (err) {
+    const message = err?.message || "Falha ao sincronizar planilha.";
+    renderScheduleSheetSyncStatus(`Erro na sincronizacao: ${message}`);
+    if (manual) {
+      alert(`Falha na sincronizacao: ${message}`);
+    } else {
+      console.warn("Falha na sincronizacao automatica de escalas", err);
+    }
+  } finally {
+    scheduleSheetContext.inProgress = false;
+    if (els.btnSyncScheduleSheet) {
+      els.btnSyncScheduleSheet.disabled = false;
+    }
+  }
+}
+
+async function fetchGoogleSheetWorkbook(spreadsheetId) {
+  const id = String(spreadsheetId || "").trim();
+  if (!id) {
+    throw new Error("ID da planilha invalido.");
+  }
+  const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Nao foi possivel acessar a planilha (HTTP ${response.status}). Verifique compartilhamento publico.`);
+  }
+  const bytes = await response.arrayBuffer();
+  return window.XLSX.read(bytes, { type: "array" });
+}
+
+function extractScheduleRowsFromGridWorkbook(workbook) {
+  const roles = ["COORDENACAO", "CHECK IN", "MATERNAL", "KIDS", "JUNIORS", "TEENS"];
+  const monthMap = {
+    JANEIRO: 1,
+    FEVEREIRO: 2,
+    MARCO: 3,
+    ABRIL: 4,
+    MAIO: 5,
+    JUNHO: 6,
+    JULHO: 7,
+    AGOSTO: 8,
+    SETEMBRO: 9,
+    OUTUBRO: 10,
+    NOVEMBRO: 11,
+    DEZEMBRO: 12
+  };
+  const allRows = [];
+  const dedupe = new Set();
+  (workbook?.SheetNames || []).forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) {
+      return;
+    }
+    const data = window.XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" });
+    const parsedYear = parseYearFromSheetName(sheetName);
+    let currentMonth = 0;
+    let monthLabel = "";
+    let roleCols = [];
+    data.forEach((row) => {
+      const first = normalizeMatchText(row?.[0] || "").toUpperCase();
+      const monthMatch = first.match(/ESCALA\s+MES\s+DE\s+([A-ZC]+)/);
+      if (monthMatch) {
+        monthLabel = monthMatch[1] || "";
+        currentMonth = monthMap[monthLabel] || 0;
+        roleCols = [];
+        return;
+      }
+
+      const normalizedCells = row.map((cell) => normalizeMatchText(cell).toUpperCase());
+      const hasHeader = normalizedCells.some((cell) => roles.includes(cell));
+      if (hasHeader) {
+        roleCols = normalizedCells
+          .map((cell, index) => ({ cell, index }))
+          .filter((entry) => roles.includes(entry.cell))
+          .map((entry) => ({ index: entry.index, role: entry.cell }));
+        return;
+      }
+
+      if (!currentMonth || !roleCols.length) {
+        return;
+      }
+      const weekMatch = first.match(/(\d+).*(DOMINGO)/);
+      if (!weekMatch) {
+        return;
+      }
+      const weekNumber = Number.parseInt(weekMatch[1], 10);
+      if (!Number.isFinite(weekNumber) || weekNumber < 1 || weekNumber > 5) {
+        return;
+      }
+      const date = getNthSundayDateIso(parsedYear, currentMonth, weekNumber);
+      if (!date) {
+        return;
+      }
+
+      roleCols.forEach((entry) => {
+        const rawCell = row?.[entry.index] ?? "";
+        const names = splitScaleNames(rawCell);
+        names.forEach((name) => {
+          const matchedProfile = findProfileByUserToken(name);
+          const lessonTheme = `Escala ${entry.role}`;
+          const details = `${AUTO_SHEET_DETAILS_PREFIX} ${sheetName} | ${weekNumber} DOMINGO | ${monthLabel} | ${entry.role}`;
+          const key = `${date}|${entry.role}|${name.toLowerCase()}`;
+          if (dedupe.has(key)) {
+            return;
+          }
+          dedupe.add(key);
+          allRows.push({
+            date,
+            lessonTheme,
+            details,
+            profileId: matchedProfile?.id || "",
+            targetUser: name
+          });
+        });
+      });
+    });
+  });
+  return allRows;
+}
+
+function parseYearFromSheetName(name) {
+  const match = String(name || "").match(/(\d{2,4})/);
+  const rawYear = Number.parseInt(match?.[1] || "", 10);
+  if (!Number.isFinite(rawYear)) {
+    return new Date().getFullYear();
+  }
+  if (rawYear < 100) {
+    return 2000 + rawYear;
+  }
+  return rawYear;
+}
+
+function getNthSundayDateIso(year, month, nth) {
+  if (!year || !month || !nth) {
+    return "";
+  }
+  let count = 0;
+  for (let day = 1; day <= 31; day += 1) {
+    const date = new Date(year, month - 1, day);
+    if (date.getMonth() !== month - 1) {
+      break;
+    }
+    if (date.getDay() === 0) {
+      count += 1;
+      if (count === nth) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+    }
+  }
+  return "";
+}
+
+function splitScaleNames(value) {
+  const raw = String(value || "")
+    .replace(/System\.Xml\.XmlElement/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) {
+    return [];
+  }
+  const normalized = raw.replace(/\s+e\s+/gi, ";").replace(/&/g, ";");
+  return normalized
+    .split(/[;,\/\n]/)
+    .map((item) => item.trim())
+    .filter((item) => item && item !== "-" && item.length > 1);
+}
+
+function hashSchedulePayload(rows) {
+  const key = (rows || [])
+    .map((item) => `${item.date}|${item.targetUser}|${item.lessonTheme}|${item.details}`)
+    .sort()
+    .join("||");
+  return simpleHash(key);
+}
+
+function simpleHash(input) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `${(h2 >>> 0).toString(16)}${(h1 >>> 0).toString(16)}`;
 }
 
 async function sendTipMessage() {
@@ -2155,6 +2541,7 @@ async function handleLogin(event) {
 }
 
 async function handleLogout() {
+  stopGoogleSheetWatcher();
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
   }

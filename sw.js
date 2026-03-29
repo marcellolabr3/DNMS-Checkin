@@ -1,18 +1,18 @@
-const CACHE_NAME = "checkin-cache-v63";
+const CACHE_NAME = "checkin-cache-v64";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260329k",
+  "./styles.css?v=20260329l",
   "./app.js",
-  "./app.js?v=20260329k",
+  "./app.js?v=20260329l",
   "./manifest.json",
-  "./manifest.json?v=20260329k",
+  "./manifest.json?v=20260329l",
   "./print.html",
   "./print.js",
-  "./print.js?v=20260329k",
+  "./print.js?v=20260329l",
   "./vendor/supabase-js.js",
-  "./vendor/supabase-js.js?v=20260329k",
+  "./vendor/supabase-js.js?v=20260329l",
   "./icon-192.png",
   "./icon-512.png"
 ];
