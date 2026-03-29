@@ -304,6 +304,21 @@ function bindEvents() {
       updatePhotoPreview(els.myDataPhoto, els.myDataPhotoPreview);
     });
   }
+  els.studentDialog?.addEventListener("close", () => {
+    if (els.studentDialog?.returnValue === "cancel") {
+      resetStudentDialogDraft();
+    }
+  });
+  els.signupDialog?.addEventListener("close", () => {
+    if (els.signupDialog?.returnValue === "cancel") {
+      resetSignupDialogDraft();
+    }
+  });
+  els.myDataDialog?.addEventListener("close", () => {
+    if (els.myDataDialog?.returnValue === "cancel") {
+      resetMyDataDialogDraft();
+    }
+  });
   els.studentGuardian?.addEventListener("input", () => {
     renderGuardianOptions(els.studentGuardian.value);
     syncGuardianSelectionFromInput();
@@ -2152,6 +2167,19 @@ function openSignupDialog(role, inviteToken = "") {
   els.signupDialog?.showModal();
 }
 
+function resetSignupDialogDraft() {
+  if (els.signupName) els.signupName.value = "";
+  if (els.signupPhoto) els.signupPhoto.value = "";
+  if (els.signupBirth) els.signupBirth.value = "";
+  if (els.signupCivilStatus) els.signupCivilStatus.value = "";
+  if (els.signupPhoneDdd) els.signupPhoneDdd.value = "21";
+  if (els.signupPhone) els.signupPhone.value = "";
+  if (els.signupEmail) els.signupEmail.value = "";
+  if (els.signupPassword) els.signupPassword.value = "";
+  if (els.signupIsVisitor) els.signupIsVisitor.checked = false;
+  setPhotoPreviewUrl(els.signupPhotoPreview, "");
+}
+
 async function handleSignupSubmit(event) {
   event.preventDefault();
   if (!supabaseClient) {
@@ -2190,6 +2218,9 @@ async function handleSignupSubmit(event) {
   }
   if (!isValidEmail(email)) {
     alert("Informe um email valido.");
+    return;
+  }
+  if (!confirm("Confirma salvar o cadastro?")) {
     return;
   }
   const { data: existingUsers, error: existingUsersError } = await supabaseClient
@@ -2393,6 +2424,22 @@ async function openMyDataDialog() {
   }
   setPhotoPreviewUrl(els.myDataPhotoPreview, profile.photo_url || getStudentPhotoPlaceholderUrl());
   els.myDataDialog?.showModal();
+}
+
+function resetMyDataDialogDraft() {
+  if (els.myDataEmail) {
+    els.myDataEmail.value = myDataContext.email || "";
+  }
+  if (els.myDataPhone) {
+    els.myDataPhone.value = myDataContext.phone || "";
+  }
+  if (els.myDataAddress) {
+    els.myDataAddress.value = myDataContext.address || "";
+  }
+  if (els.myDataPhoto) {
+    els.myDataPhoto.value = "";
+  }
+  setPhotoPreviewUrl(els.myDataPhotoPreview, myDataContext.photoUrl || getStudentPhotoPlaceholderUrl());
 }
 
 async function handleSaveMyData(event) {
@@ -3298,6 +3345,25 @@ function openStudentDialog(student) {
   els.studentDialog.showModal();
 }
 
+function resetStudentDialogDraft() {
+  studentDialogContext.guardianProfileId = "";
+  if (els.studentId) els.studentId.value = "";
+  if (els.studentName) els.studentName.value = "";
+  if (els.studentBirth) els.studentBirth.value = "";
+  if (els.studentGuardian) els.studentGuardian.value = "";
+  if (els.studentOther) els.studentOther.value = "";
+  if (els.studentPhone) els.studentPhone.value = "";
+  if (els.studentAddress) els.studentAddress.value = "";
+  if (els.studentNotes) els.studentNotes.value = "";
+  if (els.studentIsVisitor) els.studentIsVisitor.checked = false;
+  if (els.studentPhoto) els.studentPhoto.value = "";
+  if (els.studentPhotoCamera) els.studentPhotoCamera.value = "";
+  setPhotoPreviewUrl(els.studentPhotoPreview, "");
+  if (els.studentGuardianHint) {
+    els.studentGuardianHint.textContent = "";
+  }
+}
+
 async function saveStudent(event) {
   event.preventDefault();
   const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
@@ -3342,6 +3408,9 @@ async function saveStudent(event) {
   const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
   if (missingCommon || missingAdminFields) {
     alert("Preencha todos os campos obrigatorios.");
+    return;
+  }
+  if (!confirm("Confirma salvar as alteracoes deste cadastro?")) {
     return;
   }
 
