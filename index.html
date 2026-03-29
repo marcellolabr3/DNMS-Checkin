@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329q" />
+  <link rel="manifest" href="manifest.json?v=20260329r" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329q" />
+  <link rel="stylesheet" href="styles.css?v=20260329r" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -131,6 +131,14 @@
         </div>
         <button id="btnCreateRoom" class="primary">Criar evento</button>
         <button id="btnDeleteRoomFromEdit" class="ghost" type="button" style="display:none">Excluir sala</button>
+      </div>
+      <div class="actions" id="roomBulkActions">
+        <label class="field checkbox-field">
+          <span>Selecionar todas</span>
+          <input id="selectAllRooms" type="checkbox" />
+        </label>
+        <button id="btnBulkEditRooms" class="ghost" type="button">Editar em massa</button>
+        <button id="btnBulkDeleteRooms" class="danger" type="button">Excluir em massa</button>
       </div>
       <div id="roomCurrent" class="room-current"></div>
       <div class="room-list" id="roomList"></div>
@@ -562,7 +570,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329q"></script>
-  <script src="app.js?v=20260329q"></script>
+  <script src="vendor/supabase-js.js?v=20260329r"></script>
+  <script src="app.js?v=20260329r"></script>
 </body>
 </html>

@@ -80,6 +80,9 @@ const els = {
   roomRecurrence: document.getElementById("roomRecurrence"),
   btnCreateRoom: document.getElementById("btnCreateRoom"),
   btnDeleteRoomFromEdit: document.getElementById("btnDeleteRoomFromEdit"),
+  selectAllRooms: document.getElementById("selectAllRooms"),
+  btnBulkEditRooms: document.getElementById("btnBulkEditRooms"),
+  btnBulkDeleteRooms: document.getElementById("btnBulkDeleteRooms"),
   studentList: document.getElementById("studentList"),
   studentSearch: document.getElementById("studentSearch"),
   studentClassFilter: document.getElementById("studentClassFilter"),
@@ -273,6 +276,9 @@ function bindEvents() {
   els.btnPrintPanel.addEventListener("click", () => window.open("print.html", "_blank"));
   els.btnCreateRoom.addEventListener("click", createRooms);
   els.btnDeleteRoomFromEdit?.addEventListener("click", handleDeleteRoomFromEdit);
+  els.selectAllRooms?.addEventListener("change", handleSelectAllRoomsInList);
+  els.btnBulkEditRooms?.addEventListener("click", handleBulkEditRooms);
+  els.btnBulkDeleteRooms?.addEventListener("click", handleBulkDeleteRooms);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
   els.btnParentCheckin?.addEventListener("click", openQrDialog);
   els.btnParentCheckinSelected.addEventListener("click", handleParentCheckinSelected);
@@ -1118,8 +1124,21 @@ function renderRooms() {
   const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada");
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = isAdmin() || isEquipe();
+  const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
+  state.ui.selectedRoomIds = (state.ui.selectedRoomIds || []).filter((id) => visibleRoomIds.has(id));
+  const selectedSet = new Set(state.ui.selectedRoomIds || []);
 
   els.btnCreateRoom.disabled = !canManageRoom;
+  if (els.selectAllRooms) {
+    els.selectAllRooms.checked = Boolean(visibleRooms.length) && visibleRooms.every((room) => selectedSet.has(room.id));
+    els.selectAllRooms.disabled = !canManageRoom || !visibleRooms.length;
+  }
+  if (els.btnBulkEditRooms) {
+    els.btnBulkEditRooms.disabled = !canManageRoom || !selectedSet.size;
+  }
+  if (els.btnBulkDeleteRooms) {
+    els.btnBulkDeleteRooms.disabled = !canManageRoom || !selectedSet.size;
+  }
   if (!visibleRooms.length) {
     els.roomStatus.textContent = "Nenhuma sala aberta";
     els.roomCurrent.textContent = "Nenhuma sala ativa na aba Eventos.";
@@ -1136,15 +1155,181 @@ function renderRooms() {
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
+      ${
+        canManageRoom
+          ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${room.id}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
+          : ""
+      }
       <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
       <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
       <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
     `;
-    item.addEventListener("click", () => {
+    item.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target instanceof Element && (target.closest("input[type='checkbox']") || target.closest("label"))) {
+        return;
+      }
       openRoomDetails(room.id);
+    });
+    const roomCheckbox = item.querySelector("input[data-select-room]");
+    roomCheckbox?.addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      const current = new Set(state.ui.selectedRoomIds || []);
+      if (input.checked) {
+        current.add(room.id);
+      } else {
+        current.delete(room.id);
+      }
+      state.ui.selectedRoomIds = Array.from(current);
+      renderRooms();
     });
     els.roomList.appendChild(item);
   });
+}
+
+function handleSelectAllRoomsInList(event) {
+  const checked = Boolean(event?.target?.checked);
+  const visibleRooms = state.rooms.filter((room) => room.status !== "Fechada");
+  state.ui.selectedRoomIds = checked ? visibleRooms.map((room) => room.id) : [];
+  renderRooms();
+}
+
+function getSelectedRoomIdsInList() {
+  const selected = new Set(state.ui.selectedRoomIds || []);
+  return state.rooms
+    .filter((room) => room.status !== "Fechada" && selected.has(room.id))
+    .map((room) => room.id);
+}
+
+async function handleBulkEditRooms() {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem editar salas.");
+    return;
+  }
+  const ids = getSelectedRoomIdsInList();
+  if (!ids.length) {
+    alert("Selecione ao menos uma sala.");
+    return;
+  }
+  const name = String(els.roomName?.value || "").trim();
+  const dateIso = String(els.roomDate?.value || "").trim();
+  const startTime = String(els.roomStartTime?.value || "").trim();
+  const endTime = String(els.roomEndTime?.value || "").trim();
+  const classTarget = String(els.roomClass?.value || "").trim();
+  if (!name && !dateIso && !startTime && !endTime && !classTarget) {
+    alert("Preencha ao menos um campo do formulario de sala para editar em massa.");
+    return;
+  }
+  if (startTime && endTime && endTime <= startTime) {
+    alert("Horario de termino deve ser maior que o horario de inicio.");
+    return;
+  }
+  if (!confirm(`Aplicar alteracoes em ${ids.length} sala(s) selecionada(s)?`)) {
+    return;
+  }
+
+  if (supabaseClient) {
+    for (const roomId of ids) {
+      const current = state.rooms.find((item) => item.id === roomId);
+      if (!current) {
+        continue;
+      }
+      const currentDateIso =
+        current.dateIso ||
+        (() => {
+          const parsed = parseRoomDate(current.date);
+          if (!parsed) return "";
+          return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+        })();
+      const nextStart = startTime || current.startTime || current.time || "";
+      const nextEnd = endTime || current.endTime || "";
+      if (nextStart && nextEnd && nextEnd <= nextStart) {
+        continue;
+      }
+      const updatePayload = {};
+      if (name) updatePayload.name = name;
+      if (dateIso) updatePayload.date = dateIso;
+      if (startTime) {
+        updatePayload.time = startTime;
+        updatePayload.start_time = startTime;
+      }
+      if (endTime) updatePayload.end_time = endTime;
+      if (classTarget) updatePayload.class_target = classTarget;
+      if (!Object.keys(updatePayload).length) {
+        continue;
+      }
+      const { error } = await supabaseClient.from("rooms").update(updatePayload).eq("id", roomId);
+      if (error) {
+        alert(`Falha ao editar sala em massa: ${error.message || "erro inesperado"}`);
+        return;
+      }
+      if (!dateIso && !updatePayload.date && currentDateIso) {
+        updatePayload.date = currentDateIso;
+      }
+    }
+    await fetchRooms();
+  } else {
+    ids.forEach((roomId) => {
+      const room = state.rooms.find((item) => item.id === roomId);
+      if (!room) {
+        return;
+      }
+      if (name) room.name = name;
+      if (dateIso) {
+        room.dateIso = dateIso;
+        const parsed = parseInputDate(dateIso);
+        if (parsed) {
+          room.date = formatDate(parsed);
+        }
+      }
+      if (startTime) {
+        room.time = startTime;
+        room.startTime = startTime;
+      }
+      if (endTime) {
+        room.endTime = endTime;
+      }
+      if (classTarget) {
+        room.classTarget = classTarget;
+      }
+    });
+  }
+  state.ui.selectedRoomIds = [];
+  if (els.selectAllRooms) {
+    els.selectAllRooms.checked = false;
+  }
+  render();
+  alert("Edicao em massa concluida.");
+}
+
+async function handleBulkDeleteRooms() {
+  if (!isAdmin() && !isEquipe()) {
+    alert("Somente administradores e equipe podem excluir salas.");
+    return;
+  }
+  const ids = getSelectedRoomIdsInList();
+  if (!ids.length) {
+    alert("Selecione ao menos uma sala.");
+    return;
+  }
+  if (!confirm(`Excluir ${ids.length} sala(s) selecionada(s)?`)) {
+    return;
+  }
+  if (!confirm("Confirmacao final: deseja realmente excluir em massa?")) {
+    return;
+  }
+
+  for (const roomId of ids) {
+    await deleteRoom(roomId, { skipConfirm: true });
+  }
+  state.ui.selectedRoomIds = [];
+  if (els.selectAllRooms) {
+    els.selectAllRooms.checked = false;
+  }
+  render();
 }
 
 async function fetchProfiles() {
@@ -2597,6 +2782,7 @@ async function handleLogout() {
     showInvitePanel: false,
     expandedTips: [],
     selectedManageUserId: "",
+    selectedRoomIds: [],
     logSelectedStudentIds: [],
     dashboardNeuroExpanded: false,
     generatedInviteLink: ""
@@ -4252,12 +4438,12 @@ async function reopenRoom(roomId) {
   render();
 }
 
-async function deleteRoom(roomId) {
+async function deleteRoom(roomId, options = {}) {
   if (!isAdmin() && !isEquipe()) {
     alert("Somente administradores e equipe podem excluir salas.");
     return;
   }
-  if (!confirm("Tem certeza que deseja excluir esta sala?")) {
+  if (!options.skipConfirm && !confirm("Tem certeza que deseja excluir esta sala?")) {
     return;
   }
   if (supabaseClient) {
@@ -6975,6 +7161,7 @@ function loadState() {
           showInvitePanel: false,
           expandedTips: [],
           selectedManageUserId: "",
+          selectedRoomIds: [],
           logSelectedStudentIds: [],
           dashboardNeuroExpanded: false,
           generatedInviteLink: "",
@@ -7018,6 +7205,7 @@ function loadState() {
       showInvitePanel: false,
       expandedTips: [],
       selectedManageUserId: "",
+      selectedRoomIds: [],
       logSelectedStudentIds: [],
       dashboardNeuroExpanded: false,
       generatedInviteLink: ""
