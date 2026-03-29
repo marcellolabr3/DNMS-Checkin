@@ -1676,12 +1676,9 @@ function renderDashboard() {
     });
   });
 
-  const mySchedules = state.schedules
-    .filter((item) => scheduleBelongsToCurrentUser(item))
-    .slice()
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  const upcomingMySchedules = mySchedules.filter((item) => {
-    const dateObj = parseInputDate(item.date);
+  const groupedSchedules = getGroupedScheduleByDate();
+  const upcomingGroups = groupedSchedules.filter((group) => {
+    const dateObj = parseInputDate(group.date);
     if (!dateObj) {
       return false;
     }
@@ -1689,28 +1686,75 @@ function renderDashboard() {
     dayStart.setHours(0, 0, 0, 0);
     return dateObj >= dayStart;
   });
-  if (!upcomingMySchedules.length) {
-    els.dashboardSchedules.innerHTML = `<div class="summary">Sem escalas futuras para voce.</div>`;
+  if (!upcomingGroups.length) {
+    els.dashboardSchedules.innerHTML = `<div class="summary">Sem escalas futuras cadastradas.</div>`;
   } else {
-    els.dashboardSchedules.innerHTML = upcomingMySchedules
-      .slice(0, 8)
-      .map((item) => {
-        const dateObj = parseInputDate(item.date);
-        const dateLabel = dateObj ? formatDate(dateObj) : item.date;
-        return `<div class="list-item"><strong>${dateLabel}</strong><span class="muted">Tema: ${item.lessonTheme || "-"}</span></div>`;
+    const expandedSet = new Set(state.ui.expandedScheduleDates || []);
+    els.dashboardSchedules.innerHTML = upcomingGroups
+      .slice(0, 12)
+      .map((group) => {
+        const dateObj = parseInputDate(group.date);
+        const dateLabel = dateObj ? formatDate(dateObj) : group.date;
+        const expanded = expandedSet.has(group.date);
+        const coord = group.roles.COORDENACAO?.length ? group.roles.COORDENACAO.join(", ") : "-";
+        const detailsHtml = expanded
+          ? `
+            <div class="summary" style="margin-top:8px">
+              <strong>Coordenador:</strong> ${coord}<br />
+              <strong>Maternal:</strong> ${(group.roles.MATERNAL || []).join(", ") || "-"}<br />
+              <strong>Kids:</strong> ${(group.roles.KIDS || []).join(", ") || "-"}<br />
+              <strong>Juniors:</strong> ${(group.roles.JUNIORS || []).join(", ") || "-"}<br />
+              <strong>Teens:</strong> ${(group.roles.TEENS || []).join(", ") || "-"}<br />
+              <strong>Check-in:</strong> ${(group.roles.CHECK_IN || []).join(", ") || "-"}
+            </div>
+          `
+          : "";
+        return `
+          <div class="list-item">
+            <button type="button" class="tip-message-preview" data-schedule-date="${group.date}">
+              <strong>${dateLabel}</strong> - Coordenador: ${coord}
+            </button>
+            ${detailsHtml}
+          </div>
+        `;
       })
       .join("");
+    document.querySelectorAll("[data-schedule-date]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const date = button.getAttribute("data-schedule-date");
+        const current = new Set(state.ui.expandedScheduleDates || []);
+        if (current.has(date)) {
+          current.delete(date);
+        } else {
+          current.add(date);
+        }
+        state.ui.expandedScheduleDates = Array.from(current);
+        renderDashboard();
+      });
+    });
   }
 
-  const todaySchedule = mySchedules.find((item) => {
-    const dateObj = parseInputDate(item.date);
+  const todayGroup = groupedSchedules.find((group) => {
+    const dateObj = parseInputDate(group.date);
     const todayObj = parseRoomDate(today);
     return Boolean(dateObj && todayObj && dateObj.getTime() === todayObj.getTime());
   });
-  els.dashboardLessonToday.innerHTML = `
-    <strong>Tema da licao de hoje</strong><br />
-    ${todaySchedule?.lessonTheme || "Sem tema definido para hoje."}
-  `;
+  if (!todayGroup) {
+    els.dashboardLessonToday.innerHTML = `
+      <strong>Escala de hoje</strong><br />
+      Sem escala cadastrada para hoje.
+    `;
+  } else {
+    const coord = todayGroup.roles.COORDENACAO?.length ? todayGroup.roles.COORDENACAO.join(", ") : "-";
+    els.dashboardLessonToday.innerHTML = `
+      <strong>Escala de hoje</strong><br />
+      Coordenador: ${coord}<br />
+      Maternal: ${(todayGroup.roles.MATERNAL || []).join(", ") || "-"}<br />
+      Kids: ${(todayGroup.roles.KIDS || []).join(", ") || "-"}<br />
+      Juniors: ${(todayGroup.roles.JUNIORS || []).join(", ") || "-"}<br />
+      Teens: ${(todayGroup.roles.TEENS || []).join(", ") || "-"}
+    `;
+  }
 
   const birthdayStudents = getCurrentMonthBirthdays();
   if (!birthdayStudents.length) {
@@ -1744,6 +1788,51 @@ function renderDashboard() {
 
   renderAdminDashboardTools();
   updateTipsUnreadBadge();
+}
+
+function getGroupedScheduleByDate() {
+  const map = new Map();
+  (state.schedules || []).forEach((item) => {
+    const date = String(item.date || "").trim();
+    if (!date) {
+      return;
+    }
+    const role = extractScheduleRole(item);
+    const assignee = String(item.targetUser || "").trim() || String(item.lessonTheme || "").trim();
+    if (!map.has(date)) {
+      map.set(date, {
+        date,
+        roles: {
+          COORDENACAO: [],
+          CHECK_IN: [],
+          MATERNAL: [],
+          KIDS: [],
+          JUNIORS: [],
+          TEENS: [],
+          OUTROS: []
+        }
+      });
+    }
+    const entry = map.get(date);
+    const bucket = entry.roles[role] ? role : "OUTROS";
+    if (assignee && !entry.roles[bucket].includes(assignee)) {
+      entry.roles[bucket].push(assignee);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+function extractScheduleRole(item) {
+  const details = normalizeMatchText(item?.details || "").toUpperCase();
+  const lesson = normalizeMatchText(item?.lessonTheme || "").toUpperCase().replace(/^ESCALA\s+/, "");
+  const source = `${details} ${lesson}`;
+  if (source.includes("COORDENACAO")) return "COORDENACAO";
+  if (source.includes("CHECK IN") || source.includes("CHECK-IN") || source.includes("CHECKIN")) return "CHECK_IN";
+  if (source.includes("MATERNAL")) return "MATERNAL";
+  if (source.includes("KIDS")) return "KIDS";
+  if (source.includes("JUNIORS")) return "JUNIORS";
+  if (source.includes("TEENS")) return "TEENS";
+  return "OUTROS";
 }
 
 function renderAdminDashboardTools() {
@@ -2791,6 +2880,7 @@ async function handleLogout() {
     showLogPanel: false,
     showInvitePanel: false,
     expandedTips: [],
+    expandedScheduleDates: [],
     selectedManageUserId: "",
     selectedRoomIds: [],
     logSelectedStudentIds: [],
@@ -7170,6 +7260,7 @@ function loadState() {
           showLogPanel: false,
           showInvitePanel: false,
           expandedTips: [],
+          expandedScheduleDates: [],
           selectedManageUserId: "",
           selectedRoomIds: [],
           logSelectedStudentIds: [],
@@ -7214,6 +7305,7 @@ function loadState() {
       showLogPanel: false,
       showInvitePanel: false,
       expandedTips: [],
+      expandedScheduleDates: [],
       selectedManageUserId: "",
       selectedRoomIds: [],
       logSelectedStudentIds: [],
