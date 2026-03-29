@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Check-in Educacional</title>
-  <link rel="manifest" href="manifest.json?v=20260329a" />
+  <link rel="manifest" href="manifest.json?v=20260329b" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260329a" />
+  <link rel="stylesheet" href="styles.css?v=20260329b" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -243,7 +243,14 @@
           <img id="studentPhotoPreview" class="photo-preview" alt="Foto do aluno" />
         </label>
         <label class="field" id="studentGuardianField">Responsável principal
-          <input id="studentGuardian" required />
+          <input
+            id="studentGuardian"
+            required
+            list="studentGuardianOptions"
+            placeholder="Digite nome ou telefone do usuario"
+          />
+          <datalist id="studentGuardianOptions"></datalist>
+          <span id="studentGuardianHint" class="muted"></span>
         </label>
         <label class="field" id="studentOtherField">Outros responsáveis
           <input id="studentOther" />
@@ -455,7 +462,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="vendor/supabase-js.js?v=20260329a"></script>
-  <script src="app.js?v=20260329a"></script>
+  <script src="vendor/supabase-js.js?v=20260329b"></script>
+  <script src="app.js?v=20260329b"></script>
 </body>
 </html>

@@ -20,6 +20,7 @@ const state = loadState();
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
+const studentDialogContext = { guardianProfileId: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -128,6 +129,8 @@ const els = {
   studentPhotoPreview: document.getElementById("studentPhotoPreview"),
   studentGuardianField: document.getElementById("studentGuardianField"),
   studentGuardian: document.getElementById("studentGuardian"),
+  studentGuardianOptions: document.getElementById("studentGuardianOptions"),
+  studentGuardianHint: document.getElementById("studentGuardianHint"),
   studentOtherField: document.getElementById("studentOtherField"),
   studentOther: document.getElementById("studentOther"),
   studentPhoneField: document.getElementById("studentPhoneField"),
@@ -279,6 +282,14 @@ function bindEvents() {
       updatePhotoPreview(els.signupPhoto, els.signupPhotoPreview);
     });
   }
+  els.studentGuardian?.addEventListener("input", () => {
+    renderGuardianOptions(els.studentGuardian.value);
+    syncGuardianSelectionFromInput();
+  });
+  els.studentGuardian?.addEventListener("change", () => {
+    renderGuardianOptions(els.studentGuardian.value);
+    syncGuardianSelectionFromInput();
+  });
   [els.studentBirth, els.signupBirth].forEach((input) => {
     input?.addEventListener("input", () => {
       input.value = applyBirthDateMask(input.value);
@@ -879,6 +890,23 @@ async function fetchStudents() {
     }
     rows = data || [];
   }
+  const studentIds = rows.map((student) => student.id).filter(Boolean);
+  const guardianLinkMap = new Map();
+  if (studentIds.length) {
+    const { data: links, error: linksError } = await supabaseClient
+      .from("student_guardians")
+      .select("student_id,guardian_id")
+      .in("student_id", studentIds);
+    if (linksError) {
+      console.warn("Falha ao buscar vinculos student_guardians", linksError);
+    } else {
+      (links || []).forEach((item) => {
+        if (item?.student_id && item?.guardian_id && !guardianLinkMap.has(item.student_id)) {
+          guardianLinkMap.set(item.student_id, item.guardian_id);
+        }
+      });
+    }
+  }
   state.students = rows.map((student) => ({
     id: student.id,
     name: student.name,
@@ -890,6 +918,7 @@ async function fetchStudents() {
     address: student.address,
     notes: student.notes || "",
     owner: student.primary_guardian_name || "",
+    guardianProfileId: guardianLinkMap.get(student.id) || "",
     isVisitor: Boolean(student.is_visitor),
     photoUrl: student.photo_url || ""
   }));
@@ -980,11 +1009,20 @@ function renderRooms() {
 }
 
 async function fetchProfiles() {
-  if (!supabaseClient || !state.session || !canAccessManagementPanel()) {
+  if (!supabaseClient || !state.session || !(canAccessManagementPanel() || isEquipe())) {
     state.profiles = [];
     return;
   }
-  const { data, error } = await supabaseClient.from("profiles").select("id,name,role,email");
+  let { data, error } = await supabaseClient.from("profiles").select("id,name,role,email,phone");
+  if (error) {
+    const message = String(error.message || "").toLowerCase();
+    const missingPhoneColumn = message.includes("column") && message.includes("phone");
+    if (missingPhoneColumn) {
+      const fallback = await supabaseClient.from("profiles").select("id,name,role,email");
+      data = fallback.data;
+      error = fallback.error;
+    }
+  }
   if (error) {
     console.warn("Falha ao buscar perfis", error);
     state.profiles = [];
@@ -994,7 +1032,8 @@ async function fetchProfiles() {
     id: profile.id,
     name: profile.name || "Usuario",
     role: normalizeRole(profile.role),
-    email: profile.email || ""
+    email: profile.email || "",
+    phone: profile.phone || ""
   }));
 }
 
@@ -3026,6 +3065,7 @@ function openStudentDialog(student) {
   const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
   els.studentDialogTitle.textContent = student ? (isResponsavel ? "Editar crianca" : "Editar aluno") : (isResponsavel ? "Cadastrar crianca" : "Novo aluno");
   const id = student?.id || (supabaseClient ? "" : uid());
+  studentDialogContext.guardianProfileId = student?.guardianProfileId || "";
   els.studentId.value = id;
   els.studentName.value = student?.name || "";
   els.studentBirth.value = formatBirthDateForInput(student?.birth || "");
@@ -3063,13 +3103,23 @@ function openStudentDialog(student) {
   els.studentGuardian.required = !isResponsavel;
   els.studentPhone.required = !isResponsavel;
   els.studentAddress.required = !isResponsavel;
+  renderGuardianOptions(els.studentGuardian.value);
+  syncGuardianSelectionFromInput();
   els.studentDialog.showModal();
 }
 
 async function saveStudent(event) {
   event.preventDefault();
   const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
-  const guardianName = isResponsavel ? state.session?.name || "" : els.studentGuardian.value.trim();
+  const guardianResolution = isResponsavel
+    ? { ok: true, profile: { id: state.session?.id || "", name: state.session?.name || "", phone: "" }, message: "" }
+    : resolveGuardianProfileForForm();
+  if (!guardianResolution.ok || !guardianResolution.profile) {
+    alert(guardianResolution.message || "Selecione um usuario valido para vincular a crianca.");
+    return;
+  }
+  const guardianProfileId = guardianResolution.profile.id || "";
+  const guardianName = guardianResolution.profile.name || "";
   const ownerName = isAdmin() || isEquipe() ? guardianName : state.session?.name || guardianName;
   const isVisitor = isResponsavel ? false : Boolean(els.studentIsVisitor.checked);
   const existing = state.students.find((student) => student.id === els.studentId.value);
@@ -3090,8 +3140,12 @@ async function saveStudent(event) {
     address: isResponsavel ? "-" : els.studentAddress.value.trim(),
     notes: els.studentNotes.value.trim(),
     owner: ownerName,
+    guardianProfileId,
     isVisitor
   };
+  if (!isResponsavel && !payload.phone && guardianResolution.profile.phone) {
+    payload.phone = guardianResolution.profile.phone;
+  }
   const photoFile = els.studentPhotoCamera?.files?.[0] || els.studentPhoto?.files?.[0] || null;
 
   const missingCommon = !payload.name || !payload.birth || !payload.className;
@@ -3133,9 +3187,15 @@ async function saveStudent(event) {
         await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
       }
     }
-    const linked = await linkGuardianToStudent(data.id, payload.guardian);
-    if (!linked && isResponsavel) {
-      console.warn("Aluno salvo sem vinculo em student_guardians; usando fallback por nome do responsavel.");
+    const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
+    if (!linked) {
+      const warning = isResponsavel
+        ? "Aluno salvo sem vinculo em student_guardians; usando fallback por nome do responsavel."
+        : "Aluno salvo, mas nao foi possivel vincular ao usuario selecionado.";
+      console.warn(warning);
+      if (!isResponsavel) {
+        alert(warning);
+      }
     }
     await fetchStudents();
   } else {
@@ -3194,28 +3254,45 @@ async function deleteStudentFromDialog(event) {
   render();
 }
 
-async function linkGuardianToStudent(studentId, guardianName) {
+async function linkGuardianToStudent(studentId, guardianName, guardianProfileId = "") {
   if (!supabaseClient || !studentId) {
     return false;
   }
-  let guardianId = state.session?.id || null;
+  let guardianId = guardianProfileId || state.session?.id || null;
   if (isAdmin() || isEquipe()) {
-    guardianId = null;
+    guardianId = guardianProfileId || null;
   }
   if (!guardianId && guardianName) {
     let result = await supabaseClient
       .from("profiles")
-      .select("id")
+      .select("id,phone")
       .ilike("name", guardianName)
       .limit(1);
     if (result.error) {
       result = await supabaseClient
         .from("profiles")
-        .select("id")
+        .select("id,phone")
         .ilike("nome", guardianName)
         .limit(1);
     }
-    guardianId = result.data?.[0]?.id || null;
+    if (!result.error && result.data?.[0]?.id) {
+      guardianId = result.data[0].id;
+    } else {
+      const phoneDigits = normalizePhoneDigits(guardianName);
+      if (phoneDigits.length >= 8) {
+        const phoneResult = await supabaseClient
+          .from("profiles")
+          .select("id,phone")
+          .not("phone", "is", null)
+          .limit(500);
+        if (!phoneResult.error) {
+          const match = (phoneResult.data || []).find((profile) =>
+            normalizePhoneDigits(profile.phone).includes(phoneDigits)
+          );
+          guardianId = match?.id || null;
+        }
+      }
+    }
   }
   if (!guardianId) {
     return false;
@@ -3226,6 +3303,122 @@ async function linkGuardianToStudent(studentId, guardianName) {
   }
   const insertResult = await supabaseClient.from("student_guardians").insert({ student_id: studentId, guardian_id: guardianId });
   return !insertResult.error;
+}
+
+function renderGuardianOptions(query) {
+  if (!els.studentGuardianOptions) {
+    return;
+  }
+  const candidates = getAssignableGuardianProfiles(query).slice(0, 50);
+  els.studentGuardianOptions.innerHTML = "";
+  candidates.forEach((profile) => {
+    const option = document.createElement("option");
+    option.value = formatGuardianOption(profile);
+    els.studentGuardianOptions.appendChild(option);
+  });
+}
+
+function getAssignableGuardianProfiles(query = "") {
+  const list = (state.profiles || []).filter((profile) => profile?.id && profile?.name);
+  const token = String(query || "").trim().toLowerCase();
+  const digits = normalizePhoneDigits(query);
+  if (!token && !digits) {
+    return list;
+  }
+  return list.filter((profile) => {
+    const name = String(profile.name || "").toLowerCase();
+    const phoneDigits = normalizePhoneDigits(profile.phone);
+    const byName = token ? name.includes(token) : false;
+    const byPhone = digits ? phoneDigits.includes(digits) : false;
+    return byName || byPhone;
+  });
+}
+
+function formatGuardianOption(profile) {
+  const name = String(profile?.name || "").trim();
+  const phone = String(profile?.phone || "").trim();
+  return phone ? `${name} (${phone})` : name;
+}
+
+function syncGuardianSelectionFromInput() {
+  if (!els.studentGuardian) {
+    return;
+  }
+  const result = resolveGuardianProfileForForm({ silent: true });
+  if (result.ok && result.profile) {
+    studentDialogContext.guardianProfileId = result.profile.id;
+    if (els.studentGuardianHint) {
+      els.studentGuardianHint.textContent = `Usuario selecionado: ${result.profile.name}`;
+    }
+    return;
+  }
+  studentDialogContext.guardianProfileId = "";
+  if (els.studentGuardianHint) {
+    const value = String(els.studentGuardian.value || "").trim();
+    els.studentGuardianHint.textContent = value ? result.message || "Usuario nao encontrado." : "";
+  }
+}
+
+function resolveGuardianProfileForForm(options = {}) {
+  const input = String(els.studentGuardian?.value || "").trim();
+  if (!input) {
+    return { ok: false, profile: null, message: "Informe nome ou telefone do usuario." };
+  }
+  const profiles = getAssignableGuardianProfiles();
+  if (!profiles.length) {
+    return { ok: false, profile: null, message: "Nenhum usuario disponivel para vinculo." };
+  }
+
+  const selected = profiles.find((profile) => profile.id === studentDialogContext.guardianProfileId);
+  if (selected && profileMatchesGuardianToken(selected, input, true)) {
+    return { ok: true, profile: selected, message: "" };
+  }
+
+  const strictMatches = profiles.filter((profile) => profileMatchesGuardianToken(profile, input, true));
+  if (strictMatches.length === 1) {
+    return { ok: true, profile: strictMatches[0], message: "" };
+  }
+  if (strictMatches.length > 1) {
+    return { ok: false, profile: null, message: "Mais de um usuario encontrado. Digite nome completo ou telefone." };
+  }
+
+  const looseMatches = profiles.filter((profile) => profileMatchesGuardianToken(profile, input, false));
+  if (looseMatches.length === 1) {
+    return { ok: true, profile: looseMatches[0], message: "" };
+  }
+  if (looseMatches.length > 1) {
+    return { ok: false, profile: null, message: "Mais de um usuario encontrado. Refine a busca." };
+  }
+  return { ok: false, profile: null, message: "Nenhum usuario valido encontrado." };
+}
+
+function profileMatchesGuardianToken(profile, input, exactOnly) {
+  const token = String(input || "").trim();
+  if (!token) {
+    return false;
+  }
+  const tokenLower = token.toLowerCase();
+  const tokenDigits = normalizePhoneDigits(token);
+  const name = String(profile?.name || "").trim();
+  const nameLower = name.toLowerCase();
+  const phoneDigits = normalizePhoneDigits(profile?.phone || "");
+  const optionLower = formatGuardianOption(profile).toLowerCase();
+  if (exactOnly) {
+    return (
+      nameLower === tokenLower ||
+      optionLower === tokenLower ||
+      (tokenDigits && phoneDigits === tokenDigits)
+    );
+  }
+  return (
+    nameLower.includes(tokenLower) ||
+    optionLower.includes(tokenLower) ||
+    (tokenDigits && phoneDigits.includes(tokenDigits))
+  );
+}
+
+function normalizePhoneDigits(value) {
+  return String(value || "").replace(/\D/g, "");
 }
 
 async function openQrDialog() {
