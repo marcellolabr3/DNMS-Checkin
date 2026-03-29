@@ -1123,14 +1123,22 @@ async function fetchProfiles() {
     state.profiles = [];
     return;
   }
-  let { data, error } = await supabaseClient.from("profiles").select("id,name,role,email,phone,address");
-  if (error) {
-    const message = String(error.message || "").toLowerCase();
-    const missingAddressColumn = message.includes("column") && message.includes("address");
-    if (missingAddressColumn) {
-      const fallback = await supabaseClient.from("profiles").select("id,name,role,email");
-      data = fallback.data;
-      error = fallback.error;
+  const attempts = [
+    "id,name,nome,role,email,phone,address",
+    "id,name,role,email,phone,address",
+    "id,nome,role,email,phone,address",
+    "id,name,nome,role,email",
+    "id,name,role,email",
+    "id,nome,role,email"
+  ];
+  let data = null;
+  let error = null;
+  for (const columns of attempts) {
+    const result = await supabaseClient.from("profiles").select(columns);
+    data = result.data;
+    error = result.error;
+    if (!error) {
+      break;
     }
   }
   if (error) {
@@ -1140,7 +1148,7 @@ async function fetchProfiles() {
   }
   state.profiles = (data || []).map((profile) => ({
     id: profile.id,
-    name: profile.name || "Usuario",
+    name: profile.name || profile.nome || "Usuario",
     role: normalizeRole(profile.role),
     email: profile.email || "",
     phone: profile.phone || "",
@@ -3009,10 +3017,11 @@ function getFamiliesWithChildren() {
   const result = [];
   (state.profiles || []).forEach((profile) => {
     const role = normalizeRole(profile.role);
-    if (role !== "responsavel") {
+    const children = childrenByGuardian.get(profile.id) || [];
+    const shouldInclude = role === "responsavel" || children.length > 0;
+    if (!shouldInclude) {
       return;
     }
-    const children = childrenByGuardian.get(profile.id) || [];
     result.push({ profile, children });
   });
   result.sort((a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""));
@@ -4606,8 +4615,16 @@ function formatBirthdayLabel(birth) {
 }
 
 function normalizeRole(role) {
-  const value = String(role || "").trim().toLowerCase();
-  if (value === "dnms kids") return "dnms_kids";
+  const value = String(role || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_");
+  if (value === "dnms_kids" || value === "dnmskids") return "dnms_kids";
+  if (value === "responsavel") return "responsavel";
+  if (value === "administrador") return "admin";
+  if (value === "super_admin" || value === "sadmin") return "admin";
   return value;
 }
 
