@@ -5379,7 +5379,8 @@ function showLabel(person, checkin, options = {}) {
     els.labelDialog.showModal();
   }
   if (autoPrint) {
-    printCurrentLabel({ checkinId: checkin?.id, type: "print" });
+    // Auto-print agora e responsabilidade do servico local ouvindo novos check-ins no Supabase.
+    return;
   }
 }
 

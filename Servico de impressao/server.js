@@ -5,9 +5,26 @@ const os = require("os");
 const path = require("path");
 const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
+const { createClient } = require("@supabase/supabase-js");
 
 const PORT = 3001;
 const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
+const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
+const SUPABASE_ANON_KEY_DEFAULT =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
+
+loadEnvFromFiles();
+const SUPABASE_URL = process.env.SUPABASE_URL || SUPABASE_URL_DEFAULT;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
+const SUPABASE_ACCESS_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT;
+const supabaseClient = SUPABASE_ACCESS_KEY ? createClient(SUPABASE_URL, SUPABASE_ACCESS_KEY) : null;
+
+const autoPrintQueue = [];
+const autoPrintSeen = new Set();
+let autoPrintProcessing = false;
+let realtimeChannel = null;
+
 const app = express();
 
 app.use((req, res, next) => {
@@ -27,7 +44,12 @@ app.use(express.json({ limit: "5mb" }));
 app.get("/health", async (_req, res) => {
   try {
     const printer = await getTargetPrinterOrThrow();
-    res.json({ ok: true, status: "online", target_printer: printer.name || "-" });
+    res.json({
+      ok: true,
+      status: "online",
+      target_printer: printer.name || "-",
+      auto_print_listener: Boolean(supabaseClient)
+    });
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
   }
@@ -84,6 +106,9 @@ async function handlePrintRequest(req, res, routeType) {
       pages: "1"
     });
     await safeUnlink(pdfPath);
+    if (tipo === "print") {
+      await markCheckinPrinted(checkinId);
+    }
 
     logPrint({
       checkinId,
@@ -131,6 +156,17 @@ async function getTargetPrinterOrThrow() {
     );
   }
   return selected.raw;
+}
+
+async function markCheckinPrinted(checkinId) {
+  if (!supabaseClient || !checkinId) {
+    return;
+  }
+  try {
+    await supabaseClient.from("checkins").update({ printed_at: new Date().toISOString() }).eq("id", checkinId);
+  } catch (_error) {
+    // sem bloqueio de fluxo
+  }
 }
 
 async function renderHtmlToPdf(htmlContent) {
@@ -200,6 +236,246 @@ function resolveSumatraPdfPath() {
   return found;
 }
 
+function buildLabelDocumentHtml({ studentName, className, guardian, notes }) {
+  const safeName = studentName || "Aluno";
+  const safeClass = className || "-";
+  const safeGuardian = guardian || "-";
+  const safeNotes = notes || "-";
+  const labelBodyHtml = `
+    <div class="label-name">${escapeHtml(safeName)}</div>
+    <div class="label-body">
+      <div class="label-line">Turma: ${escapeHtml(safeClass)}</div>
+      <div class="label-line">Responsavel: ${escapeHtml(safeGuardian)}</div>
+      <div class="label-line">Observacao: ${escapeHtml(safeNotes)}</div>
+    </div>
+  `;
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    @page { size: 90mm 29mm; margin: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 90mm;
+      height: 29mm;
+      overflow: hidden;
+      background: #fff;
+    }
+    .label {
+      width: 90mm;
+      height: 29mm;
+      border: 0.2mm solid #111;
+      padding: 1.4mm;
+      border-radius: 1.2mm;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 0.95mm;
+      font-size: 3.2mm;
+      line-height: 1.1;
+      font-family: Arial, "Segoe UI", sans-serif;
+      color: #111;
+      box-sizing: border-box;
+      overflow: hidden;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .label-name {
+      text-align: center;
+      font-size: 4.8mm;
+      font-weight: 700;
+      width: 100%;
+      word-break: break-word;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+      margin-bottom: 1.4mm;
+      padding-bottom: 0.8mm;
+      border-bottom: 0.2mm solid #222;
+    }
+    .label-line {
+      width: 100%;
+      text-align: center;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.12;
+    }
+    .label-body {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.95mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="label">${labelBodyHtml}</div>
+</body>
+</html>`;
+}
+
+function enqueueAutoPrint(checkinId) {
+  if (!checkinId || autoPrintSeen.has(checkinId)) {
+    return;
+  }
+  autoPrintSeen.add(checkinId);
+  autoPrintQueue.push(checkinId);
+  processAutoPrintQueue();
+}
+
+async function processAutoPrintQueue() {
+  if (autoPrintProcessing || !autoPrintQueue.length) {
+    return;
+  }
+  autoPrintProcessing = true;
+  while (autoPrintQueue.length) {
+    const checkinId = autoPrintQueue.shift();
+    try {
+      await printCheckinById(checkinId);
+    } catch (error) {
+      console.warn(`[Servico de impressao] falha no auto-print do checkin ${checkinId}:`, error?.message || error);
+    }
+  }
+  autoPrintProcessing = false;
+}
+
+async function printCheckinById(checkinId) {
+  if (!supabaseClient || !checkinId) {
+    return;
+  }
+  const { data: checkin, error: checkinError } = await supabaseClient
+    .from("checkins")
+    .select("*")
+    .eq("id", checkinId)
+    .single();
+  if (checkinError || !checkin) {
+    throw new Error(`checkin nao encontrado: ${checkinError?.message || "-"}`);
+  }
+  if (checkin.printed_at) {
+    return;
+  }
+
+  let studentName = "Aluno";
+  let guardian = "-";
+  if (checkin.student_id) {
+    const { data: student } = await supabaseClient
+      .from("students")
+      .select("name,primary_guardian_name,notes,class_name")
+      .eq("id", checkin.student_id)
+      .single();
+    if (student) {
+      studentName = student.name || studentName;
+      guardian = student.primary_guardian_name || guardian;
+    }
+  }
+
+  const html = buildLabelDocumentHtml({
+    studentName,
+    className: checkin.class_name || "-",
+    guardian,
+    notes: checkin.notes_snapshot || "-"
+  });
+
+  const printer = await getTargetPrinterOrThrow();
+  const pdfPath = await renderHtmlToPdf(html);
+  await print(pdfPath, {
+    printer: printer.name,
+    sumatraPdfPath: resolveSumatraPdfPath(),
+    pages: "1"
+  });
+  await safeUnlink(pdfPath);
+  await markCheckinPrinted(checkinId);
+  logPrint({
+    checkinId,
+    tipo: "print",
+    date: new Date(),
+    status: "sucesso",
+    details: `Auto-print via listener (${printer.name || "-"})`
+  });
+}
+
+async function processPendingCheckins() {
+  if (!supabaseClient) {
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from("checkins")
+    .select("id,printed_at")
+    .is("printed_at", null)
+    .order("checked_in_at", { ascending: true })
+    .limit(300);
+  if (error) {
+    console.warn("[Servico de impressao] falha ao buscar pendencias:", error.message || error);
+    return;
+  }
+  (data || []).forEach((item) => enqueueAutoPrint(item.id));
+}
+
+async function startRealtimeAutoPrint() {
+  if (!supabaseClient) {
+    console.warn("[Servico de impressao] Auto-print desativado (Supabase key ausente).");
+    return;
+  }
+  await processPendingCheckins();
+  realtimeChannel = supabaseClient
+    .channel("checkins-autoprint-service")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "checkins" }, (payload) => {
+      const checkinId = payload?.new?.id;
+      if (checkinId) {
+        enqueueAutoPrint(checkinId);
+      }
+    })
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        console.log("[Servico de impressao] Listener de check-ins ativo.");
+      }
+    });
+}
+
+function loadEnvFromFiles() {
+  const candidates = [
+    path.join(process.cwd(), ".codex-secrets.env"),
+    path.join(process.cwd(), "..", ".codex-secrets.env"),
+    path.join(__dirname, "..", ".codex-secrets.env")
+  ];
+  candidates.forEach((filePath) => {
+    if (!fsSync.existsSync(filePath)) {
+      return;
+    }
+    try {
+      const raw = fsSync.readFileSync(filePath, "utf8");
+      raw.split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
+          return;
+        }
+        const idx = trimmed.indexOf("=");
+        const key = trimmed.slice(0, idx).trim();
+        const value = trimmed.slice(idx + 1).trim().replace(/^"|"$/g, "");
+        if (key && !process.env[key]) {
+          process.env[key] = value;
+        }
+      });
+    } catch (_error) {
+      // arquivo opcional
+    }
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function safeUnlink(filePath) {
   try {
     await fs.unlink(filePath);
@@ -229,4 +505,7 @@ function formatDate(date) {
 
 app.listen(PORT, () => {
   console.log(`[Servico de impressao] online em http://localhost:${PORT}`);
+  startRealtimeAutoPrint().catch((error) => {
+    console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
+  });
 });

@@ -2,6 +2,8 @@
 
 Servico local Node.js para executar impressao da etiqueta recebendo HTML pronto do sistema de check-in.
 
+Tambem possui modo de auto-impressao: ao iniciar, ele escuta novos `checkins` no Supabase e imprime automaticamente no desktop (inclusive check-ins feitos pelo celular).
+
 ## Endpoints
 
 - `POST http://localhost:3001/print`
@@ -15,6 +17,16 @@ O servico foi configurado para usar somente a impressora com nome contendo:
 `BROTHER QL-810W`
 
 Se essa impressora nao for encontrada, o servico retorna erro e nao imprime.
+
+## Auto-impressao por listener (check-in de qualquer origem)
+
+Ao iniciar, o servico:
+
+1. busca check-ins pendentes (`printed_at IS NULL`);
+2. escuta novos inserts na tabela `checkins`;
+3. imprime automaticamente e marca `printed_at`.
+
+Para esse modo funcionar com permissao completa, use `SUPABASE_SERVICE_ROLE_KEY` (pode estar no `.codex-secrets.env`).
 
 ## Payload esperado
 
