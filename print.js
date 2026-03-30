@@ -17,7 +17,6 @@ const queue = [];
 let isPrinting = false;
 let studentsCache = [];
 const reprintContext = { studentId: "", studentName: "" };
-let printServiceErrorShown = false;
 
 boot();
 
@@ -142,13 +141,8 @@ async function printCheckin(checkin) {
     labelHtml: els.printLabel.innerHTML
   });
   if (!sent) {
-    if (!printServiceErrorShown) {
-      printServiceErrorShown = true;
-      alert("Servico de impressao indisponivel. Inicie o servico local para imprimir sem popup.");
-    }
     return;
   }
-  printServiceErrorShown = false;
   if (checkin.markPrinted) {
     await markPrinted(checkin.id);
   }
@@ -298,9 +292,18 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    return response.ok;
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`;
+      try {
+        const body = await response.json();
+        message = body?.error || body?.status || message;
+      } catch (_error) {}
+      throw new Error(message);
+    }
+    return true;
   } catch (error) {
     console.warn("Falha ao enviar para servico de impressao", error);
+    alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
     return false;
   } finally {
     clearTimeout(timeoutId);

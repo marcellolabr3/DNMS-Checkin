@@ -32,7 +32,6 @@ const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
-let printServiceErrorShown = false;
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -5335,16 +5334,17 @@ async function printCurrentLabel(options = {}) {
       signal: controller.signal
     });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      let message = `HTTP ${response.status}`;
+      try {
+        const body = await response.json();
+        message = body?.error || body?.status || message;
+      } catch (_error) {}
+      throw new Error(message);
     }
-    printServiceErrorShown = false;
     return true;
   } catch (error) {
     console.warn("Falha ao enviar etiqueta para o servico de impressao", error);
-    if (!printServiceErrorShown) {
-      printServiceErrorShown = true;
-      alert("Servico de impressao indisponivel. Verifique se o serviço local está iniciado.");
-    }
+    alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
     return false;
   } finally {
     clearTimeout(timeoutId);
