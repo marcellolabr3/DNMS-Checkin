@@ -7,6 +7,7 @@ const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
 
 const PORT = 3001;
+const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
 const app = express();
 
 app.use((req, res, next) => {
@@ -25,8 +26,8 @@ app.use(express.json({ limit: "5mb" }));
 
 app.get("/health", async (_req, res) => {
   try {
-    const printer = await getDefaultPrinterOrThrow();
-    res.json({ ok: true, status: "online", default_printer: printer.name || "default" });
+    const printer = await getTargetPrinterOrThrow();
+    res.json({ ok: true, status: "online", target_printer: printer.name || "-" });
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
   }
@@ -75,9 +76,10 @@ async function handlePrintRequest(req, res, routeType) {
   }
 
   try {
-    const printer = await getDefaultPrinterOrThrow();
+    const printer = await getTargetPrinterOrThrow();
     const pdfPath = await renderHtmlToPdf(conteudo);
     await print(pdfPath, {
+      printer: printer.name,
       sumatraPdfPath: resolveSumatraPdfPath(),
       pages: "1"
     });
@@ -88,7 +90,7 @@ async function handlePrintRequest(req, res, routeType) {
       tipo,
       date: startedAt,
       status: "sucesso",
-      details: `Impressora padrao: ${printer.name || "default"}`
+      details: `Impressora utilizada: ${printer.name || "-"}`
     });
     res.json({ ok: true, checkin_id: checkinId, tipo, status: "sucesso" });
   } catch (error) {
@@ -109,21 +111,26 @@ async function handlePrintRequest(req, res, routeType) {
   }
 }
 
-async function getDefaultPrinterOrThrow() {
+async function getTargetPrinterOrThrow() {
   const printers = await getPrinters();
   if (!Array.isArray(printers) || !printers.length) {
     throw new Error("Nenhuma impressora disponivel no sistema.");
   }
 
-  const byDefaultFlag =
-    printers.find((p) => p.isDefault || p.default || p.is_default) ||
-    printers.find((p) => String(p.name || "").toLowerCase().includes("default"));
+  const normalized = printers.map((printer) => ({
+    raw: printer,
+    name: String(printer.name || "").trim(),
+    key: String(printer.name || "").trim().toUpperCase()
+  }));
 
-  const selected = byDefaultFlag || printers[0];
-  if (!selected) {
-    throw new Error("Nao foi possivel identificar impressora padrao.");
+  const selected = normalized.find((item) => item.key.includes(REQUIRED_PRINTER_HINT));
+  if (!selected?.raw) {
+    const available = normalized.map((item) => item.name).filter(Boolean).join(" | ");
+    throw new Error(
+      `Impressora obrigatoria nao encontrada (${REQUIRED_PRINTER_HINT}). Disponiveis: ${available || "-"}`
+    );
   }
-  return selected;
+  return selected.raw;
 }
 
 async function renderHtmlToPdf(htmlContent) {

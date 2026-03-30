@@ -8,6 +8,14 @@ Servico local Node.js para executar impressao da etiqueta recebendo HTML pronto 
 - `POST http://localhost:3001/reprint`
 - `GET http://localhost:3001/health`
 
+## Impressora utilizada
+
+O servico foi configurado para usar somente a impressora com nome contendo:
+
+`BROTHER QL-810W`
+
+Se essa impressora nao for encontrada, o servico retorna erro e nao imprime.
+
 ## Payload esperado
 
 ```json
