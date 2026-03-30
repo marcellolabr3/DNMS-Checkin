@@ -9,6 +9,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const PORT = 3001;
 const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
+const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 4000);
 const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY_DEFAULT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
@@ -24,6 +25,7 @@ const autoPrintQueue = [];
 const autoPrintSeen = new Set();
 let autoPrintProcessing = false;
 let realtimeChannel = null;
+let autoPrintPollTimer = null;
 
 const app = express();
 
@@ -44,11 +46,14 @@ app.use(express.json({ limit: "5mb" }));
 app.get("/health", async (_req, res) => {
   try {
     const printer = await getTargetPrinterOrThrow();
+    const usingServiceRole = Boolean(SUPABASE_SERVICE_ROLE_KEY);
     res.json({
       ok: true,
       status: "online",
       target_printer: printer.name || "-",
-      auto_print_listener: Boolean(supabaseClient)
+      auto_print_listener: Boolean(supabaseClient),
+      auto_print_polling: Boolean(autoPrintPollTimer),
+      supabase_role: usingServiceRole ? "service_role" : "anon"
     });
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
@@ -338,6 +343,7 @@ async function processAutoPrintQueue() {
     try {
       await printCheckinById(checkinId);
     } catch (error) {
+      autoPrintSeen.delete(checkinId);
       console.warn(`[Servico de impressao] falha no auto-print do checkin ${checkinId}:`, error?.message || error);
     }
   }
@@ -437,6 +443,26 @@ async function startRealtimeAutoPrint() {
     });
 }
 
+function startAutoPrintPolling() {
+  if (!supabaseClient) {
+    return;
+  }
+  if (autoPrintPollTimer) {
+    clearInterval(autoPrintPollTimer);
+  }
+  autoPrintPollTimer = setInterval(() => {
+    processPendingCheckins().catch((error) => {
+      console.warn("[Servico de impressao] falha no polling de pendencias:", error?.message || error);
+    });
+  }, AUTO_PRINT_POLL_INTERVAL_MS);
+  if (typeof autoPrintPollTimer?.unref === "function") {
+    autoPrintPollTimer.unref();
+  }
+  console.log(
+    `[Servico de impressao] polling de check-ins pendentes ativo (intervalo ${AUTO_PRINT_POLL_INTERVAL_MS}ms).`
+  );
+}
+
 function loadEnvFromFiles() {
   const candidates = [
     path.join(process.cwd(), ".codex-secrets.env"),
@@ -505,6 +531,10 @@ function formatDate(date) {
 
 app.listen(PORT, () => {
   console.log(`[Servico de impressao] online em http://localhost:${PORT}`);
+  console.log(
+    `[Servico de impressao] Supabase auth: ${SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "anon"}`
+  );
+  startAutoPrintPolling();
   startRealtimeAutoPrint().catch((error) => {
     console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
   });
