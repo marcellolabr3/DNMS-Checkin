@@ -384,6 +384,11 @@ function bindEvents() {
   });
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
+    if (els.labelDialog) {
+      els.labelDialog.style.display = "none";
+    }
+    // Bloqueio defensivo: evita qualquer popup de impressao no celular.
+    window.print = () => {};
   }
 }
 
