@@ -63,6 +63,12 @@ npm start
 curl http://localhost:3001/health
 ```
 
+Resposta esperada do health:
+
+```json
+{"ok":true,"status":"online","target_printer":"Brother QL-810W USB"}
+```
+
 ## Gerar executavel (.exe)
 
 1. Gere o executavel:
@@ -105,6 +111,42 @@ Parar:
 ```powershell
 npm run stop:bg
 ```
+
+## Fluxo recomendado (producao local)
+
+1. Instalar dependencias:
+
+```powershell
+cmd /c npm install
+```
+
+2. Gerar executavel:
+
+```powershell
+cmd /c npm run build:exe
+```
+
+3. Iniciar servico:
+
+duplo clique em `Iniciar Servico de impressao.cmd`
+
+4. Validar:
+
+abra `http://localhost:3001/health` e confirme `target_printer` com `Brother QL-810W USB`.
+
+5. Encerrar servico:
+
+duplo clique em `Parar Servico de impressao.cmd`
+
+## Solucao rapida de problemas
+
+Se o health retornar `default_printer` em vez de `target_printer`, voce ainda esta rodando versao antiga do executavel.
+
+Faca:
+
+1. Fechar qualquer processo `Servico-de-impressao.exe`
+2. Rodar novamente `npm run build:exe`
+3. Iniciar pelo `Iniciar Servico de impressao.cmd` da mesma pasta
 
 ## Logs
 
