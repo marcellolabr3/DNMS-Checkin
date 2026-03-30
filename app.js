@@ -6,6 +6,7 @@ const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
 const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
+const PRINT_SERVICE_URL = "http://localhost:3001";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
@@ -31,6 +32,7 @@ const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
+let printServiceErrorShown = false;
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -325,14 +327,8 @@ function bindEvents() {
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
   els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
-  els.btnPrintLabel.addEventListener("click", printCurrentLabel);
+  els.btnPrintLabel.addEventListener("click", () => printCurrentLabel({ type: "reprint" }));
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
-  window.addEventListener("afterprint", () => {
-    document.body.classList.remove("print-label");
-    if (els.labelDialog?.open) {
-      els.labelDialog.close();
-    }
-  });
 
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
@@ -5317,9 +5313,42 @@ async function handleManualCheckin(studentId, options = {}) {
   return { ok: true, message: `Check-in confirmado para ${student.name}.` };
 }
 
-function printCurrentLabel() {
-  document.body.classList.add("print-label");
-  window.setTimeout(() => window.print(), 50);
+async function printCurrentLabel(options = {}) {
+  if (!els.labelPreview?.innerHTML) {
+    return false;
+  }
+  const checkinId = options.checkinId || uid();
+  const type = options.type === "reprint" ? "reprint" : "print";
+  const payload = {
+    checkin_id: checkinId,
+    conteudo: buildLabelDocumentHtml(els.labelPreview.innerHTML),
+    tipo: type
+  };
+  const endpoint = type === "reprint" ? "/reprint" : "/print";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch(`${PRINT_SERVICE_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    printServiceErrorShown = false;
+    return true;
+  } catch (error) {
+    console.warn("Falha ao enviar etiqueta para o servico de impressao", error);
+    if (!printServiceErrorShown) {
+      printServiceErrorShown = true;
+      alert("Servico de impressao indisponivel. Verifique se o serviço local está iniciado.");
+    }
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function showLabel(person, checkin, options = {}) {
@@ -5341,8 +5370,79 @@ function showLabel(person, checkin, options = {}) {
     els.labelDialog.showModal();
   }
   if (autoPrint) {
-    printCurrentLabel();
+    printCurrentLabel({ checkinId: checkin?.id, type: "print" });
   }
+}
+
+function buildLabelDocumentHtml(labelBodyHtml) {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    @page { size: 90mm 29mm; margin: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 90mm;
+      height: 29mm;
+      overflow: hidden;
+      background: #fff;
+    }
+    .label {
+      width: 90mm;
+      height: 29mm;
+      border: 0.2mm solid #111;
+      padding: 1.4mm;
+      border-radius: 1.2mm;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 0.95mm;
+      font-size: 3.2mm;
+      line-height: 1.1;
+      font-family: Arial, "Segoe UI", sans-serif;
+      color: #111;
+      box-sizing: border-box;
+      overflow: hidden;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .label-name {
+      text-align: center;
+      font-size: 4.8mm;
+      font-weight: 700;
+      width: 100%;
+      word-break: break-word;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+      margin-bottom: 1.4mm;
+      padding-bottom: 0.8mm;
+      border-bottom: 0.2mm solid #222;
+    }
+    .label-line {
+      width: 100%;
+      text-align: center;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.12;
+    }
+    .label-body {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.95mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="label">${labelBodyHtml}</div>
+</body>
+</html>`;
 }
 
 function exportCsv() {
