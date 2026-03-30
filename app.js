@@ -5313,6 +5313,11 @@ async function handleManualCheckin(studentId, options = {}) {
 }
 
 async function printCurrentLabel(options = {}) {
+  if (!shouldUseLocalPrintService()) {
+    // Em celular/PWA mobile, localhost aponta para o proprio aparelho.
+    // O check-in deve seguir sem bloquear por impressao local.
+    return true;
+  }
   if (!els.labelPreview?.innerHTML) {
     return false;
   }
@@ -5349,6 +5354,10 @@ async function printCurrentLabel(options = {}) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function shouldUseLocalPrintService() {
+  return !isMobileDevice();
 }
 
 function showLabel(person, checkin, options = {}) {
