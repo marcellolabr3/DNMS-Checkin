@@ -187,12 +187,12 @@ function bindEvents() {
   els.logEnd.addEventListener("change", renderLog);
   els.btnSaveStudent.addEventListener("click", saveStudent);
   els.btnConfirmCheckout.addEventListener("click", confirmCheckout);
-  els.btnPrintLabel.addEventListener("click", () => {
-    document.body.classList.add("print-label");
-    window.print();
-  });
-  els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
-  window.addEventListener("afterprint", () => document.body.classList.remove("print-label"));
+  if (els.btnPrintLabel) {
+    els.btnPrintLabel.style.display = "none";
+  }
+  if (els.btnCloseLabel) {
+    els.btnCloseLabel.style.display = "none";
+  }
 
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
@@ -1821,7 +1821,6 @@ async function handleManualCheckin(studentId, options = {}) {
 
 function showLabel(person, room, checkin, options = {}) {
   const autoPrint = options.autoPrint !== false;
-  const openPreview = Boolean(options.openPreview);
   const className = checkin.className || getClassForBirth(person.birth);
   const guardian = formatPersonName(person.guardian) || "-";
   const eventName = room?.name || "-";
@@ -1835,10 +1834,6 @@ function showLabel(person, room, checkin, options = {}) {
     </div>
   `;
   els.labelPreview.innerHTML = label;
-  if (openPreview && els.labelDialog) {
-    els.labelDialog.showModal();
-    return;
-  }
   if (autoPrint) {
     enqueueLabelPrint({
       checkinId: checkin?.id || uid(),
