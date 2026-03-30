@@ -1,0 +1,24 @@
+{
+  "name": "servico-de-impressao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servico local de impressao para etiquetas do DNMS Check-in",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "prepare:sumatra": "node ./scripts/prepare-sumatra.js",
+    "start:bg": "powershell -ExecutionPolicy Bypass -File ./scripts/start-background.ps1",
+    "stop:bg": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-background.ps1",
+    "build:exe": "cmd /c npm run prepare:sumatra && npx pkg server.js --targets node18-win-x64 --output dist/Servico-de-impressao.exe"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pdf-to-printer": "^5.6.0",
+    "puppeteer-core": "^24.9.0"
+  },
+  "pkg": {
+    "assets": []
+  }
+}

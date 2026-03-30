@@ -123,3 +123,25 @@ Este projeto está sob a licença MIT.
 ## 👨‍💻 Autor
 
 Desenvolvido por **Marcello Labre**
+
+---
+
+## Atualizacao: Servico Local de Impressao (Windows)
+
+Para evitar popup do navegador e imprimir automaticamente no check-in, o projeto agora usa um servico local:
+
+* Pasta: `Servico de impressao`
+* Executavel: `Servico de impressao/dist/Servico-de-impressao.exe`
+* API local: `http://localhost:3001` (`/print` e `/reprint`)
+* Impressao em **1 etiqueta por vez** (1 pagina, 90mm x 29mm)
+
+Fluxo operacional:
+
+1. Inicie `Iniciar Servico de impressao.cmd`
+2. O servico sobe localmente e fica em segundo plano (bandeja)
+3. Ao fazer check-in no app, a etiqueta e enviada para o servico local e impressa na impressora padrao do Windows
+
+Observacoes:
+
+* Se o servico nao estiver ativo, o app informa indisponibilidade do servico.
+* O app nao usa fallback de popup de impressao para check-in/reimpressao.
