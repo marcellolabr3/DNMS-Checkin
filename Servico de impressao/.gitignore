@@ -1,3 +1,5 @@
 node_modules/
 .service.pid
 npm-debug.log*
+bin/*.exe
+dist/*.exe

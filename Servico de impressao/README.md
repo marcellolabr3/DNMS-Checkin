@@ -67,6 +67,8 @@ cmd /c npm run build:exe
 
 `dist\Servico-de-impressao.exe`
 
+Obs.: o executavel nao e versionado no Git para nao bloquear o deploy web no Cloudflare Pages.
+
 3. Executar o `.exe` diretamente:
 
 ```powershell
