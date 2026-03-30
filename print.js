@@ -235,33 +235,6 @@ async function fetchLatestCheckinForStudent(studentId) {
   return data?.[0] || null;
 }
 
-function printCurrentLabel() {
-  return new Promise((resolve) => {
-    let resolved = false;
-    document.body.classList.add("print-only-label");
-    const done = () => {
-      if (resolved) {
-        return;
-      }
-      resolved = true;
-      document.body.classList.remove("print-only-label");
-      window.removeEventListener("afterprint", onAfterPrint);
-      resolve();
-    };
-    const onAfterPrint = () => done();
-    window.addEventListener("afterprint", onAfterPrint);
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (err) {
-        console.warn("Falha ao imprimir", err);
-      } finally {
-        setTimeout(done, 700);
-      }
-    }, 120);
-  });
-}
-
 async function sendToLocalPrintService({ checkinId, tipo, conteudo }) {
   const endpoint = tipo === "reprint" ? "/reprint" : "/print";
   const payload = {
