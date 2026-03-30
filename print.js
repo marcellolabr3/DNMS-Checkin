@@ -31,10 +31,8 @@ async function boot() {
     return;
   }
   bindEvents();
-  els.printAuthStatus.textContent = "Autenticado. Aguardando check-ins...";
+  els.printAuthStatus.textContent = "Autenticado. Selecione um aluno para reimprimir.";
   await fetchStudentsForReprint();
-  await fetchPendingCheckins();
-  subscribeToCheckins();
 }
 
 function bindEvents() {
