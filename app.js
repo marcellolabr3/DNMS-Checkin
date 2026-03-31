@@ -4798,7 +4798,7 @@ async function saveStudent(event) {
     className: getClassForBirth(birthIso),
     guardian: guardianName,
     otherGuardians: isResponsavel ? "" : els.studentOther.value.trim(),
-    phone: isResponsavel ? "-" : formatPhoneForStorage(els.studentPhone.value.trim()),
+    phone: isResponsavel ? formatPhoneForStorage(state.session?.phone || "") : formatPhoneForStorage(els.studentPhone.value.trim()),
     address: isResponsavel ? "-" : els.studentAddress.value.trim(),
     notes: els.studentNotes.value.trim(),
     owner: ownerName,
