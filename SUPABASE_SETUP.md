@@ -39,6 +39,17 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_require_responsavel_phone.sql`
 - `supabase/patch_schedule_target_user.sql`
 - `supabase/patch_is_staff_include_dnms_kids.sql`
+- `supabase/patch_phone_normalization.sql`
+
+### Padronização de telefone (atual)
+- Formato único no banco: `+55 (DD) 9XXXX-XXXX`
+- Escopo: `profiles.phone` e `students.phone`
+- Garantias:
+  - normalização automática em `INSERT/UPDATE` via trigger
+  - validação por `CHECK CONSTRAINT` para bloquear formato inválido
+  - saneamento dos dados legados já executado
+- Observação:
+  - `students.phone` permite `NULL` para evitar quebra em registros antigos sem telefone válido
 
 ### Backup estrutural do banco (snapshot)
 - `supabase/BD_BACKUP_2026-03-28.md`
