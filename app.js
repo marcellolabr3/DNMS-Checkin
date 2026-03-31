@@ -950,7 +950,7 @@ async function hydrateFromSupabase() {
       name: profile.name,
       role: normalizeRole(profile.role),
       email: profile.email || "",
-      phone: profile.phone || "",
+      phone: formatPhoneForDisplay(profile.phone || ""),
       address: profile.address || "",
       photoUrl: profile.photo_url || ""
     };
@@ -994,7 +994,7 @@ async function ensureProfileFromAuthUser(user) {
     email: user.email || null,
     birth_date: metadata.birth_date || null,
     marital_status: metadata.marital_status || null,
-    phone: metadata.phone || null,
+    phone: formatPhoneForStorage(metadata.phone || ""),
     is_visitor: Boolean(metadata.is_visitor)
   };
   if (metadata.invite_token) {
@@ -1082,7 +1082,7 @@ async function fetchStudents() {
     className: student.class_name,
     guardian: student.primary_guardian_name,
     otherGuardians: "",
-    phone: student.phone,
+    phone: formatPhoneForDisplay(student.phone),
     address: student.address,
     notes: student.notes || "",
     owner: student.primary_guardian_name || "",
@@ -1388,7 +1388,7 @@ async function fetchProfiles() {
     name: profile.name || profile.nome || "Usuario",
     role: normalizeRole(profile.role),
     email: profile.email || "",
-    phone: profile.phone || "",
+    phone: formatPhoneForDisplay(profile.phone || ""),
     address: profile.address || ""
   }));
 }
@@ -2985,8 +2985,9 @@ async function handleSignupSubmit(event) {
   const birthDate = normalizeBirthDateInput(birthDateRaw);
   const civilStatus = els.signupCivilStatus.value.trim();
   const phoneDdd = (els.signupPhoneDdd?.value || "").replace(/\D/g, "").slice(0, 2);
-  const phoneNumber = (els.signupPhone.value || "").replace(/\D/g, "");
-  const phone = phoneDdd && phoneNumber ? `+55(${phoneDdd})${phoneNumber}` : "";
+  const phoneNumberRaw = (els.signupPhone.value || "").replace(/\D/g, "");
+  const phoneNational = buildNationalPhoneFromParts(phoneDdd, phoneNumberRaw);
+  const phone = formatPhoneForStorage(phoneNational);
   const email = els.signupEmail.value.trim().toLowerCase();
   const password = els.signupPassword.value;
   const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
@@ -3002,11 +3003,11 @@ async function handleSignupSubmit(event) {
     alert("Data de nascimento invalida. Use dd/mm/aaaa.");
     return;
   }
-  if (!isInviteFlow && phoneNumber.length < 8) {
+  if (!isInviteFlow && phoneNational.length < 10) {
     alert("Informe um celular valido do responsavel.");
     return;
   }
-  if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneDdd.length !== 2)) {
+  if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneNational.length < 10)) {
     alert("Preencha todos os campos obrigatorios.");
     return;
   }
@@ -3198,7 +3199,7 @@ async function openMyDataDialog() {
 
   myDataContext.email = profile.email || "";
   myDataContext.name = profile.name || "";
-  myDataContext.phone = profile.phone || "";
+  myDataContext.phone = formatPhoneForDisplay(profile.phone || "");
   myDataContext.address = profile.address || "";
   myDataContext.photoUrl = profile.photo_url || "";
 
@@ -3209,7 +3210,7 @@ async function openMyDataDialog() {
     els.myDataEmail.value = profile.email || "";
   }
   if (els.myDataPhone) {
-    els.myDataPhone.value = profile.phone || "";
+    els.myDataPhone.value = formatPhoneForDisplay(profile.phone || "");
   }
   if (els.myDataAddress) {
     els.myDataAddress.value = profile.address || "";
@@ -3247,7 +3248,7 @@ async function handleSaveMyData(event) {
   }
   const name = String(els.myDataName?.value || "").trim();
   const email = String(els.myDataEmail?.value || "").trim().toLowerCase();
-  const phone = String(els.myDataPhone?.value || "").trim();
+  const phone = formatPhoneForStorage(String(els.myDataPhone?.value || "").trim());
   const address = String(els.myDataAddress?.value || "").trim();
   const photoFile = els.myDataPhoto?.files?.[0] || null;
   const nameChanged = name && name !== String(myDataContext.name || "");
@@ -3316,7 +3317,7 @@ async function handleSaveMyData(event) {
         ...state.session,
         name: refreshed.name || state.session.name,
         email: refreshed.email || state.session.email,
-        phone: refreshed.phone || "",
+        phone: formatPhoneForDisplay(refreshed.phone || ""),
         address: refreshed.address || "",
         photoUrl: refreshed.photo_url || ""
       };
@@ -3324,7 +3325,7 @@ async function handleSaveMyData(event) {
       state.session = {
         ...state.session,
         name,
-        phone,
+        phone: formatPhoneForDisplay(phone),
         address
       };
     }
@@ -3772,7 +3773,7 @@ function renderFamiliesPanel() {
       <input id="familyEditEmail" type="email" value="${selected.profile.email || ""}" readonly />
     </label>
     <label class="field">Telefone
-      <input id="familyEditPhone" type="text" value="${selected.profile.phone || ""}" />
+      <input id="familyEditPhone" type="text" value="${formatPhoneForDisplay(selected.profile.phone || "")}" />
     </label>
     <label class="field">Endereco
       <input id="familyEditAddress" type="text" value="${selected.profile.address || ""}" />
@@ -3898,7 +3899,7 @@ async function saveFamilyProfile(profileId) {
     return;
   }
   const name = String(document.getElementById("familyEditName")?.value || "").trim();
-  const phone = String(document.getElementById("familyEditPhone")?.value || "").trim();
+  const phone = formatPhoneForStorage(String(document.getElementById("familyEditPhone")?.value || "").trim());
   const address = String(document.getElementById("familyEditAddress")?.value || "").trim();
   if (!name) {
     alert("Informe o nome do responsavel.");
@@ -4026,18 +4027,15 @@ async function handleCreateFamilyResponsible() {
   const birthRaw = String(els.familyCreateBirth?.value || "").trim();
   const birthDate = normalizeBirthDateInput(birthRaw);
   const civilStatus = String(els.familyCreateCivil?.value || "").trim();
-  const phoneDigits = String(els.familyCreatePhone?.value || "").replace(/\D/g, "");
-  const normalizedPhoneDigits = phoneDigits.startsWith("55") ? phoneDigits.slice(2) : phoneDigits;
-  const phoneDdd = normalizedPhoneDigits.slice(0, 2);
-  const phoneNumber = normalizedPhoneDigits.slice(2);
-  const phone = phoneDdd && phoneNumber ? `+55(${phoneDdd})${phoneNumber}` : "";
+  const phoneNational = normalizePhoneDigits(String(els.familyCreatePhone?.value || ""));
+  const phone = formatPhoneForStorage(phoneNational);
   const email = String(els.familyCreateEmail?.value || "").trim().toLowerCase();
   const address = String(els.familyCreateAddress?.value || "").trim();
   if (!name || !birthDate || !civilStatus || !phone || !email || !isValidEmail(email)) {
     alert("Preencha os dados obrigatorios do responsavel.");
     return;
   }
-  if (phoneDdd.length !== 2 || phoneNumber.length < 8) {
+  if (phoneNational.length < 10) {
     alert("Informe um celular valido.");
     return;
   }
@@ -4800,7 +4798,7 @@ async function saveStudent(event) {
     className: getClassForBirth(birthIso),
     guardian: guardianName,
     otherGuardians: isResponsavel ? "" : els.studentOther.value.trim(),
-    phone: isResponsavel ? "-" : els.studentPhone.value.trim(),
+    phone: isResponsavel ? "-" : formatPhoneForStorage(els.studentPhone.value.trim()),
     address: isResponsavel ? "-" : els.studentAddress.value.trim(),
     notes: els.studentNotes.value.trim(),
     owner: ownerName,
@@ -4808,7 +4806,7 @@ async function saveStudent(event) {
     isVisitor
   };
   if (!isResponsavel && !payload.phone && guardianResolution.profile.phone) {
-    payload.phone = guardianResolution.profile.phone;
+    payload.phone = formatPhoneForStorage(guardianResolution.profile.phone);
   }
   const photoFile = els.studentPhotoCamera?.files?.[0] || els.studentPhoto?.files?.[0] || null;
 
@@ -5008,7 +5006,7 @@ function getAssignableGuardianProfiles(query = "") {
 
 function formatGuardianOption(profile) {
   const name = String(profile?.name || "").trim();
-  const phone = String(profile?.phone || "").trim();
+  const phone = formatPhoneForDisplay(profile?.phone || "");
   return phone ? `${name} (${phone})` : name;
 }
 
@@ -5090,7 +5088,53 @@ function profileMatchesGuardianToken(profile, input, exactOnly) {
 }
 
 function normalizePhoneDigits(value) {
-  return String(value || "").replace(/\D/g, "");
+  let digits = String(value || "").replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  if (digits.length > 11 && digits.startsWith("55")) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > 11 && digits.slice(0, 2) === digits.slice(2, 4)) {
+    digits = digits.slice(0, 2) + digits.slice(4);
+  }
+  if (digits.length > 11) {
+    digits = digits.slice(-11);
+  }
+  return digits;
+}
+
+function formatPhoneForDisplay(value) {
+  const digits = normalizePhoneDigits(value);
+  if (digits.length < 10) {
+    return String(value || "").trim();
+  }
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (number.length === 9) {
+    return `+55 (${ddd}) ${number.slice(0, 5)}-${number.slice(5)}`;
+  }
+  return `+55 (${ddd}) ${number.slice(0, 4)}-${number.slice(4)}`;
+}
+
+function formatPhoneForStorage(value) {
+  const digits = normalizePhoneDigits(value);
+  if (digits.length < 10) {
+    return "";
+  }
+  return formatPhoneForDisplay(digits);
+}
+
+function buildNationalPhoneFromParts(dddRaw, numberRaw) {
+  const ddd = String(dddRaw || "").replace(/\D/g, "").slice(0, 2);
+  const numberDigits = String(numberRaw || "").replace(/\D/g, "");
+  if (!numberDigits) {
+    return "";
+  }
+  if (numberDigits.length >= 10) {
+    return normalizePhoneDigits(numberDigits);
+  }
+  return normalizePhoneDigits(`${ddd}${numberDigits}`);
 }
 
 function getResponsibleContactForStudent(student) {
@@ -5102,7 +5146,7 @@ function getResponsibleContactForStudent(student) {
     const profile = (state.profiles || []).find((item) => item.id === guardianProfileId);
     if (profile) {
       return {
-        phone: String(profile.phone || "").trim(),
+        phone: formatPhoneForDisplay(profile.phone || ""),
         address: String(profile.address || "").trim()
       };
     }
@@ -5110,14 +5154,14 @@ function getResponsibleContactForStudent(student) {
   const profileByName = findProfileByGuardianName(student.guardian);
   if (profileByName) {
     return {
-      phone: String(profileByName.phone || "").trim(),
+      phone: formatPhoneForDisplay(profileByName.phone || ""),
       address: String(profileByName.address || "").trim()
     };
   }
   const guardianName = String(student.guardian || "").trim().toLowerCase();
   if (guardianName && String(state.session?.name || "").trim().toLowerCase() === guardianName) {
     return {
-      phone: String(state.session?.phone || "").trim(),
+      phone: formatPhoneForDisplay(state.session?.phone || ""),
       address: String(state.session?.address || "").trim()
     };
   }
@@ -5502,7 +5546,7 @@ function exportFamiliesCsv() {
   const csvRows = filtered.map((entry) => [
     entry.profile.name || "",
     entry.profile.email || "",
-    entry.profile.phone || "",
+    formatPhoneForDisplay(entry.profile.phone || ""),
     entry.profile.address || "",
     entry.children.length,
     entry.children.map((child) => child.name).join(" | ")
