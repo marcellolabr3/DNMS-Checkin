@@ -3742,7 +3742,8 @@ function renderFamiliesPanel() {
     els.familyEditor.innerHTML = "";
     return;
   }
-  const canDelete = isSadmin() || isAdmin();
+  const canManageResponsible = canManageResponsibleProfile(selected.profile);
+  const canDelete = canManageResponsible;
   const assignableStudents = getFamilyAssignableStudents(selected.profile.id, selected.children);
   const assignOptions = assignableStudents
     .map((student) => `<option value="${student.id}">${student.name} - ${student.className || getClassForBirth(student.birth)}</option>`)
@@ -3767,29 +3768,29 @@ function renderFamiliesPanel() {
   els.familyEditor.innerHTML = `
     <strong>Responsavel selecionado</strong>
     <label class="field">Nome
-      <input id="familyEditName" type="text" value="${selected.profile.name || ""}" />
+      <input id="familyEditName" type="text" value="${selected.profile.name || ""}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <label class="field">Email
       <input id="familyEditEmail" type="email" value="${selected.profile.email || ""}" readonly />
     </label>
     <label class="field">Telefone
-      <input id="familyEditPhone" type="text" value="${formatPhoneForDisplay(selected.profile.phone || "")}" />
+      <input id="familyEditPhone" type="text" value="${formatPhoneForDisplay(selected.profile.phone || "")}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <label class="field">Endereco
-      <input id="familyEditAddress" type="text" value="${selected.profile.address || ""}" />
+      <input id="familyEditAddress" type="text" value="${selected.profile.address || ""}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <div class="actions">
-      <button id="btnFamilySaveProfile" type="button" class="primary">Salvar responsavel</button>
-      <button id="btnFamilyAddChild" type="button" class="ghost">Adicionar crianca</button>
+      <button id="btnFamilySaveProfile" type="button" class="primary" ${canManageResponsible ? "" : "disabled"}>Salvar responsavel</button>
+      <button id="btnFamilyAddChild" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Adicionar crianca</button>
     </div>
     <label class="field">Vincular crianca existente
-      <select id="familyAssignStudentId">
+      <select id="familyAssignStudentId" ${canManageResponsible ? "" : "disabled"}>
         <option value="">Selecione uma crianca</option>
         ${assignOptions}
       </select>
     </label>
     <div class="actions">
-      <button id="btnFamilyAssignStudent" type="button" class="ghost">Vincular crianca</button>
+      <button id="btnFamilyAssignStudent" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Vincular crianca</button>
     </div>
     <div class="list">${childrenHtml}</div>
     ${
@@ -3898,6 +3899,11 @@ async function saveFamilyProfile(profileId) {
   if (!supabaseClient || !profileId) {
     return;
   }
+  const profile = (state.profiles || []).find((item) => item.id === profileId);
+  if (!canManageResponsibleProfile(profile)) {
+    alert("Somente SADMIN/Admin podem editar qualquer responsavel nesta aba.");
+    return;
+  }
   const name = String(document.getElementById("familyEditName")?.value || "").trim();
   const phone = formatPhoneForStorage(String(document.getElementById("familyEditPhone")?.value || "").trim());
   const address = String(document.getElementById("familyEditAddress")?.value || "").trim();
@@ -3921,8 +3927,8 @@ async function deleteFamilyUser(profile, typedName) {
   if (!profile) {
     return;
   }
-  if (!(isSadmin() || isAdmin())) {
-    alert("Sem permissao para excluir usuario.");
+  if (!canManageResponsibleProfile(profile)) {
+    alert("Somente SADMIN/Admin podem excluir responsavel nesta aba.");
     return;
   }
   const expected = String(profile.name || "").trim();
@@ -3969,6 +3975,10 @@ function openStudentDialogForFamily(profile) {
 
 async function assignStudentToFamily(studentId, profile) {
   if (!studentId || !profile?.id) {
+    return;
+  }
+  if (!canManageResponsibleProfile(profile)) {
+    alert("Somente SADMIN/Admin podem vincular criancas a responsavel nesta aba.");
     return;
   }
   const student = (state.students || []).find((item) => item.id === studentId);
@@ -4020,7 +4030,8 @@ function clearFamilyCreateForm() {
 }
 
 async function handleCreateFamilyResponsible() {
-  if (!supabaseClient || !(isAdmin() || isEquipe())) {
+  if (!supabaseClient || !(isSadmin() || isAdmin())) {
+    alert("Somente SADMIN/Admin podem cadastrar responsavel nesta aba.");
     return;
   }
   const name = String(els.familyCreateName?.value || "").trim();
@@ -5615,6 +5626,16 @@ function canCheckinStudent(student) {
     return true;
   }
   return student.guardian === state.session.name || student.owner === state.session.name;
+}
+
+function canManageResponsibleProfile(profile) {
+  if (!profile) {
+    return false;
+  }
+  if (!(isSadmin() || isAdmin())) {
+    return false;
+  }
+  return normalizeRole(profile.role) === "responsavel";
 }
 
 function getRoomsToday() {
