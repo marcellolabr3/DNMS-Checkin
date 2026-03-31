@@ -78,7 +78,7 @@ curl http://localhost:3001/health
 Resposta esperada do health:
 
 ```json
-{"ok":true,"status":"online","target_printer":"Brother QL-810W USB"}
+{"ok":true,"status":"online","target_printer":"Brother QL-810W USB","auto_print_listener":true,"auto_print_polling":true,"supabase_role":"service_role"}
 ```
 
 ## Gerar executavel (.exe)
@@ -159,6 +159,7 @@ Faca:
 1. Fechar qualquer processo `Servico-de-impressao.exe`
 2. Rodar novamente `npm run build:exe`
 3. Iniciar pelo `Iniciar Servico de impressao.cmd` da mesma pasta
+4. Confirmar no `netstat`/Gerenciador de Tarefas se o processo ativo aponta para o caminho correto desta pasta (e nao outro clone do projeto)
 
 ## Logs
 

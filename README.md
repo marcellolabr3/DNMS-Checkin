@@ -145,3 +145,11 @@ Observacoes:
 
 * Se o servico nao estiver ativo, o app informa indisponibilidade do servico.
 * O app nao usa fallback de popup de impressao para check-in/reimpressao.
+* Check-in feito no celular nao abre popup e a etiqueta e impressa no desktop via listener/polling do servico local.
+* Health esperado do servico:
+
+```json
+{"ok":true,"status":"online","target_printer":"Brother QL-810W USB","auto_print_listener":true,"auto_print_polling":true,"supabase_role":"service_role"}
+```
+
+* Se ainda nao imprimir, verifique se nao existe outro `Servico-de-impressao.exe` rodando em outra pasta/projeto.
