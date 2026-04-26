@@ -389,6 +389,11 @@ button:disabled,
   border: 1px solid var(--stroke);
 }
 
+#manageInviteStatus:empty,
+#manageInviteLink:empty {
+  display: none;
+}
+
 #manageInviteLink {
   overflow-wrap: anywhere;
 }
