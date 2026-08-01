@@ -280,6 +280,27 @@ body.role-theme-sadmin {
 
 .list-item strong {
   font-weight: 600;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.list-item .muted {
+  line-height: 1.35;
+}
+
+.list-item .actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf0eb;
+}
+
+.list-item .actions .primary,
+.list-item .actions .ghost,
+.list-item .actions .danger {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .muted {
@@ -570,6 +591,7 @@ button:disabled,
   border: 1px dashed var(--stroke-strong);
   font-size: 14px;
   background: var(--surface);
+  border-left: 4px solid var(--accent-2);
 }
 
 .filters {
@@ -701,6 +723,10 @@ button:disabled,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+
+.dashboard-schedules .list-item {
+  min-height: 96px;
 }
 
 .dashboard-birthday-item {
@@ -923,6 +949,14 @@ button:disabled,
   box-shadow: var(--shadow-soft);
   position: relative;
   overflow: hidden;
+}
+
+.room-open-item strong {
+  color: var(--ink);
+}
+
+.room-open-item .muted {
+  line-height: 1.35;
 }
 
 .room-open-item::before {
