@@ -2765,6 +2765,29 @@ function getOpenCheckinForStudent(studentId) {
   );
 }
 
+async function checkoutOpenCheckinsForRoom(roomId, checkedOutIso) {
+  if (!roomId) {
+    return { ok: false, message: "Sala invalida." };
+  }
+  const checkoutIso = checkedOutIso || new Date().toISOString();
+  if (supabaseClient) {
+    const { error } = await supabaseClient
+      .from("checkins")
+      .update({ checked_out_at: checkoutIso })
+      .eq("room_id", roomId)
+      .is("checked_out_at", null);
+    if (error) {
+      return { ok: false, message: error.message || "Falha ao atualizar checkout dos alunos." };
+    }
+  }
+  state.checkins.forEach((checkin) => {
+    if (checkin.roomId === roomId && !checkin.checkedOutAt) {
+      checkin.checkedOutAt = formatTimeFromIso(checkoutIso);
+    }
+  });
+  return { ok: true, checkedOutIso: checkoutIso };
+}
+
 function openCheckoutDialog(checkin) {
   if (!checkin) {
     alert("Nao ha check-in aberto para este aluno.");
@@ -4484,23 +4507,25 @@ async function closeRoom(roomId, options = {}) {
     return;
   }
   const closedAtIso = new Date().toISOString();
+  const checkoutResult = await checkoutOpenCheckinsForRoom(room.id, closedAtIso);
+  if (!checkoutResult.ok) {
+    alert(`Nao foi possivel fazer checkout automatico dos alunos: ${checkoutResult.message}`);
+    return;
+  }
   if (supabaseClient) {
-    await supabaseClient.from("rooms").update({ status: "Fechada", closed_at: closedAtIso }).eq("id", room.id);
-    await supabaseClient
-      .from("checkins")
-      .update({ checked_out_at: closedAtIso })
-      .eq("room_id", room.id)
-      .is("checked_out_at", null);
+    const { error } = await supabaseClient
+      .from("rooms")
+      .update({ status: "Fechada", closed_at: closedAtIso })
+      .eq("id", room.id);
+    if (error) {
+      alert(`Falha ao fechar sala: ${error.message || "erro inesperado"}`);
+      return;
+    }
     await fetchRooms();
     await fetchCheckins();
   } else {
     room.status = "Fechada";
     room.closedAt = timeNow();
-    state.checkins.forEach((checkin) => {
-      if (checkin.roomId === room.id && !checkin.checkedOutAt) {
-        checkin.checkedOutAt = formatTimeFromIso(closedAtIso);
-      }
-    });
   }
   if (state.activeRoomId === room.id) {
     const openRooms = getOpenRoomsToday();
@@ -4542,8 +4567,18 @@ async function deleteRoom(roomId, options = {}) {
   if (!options.skipConfirm && !confirm("Tem certeza que deseja excluir esta sala?")) {
     return;
   }
+  const deletedAtIso = new Date().toISOString();
+  const checkoutResult = await checkoutOpenCheckinsForRoom(roomId, deletedAtIso);
+  if (!checkoutResult.ok) {
+    alert(`Nao foi possivel fazer checkout automatico dos alunos: ${checkoutResult.message}`);
+    return;
+  }
   if (supabaseClient) {
-    await supabaseClient.from("rooms").delete().eq("id", roomId);
+    const { error } = await supabaseClient.from("rooms").delete().eq("id", roomId);
+    if (error) {
+      alert(`Falha ao excluir sala: ${error.message || "erro inesperado"}`);
+      return;
+    }
     await fetchRooms();
     await fetchCheckins();
   } else {
@@ -5323,6 +5358,10 @@ async function handleManualCheckin(studentId, options = {}) {
     return fail(`Nao ha sala aberta para a turma ${className}. Abra uma sala com essa turma.`);
   }
 
+  const activeCheckin = getOpenCheckinForStudent(studentId);
+  if (activeCheckin) {
+    return fail("Este aluno ja possui um check-in ativo. Faça checkout antes de registrar outro check-in.");
+  }
   const already = state.checkins.find((checkin) => checkin.roomId === room.id && checkin.studentId === studentId);
   if (already) {
     return fail("Este aluno ja fez check-in nesta sala.");
