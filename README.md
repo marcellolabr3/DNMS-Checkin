@@ -92,6 +92,13 @@ cd DNMS-Checkin
 index.html
 ```
 
+4. Rode os testes automatizados:
+
+```bash
+npm install
+npm test
+```
+
 ---
 
 ## 📌 Melhorias Futuras
@@ -106,12 +113,12 @@ index.html
 * [x] Atualização forçada do PWA ao publicar nova versão
 * [x] Checkout automático dos alunos ao fechar ou excluir sala
 * [x] Proteção contra mais de um check-in ativo por criança
-* [ ] Testes automatizados (fluxos críticos e regressão)
-  * [ ] Testar login, logout e recuperação de senha
-  * [ ] Testar check-in, checkout manual e checkout automático ao fechar/excluir sala
-  * [ ] Testar bloqueio de mais de um check-in ativo por criança
-  * [ ] Testar fluxo do responsável ao visualizar crianças
-  * [ ] Testar regressões visuais básicas em desktop e celular
+* [x] Testes automatizados (fluxos críticos e regressão)
+  * [x] Testar login, logout e recuperação de senha
+  * [x] Testar check-in, checkout manual e checkout automático ao fechar/excluir sala
+  * [x] Testar bloqueio de mais de um check-in ativo por criança
+  * [x] Testar fluxo do responsável ao visualizar crianças
+  * [x] Testar regressões visuais básicas em desktop e celular
 * [ ] CI para validação automática
   * [ ] Criar workflow no GitHub Actions
   * [ ] Rodar validações a cada push e pull request

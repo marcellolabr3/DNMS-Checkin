@@ -1,0 +1,55 @@
+const { test, expect } = require("@playwright/test");
+const { openApp, loginAs, getAlerts } = require("./helpers/app");
+
+test("login invalido mostra erro e mantem tela de entrada", async ({ page }) => {
+  await openApp(page);
+
+  await page.fill("#loginEmail", "admin@dnms.test");
+  await page.fill("#loginPassword", "erro");
+  await page.click("#btnLogin");
+
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("Falha no login"));
+});
+
+test("login e logout funcionam com perfil valido", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#sessionRole")).toContainText("Admin");
+  await expect(page.locator("#dashboardCard")).toBeVisible();
+
+  await page.click("#btnLogout");
+
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect(page.locator("#sessionRole")).toContainText("Deslogado");
+});
+
+test("recuperacao de senha envia email e fecha a janela", async ({ page }) => {
+  await openApp(page);
+
+  await page.fill("#loginEmail", "responsavel@dnms.test");
+  await page.click("#btnForgotPassword");
+  await expect(page.locator("#forgotPasswordDialog")).toBeVisible();
+  await page.click("#btnSendPasswordReset");
+
+  await expect(page.locator("#forgotPasswordDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__lastPasswordResetEmail)).toBe("responsavel@dnms.test");
+  await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("Link de redefinicao enviado"));
+});
+
+test("redefinicao de senha valida confirmacao antes de atualizar", async ({ page }) => {
+  await openApp(page, { path: "/index.html#type=recovery" });
+
+  await expect(page.locator("#resetPasswordDialog")).toBeVisible();
+  await page.fill("#resetPasswordNew", "senha123");
+  await page.fill("#resetPasswordConfirm", "senha456");
+  await page.click("#btnSubmitPasswordReset");
+  await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("As senhas nao conferem"));
+
+  await page.fill("#resetPasswordConfirm", "senha123");
+  await page.click("#btnSubmitPasswordReset");
+
+  await expect(page.locator("#resetPasswordDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__lastUpdatedPassword)).toBe("senha123");
+});
