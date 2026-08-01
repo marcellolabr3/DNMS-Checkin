@@ -144,6 +144,11 @@ body.role-theme-sadmin {
   min-width: 0;
 }
 
+#authCard {
+  width: min(440px, 100%);
+  margin: clamp(12px, 6vh, 56px) auto 0;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -188,6 +193,16 @@ body.role-theme-sadmin {
   background: var(--surface);
   box-shadow: var(--shadow-soft);
   transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.list-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: transparent;
 }
 
 .list-item:hover {
@@ -200,6 +215,10 @@ body.role-theme-sadmin {
   border-color: var(--accent);
   background: var(--accent-soft);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.list-item.is-selected::before {
+  background: var(--accent);
 }
 
 .list-item strong {
@@ -241,7 +260,15 @@ body.role-theme-sadmin {
 
 .field input,
 .field select,
-.field textarea {
+.field textarea,
+.filters input,
+.filters select,
+#familyEditor input,
+#familyEditor select,
+#familyEditor textarea,
+#familiesCard input,
+#familiesCard select,
+#familiesCard textarea {
   padding: 11px 12px;
   border-radius: 10px;
   border: 1px solid var(--stroke);
@@ -255,13 +282,29 @@ body.role-theme-sadmin {
 
 .field input:hover,
 .field select:hover,
-.field textarea:hover {
+.field textarea:hover,
+.filters input:hover,
+.filters select:hover,
+#familyEditor input:hover,
+#familyEditor select:hover,
+#familyEditor textarea:hover,
+#familiesCard input:hover,
+#familiesCard select:hover,
+#familiesCard textarea:hover {
   border-color: var(--stroke-strong);
 }
 
 .field input:focus,
 .field select:focus,
-.field textarea:focus {
+.field textarea:focus,
+.filters input:focus,
+.filters select:focus,
+#familyEditor input:focus,
+#familyEditor select:focus,
+#familyEditor textarea:focus,
+#familiesCard input:focus,
+#familiesCard select:focus,
+#familiesCard textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
@@ -441,6 +484,11 @@ button:disabled,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .filters input,
@@ -473,6 +521,17 @@ button:disabled,
   background: var(--surface);
   border: 1px solid var(--stroke);
   line-height: 1.45;
+}
+
+.dashboard-grid .summary {
+  min-height: 88px;
+  background: linear-gradient(180deg, #fff, var(--surface));
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboard-grid .summary strong,
+.summary strong {
+  color: var(--ink);
 }
 
 #manageInviteStatus:empty,
@@ -540,7 +599,7 @@ button:disabled,
 .dashboard-schedules {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .dashboard-birthday-item {
@@ -607,6 +666,15 @@ button:disabled,
   gap: 10px;
   padding-top: 12px;
   border-top: 1px solid var(--stroke);
+}
+
+#studentEmpty:empty,
+#logSelectedStudentsSummary:empty,
+#logSummary:empty,
+#logCounts:empty,
+#familyCreateStatus:empty,
+#scheduleSheetSyncStatus:empty {
+  display: none;
 }
 
 .label-title {
@@ -725,7 +793,7 @@ button:disabled,
 .room-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .room-open-list {
@@ -744,6 +812,16 @@ button:disabled,
   background: var(--surface);
   font-size: 14px;
   box-shadow: var(--shadow-soft);
+  position: relative;
+  overflow: hidden;
+}
+
+.room-open-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent-2);
 }
 
 @media (max-width: 720px) {
