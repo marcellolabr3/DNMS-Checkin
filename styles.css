@@ -40,7 +40,9 @@ body {
   margin: 0;
   font-family: var(--font);
   color: var(--ink);
-  background: linear-gradient(180deg, #ffffff 0, var(--bg) 220px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0, rgba(255, 255, 255, 0.58) 210px, transparent 420px),
+    linear-gradient(135deg, #eef4f0 0, var(--bg) 46%, #f7f4ec 100%);
   min-height: 100vh;
   font-size: 15px;
 }
@@ -158,7 +160,50 @@ body.role-theme-sadmin {
 
 #authCard {
   width: min(440px, 100%);
-  margin: clamp(12px, 6vh, 56px) auto 0;
+  margin: clamp(18px, 7vh, 70px) auto 0;
+  padding: clamp(22px, 4vw, 34px);
+  gap: 18px;
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--stroke));
+  box-shadow: 0 24px 60px rgba(28, 40, 36, 0.12);
+}
+
+#authCard h2 {
+  font-size: clamp(26px, 4vw, 34px);
+  color: var(--accent-strong);
+}
+
+#authCard h2::after {
+  content: "";
+  display: block;
+  width: 54px;
+  height: 3px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: var(--accent-2);
+}
+
+#authCard .field {
+  gap: 8px;
+}
+
+#authCard .field input {
+  min-height: 46px;
+  background: #fff;
+}
+
+#authCard .primary {
+  min-height: 46px;
+  margin-top: 2px;
+}
+
+#authCard .auth-signup-text {
+  margin: 0;
+  justify-content: center;
+  line-height: 1.4;
+}
+
+#authCard .auth-signup-text + .auth-signup-text {
+  padding-top: 2px;
 }
 
 .card-header {
