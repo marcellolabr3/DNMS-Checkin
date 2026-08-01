@@ -8,6 +8,7 @@ const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_RECURRENCE_WEEKS = 4;
 const PRINT_SERVICE_URL = "http://localhost:3001";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
+const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
@@ -7533,6 +7534,14 @@ function saveState() {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) {
+        return;
+      }
+      refreshing = true;
+      window.location.reload();
+    });
     navigator.serviceWorker
       .register("sw.js")
       .then((registration) => {
@@ -7540,6 +7549,18 @@ function registerServiceWorker() {
           registration.waiting.postMessage({ type: "SKIP_WAITING" });
         }
         registration.update().catch(() => {});
+        let lastUpdateCheck = Date.now();
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState !== "visible") {
+            return;
+          }
+          const now = Date.now();
+          if (now - lastUpdateCheck < SW_UPDATE_CHECK_INTERVAL_MS) {
+            return;
+          }
+          lastUpdateCheck = now;
+          registration.update().catch(() => {});
+        });
       })
       .catch((err) => {
         console.warn("SW falhou", err);
