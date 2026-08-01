@@ -131,9 +131,69 @@ body.role-theme-sadmin {
 .session {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   flex-wrap: wrap;
   min-width: 0;
+  padding: 5px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-soft);
+}
+
+.session .pill,
+.session .ghost,
+.session .primary {
+  min-height: 34px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.session .primary {
+  position: relative;
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.session .primary::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent-2);
+}
+
+.session .ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.session .ghost:hover {
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.session #btnPrintPanel {
+  border-color: color-mix(in srgb, var(--accent-2) 45%, var(--stroke));
+  color: var(--accent-strong);
+  background: #fffaf0;
+}
+
+.session #btnPrintPanel:hover {
+  background: #fff4d9;
+}
+
+.session #btnLogout {
+  color: var(--danger);
+}
+
+.session #btnLogout:hover {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
 }
 
 .grid {
@@ -1021,6 +1081,7 @@ button:disabled,
     -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
     scrollbar-width: thin;
+    border-radius: 10px;
   }
 
   .session .ghost,
