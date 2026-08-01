@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260330h" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260731i" />
+  <link rel="stylesheet" href="styles.css?v=20260731j" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -339,7 +339,7 @@
       </label>
       <div class="dialog-actions">
         <button id="btnDeleteStudent" type="button" class="danger" style="display:none">Excluir crianca</button>
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnSaveStudent" value="default" class="primary">Salvar</button>
       </div>
     </form>
@@ -364,7 +364,7 @@
       </label>
       <div id="qrDialogStatus" class="summary"></div>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnQrDialogCheckin" value="default" class="primary">Confirmar check-in</button>
       </div>
     </form>
@@ -375,7 +375,7 @@
       <h3>Check-in dos filhos</h3>
       <div id="parentCheckinList" class="room-open-list"></div>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnParentCheckinSelected" value="default" class="primary">Check-in selecionados</button>
       </div>
     </form>
@@ -387,7 +387,7 @@
       <div id="checkoutSummary" class="summary"></div>
       <input type="hidden" id="checkoutCheckinId" />
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnConfirmCheckout" value="default" class="primary">Confirmar checkout</button>
       </div>
     </form>
@@ -427,7 +427,7 @@
       <div class="dialog-actions">
         <button id="btnDeleteAllTips" type="button" class="danger">Apagar todas</button>
         <button id="btnMarkAllTipsRead" type="button" class="ghost">Marcar todas como lidas</button>
-        <button value="cancel" class="ghost">Fechar</button>
+        <button value="cancel" class="ghost" formnovalidate>Fechar</button>
       </div>
     </form>
   </dialog>
@@ -441,7 +441,7 @@
       </label>
       <div id="logStudentsList" class="room-open-list"></div>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Fechar</button>
+        <button value="cancel" class="ghost" formnovalidate>Fechar</button>
         <button id="btnApplyLogStudents" type="button" class="primary">Aplicar seleção</button>
       </div>
     </form>
@@ -508,7 +508,7 @@
       </label>
       </div>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnSubmitSignup" value="default" class="primary">Cadastrar</button>
       </div>
     </form>
@@ -521,7 +521,7 @@
         <input id="forgotPasswordEmail" type="email" placeholder="exemplo@email.com" required />
       </label>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnSendPasswordReset" value="default" class="primary">Enviar link</button>
       </div>
     </form>
@@ -537,7 +537,7 @@
         <input id="resetPasswordConfirm" type="password" placeholder="Repita a senha" required />
       </label>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnSubmitPasswordReset" value="default" class="primary">Atualizar senha</button>
       </div>
     </form>
@@ -564,7 +564,7 @@
         <img id="myDataPhotoPreview" class="photo-preview" alt="Foto de perfil" />
       </label>
       <div class="dialog-actions">
-        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnSaveMyData" value="default" class="primary">Salvar</button>
       </div>
     </form>

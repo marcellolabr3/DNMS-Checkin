@@ -597,9 +597,9 @@ body.role-theme-sadmin {
 }
 
 #studentDetailsDialog .dialog-body {
-  width: min(420px, calc(100vw - 18px));
+  width: min(640px, calc(100vw - 18px));
   max-width: calc(100vw - 18px);
-  min-height: min(74dvh, 700px);
+  min-height: auto;
 }
 
 #studentDetailsInfo {
@@ -611,7 +611,7 @@ body.role-theme-sadmin {
 
 .student-details-row {
   display: grid;
-  grid-template-columns: 112px 1fr;
+  grid-template-columns: minmax(92px, 120px) minmax(0, 1fr);
   gap: 8px;
   align-items: start;
 }
@@ -620,6 +620,11 @@ body.role-theme-sadmin {
 .student-details-row span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+#forgotPasswordDialog .dialog-body,
+#resetPasswordDialog .dialog-body {
+  width: min(560px, calc(100vw - 18px));
 }
 
 .field textarea {
@@ -993,6 +998,13 @@ button:disabled,
   backdrop-filter: blur(2px);
 }
 
+.dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: none;
+}
+
 .dialog-body {
   position: relative;
   background: #fff;
@@ -1340,7 +1352,15 @@ button:disabled,
   #studentDetailsDialog .dialog-body {
     width: calc(100vw - 12px);
     max-width: calc(100vw - 12px);
-    min-height: min(80dvh, 760px);
+    min-height: auto;
+  }
+
+  #forgotPasswordDialog .dialog-body,
+  #resetPasswordDialog .dialog-body {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    min-height: min(72dvh, 620px);
+    justify-content: center;
   }
 
   .student-details-row {
