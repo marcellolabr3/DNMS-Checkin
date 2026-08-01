@@ -121,6 +121,9 @@ create index if not exists idx_students_guardian_name on public.students (primar
 create index if not exists idx_rooms_date_status on public.rooms (date, status);
 create index if not exists idx_checkins_room_student on public.checkins (room_id, student_id);
 create index if not exists idx_checkins_student_checkedin on public.checkins (student_id, checked_in_at desc);
+create unique index if not exists checkins_one_active_per_student
+  on public.checkins (student_id)
+  where checked_out_at is null;
 create index if not exists idx_invites_token on public.invites (token);
 create index if not exists idx_schedules_date on public.schedules (date);
 create index if not exists idx_schedules_target_user on public.schedules (target_user);

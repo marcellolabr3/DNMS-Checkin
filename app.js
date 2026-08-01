@@ -5391,6 +5391,10 @@ async function handleManualCheckin(studentId, options = {}) {
       .select()
       .single();
     if (error) {
+      const message = String(error.message || "").toLowerCase();
+      if (error.code === "23505" || message.includes("checkins_one_active_per_student")) {
+        return fail("Este aluno ja possui um check-in ativo. Faça checkout antes de registrar outro check-in.");
+      }
       return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
     }
     record = {

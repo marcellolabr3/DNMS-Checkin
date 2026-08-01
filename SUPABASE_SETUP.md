@@ -40,6 +40,14 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_schedule_target_user.sql`
 - `supabase/patch_is_staff_include_dnms_kids.sql`
 - `supabase/patch_phone_normalization.sql`
+- `supabase/patch_checkin_active_guard.sql`
+
+### Proteção de check-in ativo (atual)
+- Regra: cada criança pode ter no máximo 1 check-in ativo (`checked_out_at IS NULL`).
+- O patch `patch_checkin_active_guard.sql`:
+  - fecha check-ins legados ativos em salas fechadas ou inexistentes;
+  - fecha duplicidades antigas, preservando o check-in ativo mais recente por criança;
+  - cria índice único parcial `checkins_one_active_per_student`.
 
 ### Padronização de telefone (atual)
 - Formato único no banco: `+55 (DD) 9XXXX-XXXX`
