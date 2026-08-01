@@ -49,6 +49,7 @@ body {
     linear-gradient(135deg, #eef4f0 0, var(--bg) 46%, #f7f4ec 100%);
   min-height: 100vh;
   font-size: 15px;
+  caret-color: transparent;
 }
 
 button,
@@ -56,6 +57,11 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
 }
 
 body.role-theme-equipe {
@@ -213,14 +219,91 @@ body.role-theme-sadmin {
 @media (min-width: 980px) {
   body {
     --app-shell-side-padding: clamp(18px, 3vw, 32px);
+    display: grid;
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+    grid-template-areas: "sidebar content";
+    align-items: start;
+    min-height: 100vh;
   }
 
   .app-header {
-    padding-inline: var(--app-shell-side-padding);
+    grid-area: sidebar;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    width: var(--app-sidebar-width);
+    height: 100vh;
+    min-height: 100vh;
+    padding: 18px 14px;
+    border-right: 1px solid var(--stroke);
+    border-bottom: 0;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 18px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stroke-strong) transparent;
+  }
+
+  .brand {
+    align-items: flex-start;
+    padding: 4px 4px 12px;
+    border-bottom: 1px solid var(--stroke);
+  }
+
+  .brand .title {
+    line-height: 1.2;
+  }
+
+  .session {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .session .pill,
+  .session .ghost,
+  .session .primary {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .session .pill {
+    margin-bottom: 6px;
+    border-radius: 10px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .session .primary::after {
+    inset: 9px auto 9px 4px;
+    width: 3px;
+    height: auto;
+  }
+
+  .session #btnPrintPanel {
+    margin-top: 8px;
+  }
+
+  .session #btnLogout {
+    margin-top: 4px;
   }
 
   .grid {
-    padding-inline: var(--app-shell-side-padding);
+    grid-area: content;
+    width: 100%;
+    max-width: calc(var(--app-shell-max) - var(--app-sidebar-width));
+    margin: 0 auto;
+    padding: 24px var(--app-shell-side-padding) 44px;
   }
 }
 
