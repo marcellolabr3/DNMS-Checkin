@@ -101,6 +101,11 @@ index.html
 * [x] Histórico de check-ins
 * [x] Autenticação de usuários
 * [x] Deploy online
+* [x] Redesign visual responsivo
+* [x] Navegação lateral no desktop e navegação mobile compacta
+* [x] Atualização forçada do PWA ao publicar nova versão
+* [x] Checkout automático dos alunos ao fechar ou excluir sala
+* [x] Proteção contra mais de um check-in ativo por criança
 * [ ] Testes automatizados (fluxos críticos e regressão)
 * [ ] CI para validação automática
 * [ ] Backup automatizado e versionado de dados (não só estrutura)
