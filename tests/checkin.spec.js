@@ -235,6 +235,53 @@ test("sadmin edita qualquer usuario e crianca", async ({ page }) => {
     .toBe("Atualizado pelo SADMIN");
 });
 
+test("exclusao de usuario remove filhos somente quando ele e responsavel principal", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+  await page.evaluate(() => {
+    window.__mockDnmsDb.checkins.push({
+      id: "checkin-delete-cascade",
+      student_id: "student-kids",
+      room_id: "room-kids",
+      room_name_snapshot: "Culto Kids",
+      checked_in_at: new Date().toISOString(),
+      checked_out_at: null
+    });
+  });
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Secundario");
+  await expect(page.locator("#familyList")).toContainText("Responsavel Secundario");
+  await page.fill("#familyDeleteConfirmName", "Responsavel Secundario");
+  await page.click("#btnFamilyDeleteUser");
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2"))))
+    .toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.students.find((item) => item.id === "student-kids"))))
+    .toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.student_guardians.find((item) => item.guardian_id === "parent-2"))))
+    .toBe(false);
+
+  await page.fill("#familySearch", "Responsavel Teste");
+  await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
+  await page.fill("#familyDeleteConfirmName", "Responsavel Teste");
+  await page.click("#btnFamilyDeleteUser");
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "parent-1"))))
+    .toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.students.find((item) => item.id === "student-kids"))))
+    .toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.student_guardians.find((item) => item.student_id === "student-kids"))))
+    .toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-kids"))))
+    .toBe(false);
+});
+
 test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "equipe@dnms.test");

@@ -4007,6 +4007,78 @@ function getFamilyAssignableStudents(profileId, selectedChildren = []) {
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
 
+async function deleteProfileAndOwnedStudents(profile) {
+  if (!supabaseClient || !profile?.id) {
+    return { ok: false, message: "Banco de dados indisponivel para excluir usuario." };
+  }
+  const primaryStudentIds = getPrimaryStudentIdsForProfile(profile);
+  const linkedStudentIds = await getLinkedStudentIdsForProfile(profile.id);
+  const onlyLinkedStudentIds = linkedStudentIds.filter((studentId) => !primaryStudentIds.includes(studentId));
+
+  if (primaryStudentIds.length) {
+    const checkinsResult = await supabaseClient.from("checkins").delete().in("student_id", primaryStudentIds);
+    if (checkinsResult.error) {
+      return { ok: false, message: `Falha ao excluir check-ins dos filhos: ${checkinsResult.error.message || "erro inesperado"}` };
+    }
+    const linksResult = await supabaseClient.from("student_guardians").delete().in("student_id", primaryStudentIds);
+    if (linksResult.error) {
+      return { ok: false, message: `Falha ao excluir vinculos dos filhos: ${linksResult.error.message || "erro inesperado"}` };
+    }
+    const studentsResult = await supabaseClient.from("students").delete().in("id", primaryStudentIds);
+    if (studentsResult.error) {
+      return { ok: false, message: `Falha ao excluir filhos do usuario: ${studentsResult.error.message || "erro inesperado"}` };
+    }
+  }
+
+  if (onlyLinkedStudentIds.length) {
+    const linkedResult = await supabaseClient
+      .from("student_guardians")
+      .delete()
+      .eq("guardian_id", profile.id)
+      .in("student_id", onlyLinkedStudentIds);
+    if (linkedResult.error) {
+      return { ok: false, message: `Falha ao remover vinculos do usuario: ${linkedResult.error.message || "erro inesperado"}` };
+    }
+  } else {
+    const linkedResult = await supabaseClient.from("student_guardians").delete().eq("guardian_id", profile.id);
+    if (linkedResult.error) {
+      return { ok: false, message: `Falha ao remover vinculos do usuario: ${linkedResult.error.message || "erro inesperado"}` };
+    }
+  }
+
+  const profileResult = await supabaseClient.from("profiles").delete().eq("id", profile.id);
+  if (profileResult.error) {
+    return { ok: false, message: `Falha ao excluir usuario: ${profileResult.error.message || "erro inesperado"}` };
+  }
+  return { ok: true };
+}
+
+async function getLinkedStudentIdsForProfile(profileId) {
+  const { data, error } = await supabaseClient
+    .from("student_guardians")
+    .select("student_id")
+    .eq("guardian_id", profileId);
+  if (error) {
+    console.warn("Falha ao buscar vinculos do usuario antes da exclusao", error);
+    return [];
+  }
+  return (data || []).map((item) => item.student_id).filter(Boolean);
+}
+
+function getPrimaryStudentIdsForProfile(profile) {
+  const profileName = normalizeMatchText(profile.name || "");
+  return (state.students || [])
+    .filter((student) => {
+      const guardianName = normalizeMatchText(student.guardian || student.owner || "");
+      if (guardianName && profileName && guardianName === profileName) {
+        return true;
+      }
+      return !guardianName && student.guardianProfileId === profile.id;
+    })
+    .map((student) => student.id)
+    .filter(Boolean);
+}
+
 async function saveFamilyProfile(profileId) {
   if (!supabaseClient || !profileId) {
     return;
@@ -4055,24 +4127,16 @@ async function deleteFamilyUser(profile, typedName) {
   if (!confirm(`Confirmacao final: excluir o usuario ${expected}?`)) {
     return;
   }
-  await supabaseClient.from("student_guardians").delete().eq("guardian_id", profile.id);
-  const { error } = await supabaseClient.from("profiles").delete().eq("id", profile.id);
-  if (error) {
-    alert(`Falha ao excluir usuario: ${error.message || "erro inesperado"}`);
+  const result = await deleteProfileAndOwnedStudents(profile);
+  if (!result.ok) {
+    alert(result.message);
     return;
   }
   familyContext.selectedProfileId = "";
   await fetchProfiles();
   await fetchStudents();
+  await fetchCheckins();
   render();
-  const createdProfile = (state.profiles || []).find((item) => item.id === createdUser.id) || {
-    id: createdUser.id,
-    name,
-    phone,
-    email,
-    address
-  };
-  openStudentDialogForFamily(createdProfile);
 }
 
 function openStudentDialogForFamily(profile) {
@@ -4304,15 +4368,17 @@ async function deleteUserProfile(profile) {
   if (!confirm("Confirmacao final: deseja realmente excluir este usuario?")) {
     return;
   }
-  const { error } = await supabaseClient.from("profiles").delete().eq("id", profile.id);
-  if (error) {
-    alert(`Falha ao excluir usuario: ${error.message || "erro inesperado"}`);
+  const result = await deleteProfileAndOwnedStudents(profile);
+  if (!result.ok) {
+    alert(result.message);
     return;
   }
   if (state.ui.selectedManageUserId === profile.id) {
     state.ui.selectedManageUserId = "";
   }
   await fetchProfiles();
+  await fetchStudents();
+  await fetchCheckins();
   render();
 }
 

@@ -18,7 +18,8 @@ function createMockSupabaseScript() {
       { id: "sadmin-1", name: "Sadmin DNMS", role: "admin", email: "marvinlabre@gmail.com", phone: "11911110000", address: "Rua Sadmin", photo_url: "" },
       { id: "admin-1", name: "Admin DNMS", role: "admin", email: "admin@dnms.test", phone: "11999990000", address: "Rua Admin", photo_url: "" },
       { id: "team-1", name: "Equipe DNMS", role: "equipe", email: "equipe@dnms.test", phone: "11966660000", address: "Rua Equipe", photo_url: "" },
-      { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "" }
+      { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "" },
+      { id: "parent-2", name: "Responsavel Secundario", role: "responsavel", email: "secundario@dnms.test", phone: "11955550000", address: "Rua Secundaria", photo_url: "" }
     ],
     rooms: [
       { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null },
@@ -29,7 +30,8 @@ function createMockSupabaseScript() {
       { id: "student-juniors", name: "Bia Juniors", birth_date: (yyyy - 8) + "-05-12", class_name: "Juniors", primary_guardian_name: "Outro Responsavel", phone: "11977770000", address: "Rua Outra", notes: "", is_visitor: false, photo_url: "" }
     ],
     student_guardians: [
-      { student_id: "student-kids", guardian_id: "parent-1" }
+      { student_id: "student-kids", guardian_id: "parent-1" },
+      { student_id: "student-kids", guardian_id: "parent-2" }
     ],
     checkins: [],
     schedules: [],
