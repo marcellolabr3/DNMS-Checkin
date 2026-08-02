@@ -89,3 +89,19 @@ test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ p
   await page.press("#studentBirth", "2");
   await expect(page.locator("#studentBirth")).toHaveValue(/25\/12\/\d{4}/);
 });
+
+test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "MARIA   clara");
+  await page.click("#btnSaveStudent");
+
+  await expect(page.locator("#studentDialog")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.name))
+    .toBe("Maria Clara");
+});

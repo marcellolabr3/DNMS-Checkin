@@ -25,6 +25,21 @@ test("login e logout funcionam com perfil valido", async ({ page }) => {
   await expect(page.locator("#sessionRole")).toContainText("Deslogado");
 });
 
+test("nome do usuario e salvo com iniciais maiusculas", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+
+  await page.click("#sessionRole");
+  await expect(page.locator("#myDataDialog")).toBeVisible();
+  await page.fill("#myDataName", "ADMIN   DNMS");
+  await page.click("#btnSaveMyData");
+
+  await expect(page.locator("#myDataDialog")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.profiles.find((item) => item.id === "admin-1")?.name))
+    .toBe("Admin Dnms");
+});
+
 test("enter no campo de senha executa login", async ({ page }) => {
   await openApp(page);
 

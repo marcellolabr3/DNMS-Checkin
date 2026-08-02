@@ -381,6 +381,7 @@ function bindEvents() {
     renderGuardianOptions(els.studentGuardian.value);
     syncGuardianSelectionFromInput();
   });
+  [els.studentName, els.signupName, els.familyCreateName, els.myDataName].forEach(bindPersonNameInput);
   [els.studentBirth, els.signupBirth, els.familyCreateBirth].forEach(bindBirthDateInput);
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
@@ -1584,6 +1585,20 @@ function renderStudents() {
 
 function renderCheckins() {}
 
+function toggleDashboardScheduleDate(date) {
+  if (!date) {
+    return;
+  }
+  const current = new Set(state.ui.expandedScheduleDates || []);
+  if (current.has(date)) {
+    current.delete(date);
+  } else {
+    current.add(date);
+  }
+  state.ui.expandedScheduleDates = Array.from(current);
+  renderDashboard();
+}
+
 function renderDashboard() {
   if (
     !els.dashboardAlerts ||
@@ -1696,26 +1711,22 @@ function renderDashboard() {
           `
           : "";
         return `
-          <div class="list-item">
-            <button type="button" class="tip-message-preview" data-schedule-date="${group.date}">
+          <div class="list-item dashboard-schedule-card" data-schedule-date="${group.date}" role="button" tabindex="0">
+            <div class="tip-message-preview">
               <strong>${dateLabel}</strong> - Coordenador: ${coord}
-            </button>
+            </div>
             ${detailsHtml}
           </div>
         `;
       })
       .join("");
-    document.querySelectorAll("[data-schedule-date]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const date = button.getAttribute("data-schedule-date");
-        const current = new Set(state.ui.expandedScheduleDates || []);
-        if (current.has(date)) {
-          current.delete(date);
-        } else {
-          current.add(date);
+    document.querySelectorAll("[data-schedule-date]").forEach((card) => {
+      card.addEventListener("click", () => toggleDashboardScheduleDate(card.getAttribute("data-schedule-date")));
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleDashboardScheduleDate(card.getAttribute("data-schedule-date"));
         }
-        state.ui.expandedScheduleDates = Array.from(current);
-        renderDashboard();
       });
     });
   }
@@ -3002,7 +3013,10 @@ async function handleSignupSubmit(event) {
     alert("Cadastro disponivel apenas com Supabase.");
     return;
   }
-  const name = els.signupName.value.trim();
+  const name = normalizePersonName(els.signupName.value);
+  if (els.signupName) {
+    els.signupName.value = name;
+  }
   const birthDateRaw = els.signupBirth.value;
   const birthDate = normalizeBirthDateInput(birthDateRaw);
   const civilStatus = els.signupCivilStatus.value.trim();
@@ -3268,7 +3282,10 @@ async function handleSaveMyData(event) {
   if (!state.session) {
     return;
   }
-  const name = String(els.myDataName?.value || "").trim();
+  const name = normalizePersonName(els.myDataName?.value || "");
+  if (els.myDataName) {
+    els.myDataName.value = name;
+  }
   const email = String(els.myDataEmail?.value || "").trim().toLowerCase();
   const phone = formatPhoneForStorage(String(els.myDataPhone?.value || "").trim());
   const address = String(els.myDataAddress?.value || "").trim();
@@ -3926,7 +3943,11 @@ async function saveFamilyProfile(profileId) {
     alert("Somente SADMIN/Admin podem editar qualquer responsavel nesta aba.");
     return;
   }
-  const name = String(document.getElementById("familyEditName")?.value || "").trim();
+  const familyEditName = document.getElementById("familyEditName");
+  const name = normalizePersonName(familyEditName?.value || "");
+  if (familyEditName) {
+    familyEditName.value = name;
+  }
   const phone = formatPhoneForStorage(String(document.getElementById("familyEditPhone")?.value || "").trim());
   const address = String(document.getElementById("familyEditAddress")?.value || "").trim();
   if (!name) {
@@ -4056,7 +4077,10 @@ async function handleCreateFamilyResponsible() {
     alert("Somente SADMIN/Admin podem cadastrar responsavel nesta aba.");
     return;
   }
-  const name = String(els.familyCreateName?.value || "").trim();
+  const name = normalizePersonName(els.familyCreateName?.value || "");
+  if (els.familyCreateName) {
+    els.familyCreateName.value = name;
+  }
   const birthRaw = String(els.familyCreateBirth?.value || "").trim();
   const birthDate = normalizeBirthDateInput(birthRaw);
   const civilStatus = String(els.familyCreateCivil?.value || "").trim();
@@ -4838,7 +4862,7 @@ async function saveStudent(event) {
   }
   const payload = {
     id: existing ? els.studentId.value : supabaseClient ? undefined : uid(),
-    name: els.studentName.value.trim(),
+    name: normalizePersonName(els.studentName.value),
     birth: birthIso,
     className: getClassForBirth(birthIso),
     guardian: guardianName,
@@ -4850,6 +4874,9 @@ async function saveStudent(event) {
     guardianProfileId,
     isVisitor
   };
+  if (els.studentName) {
+    els.studentName.value = payload.name;
+  }
   if (!isResponsavel && !payload.phone && guardianResolution.profile.phone) {
     payload.phone = formatPhoneForStorage(guardianResolution.profile.phone);
   }
@@ -6094,6 +6121,39 @@ function applyBirthDateMask(value) {
     return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function normalizePersonName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|[\s'-])([^\s'-])/g, (match, prefix, letter) => `${prefix}${letter.toLocaleUpperCase("pt-BR")}`);
+}
+
+function bindPersonNameInput(input) {
+  if (!input) {
+    return;
+  }
+  input.addEventListener("blur", () => {
+    input.value = normalizePersonName(input.value);
+  });
+  input.addEventListener("input", () => {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    const formatted = formatPersonNameDraft(input.value);
+    if (formatted === input.value) {
+      return;
+    }
+    input.value = formatted;
+    input.setSelectionRange(start, end);
+  });
+}
+
+function formatPersonNameDraft(value) {
+  return String(value || "").replace(/(^|[\s'-])([^\s'-])/g, (match, prefix, letter) => {
+    return `${prefix}${letter.toLocaleUpperCase("pt-BR")}`;
+  });
 }
 
 function bindBirthDateInput(input) {
