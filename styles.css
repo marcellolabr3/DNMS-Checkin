@@ -860,6 +860,53 @@ button:disabled,
   color: var(--ink);
 }
 
+#familyEditor:empty {
+  display: none;
+}
+
+.collapsible-panel {
+  border-top: 1px solid var(--stroke);
+  padding-top: 12px;
+}
+
+.collapsible-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--ink);
+  list-style: none;
+}
+
+.collapsible-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapse-icon::before {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: #fff;
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.collapsible-panel[open] .collapse-icon::before {
+  content: "-";
+}
+
+.collapsible-panel .grid-2 {
+  margin-top: 10px;
+}
+
 #manageInviteStatus:empty,
 #manageInviteLink:empty {
   display: none;

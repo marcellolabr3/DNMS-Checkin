@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260330h" />
   <link rel="icon" href="icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260802c" />
+  <link rel="stylesheet" href="styles.css?v=20260802d" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -254,38 +254,43 @@
       </div>
       <div id="familyList" class="list"></div>
       <div id="familyEditor" class="summary"></div>
-      <h3 class="dashboard-title">Cadastrar Responsavel</h3>
-      <div class="grid-2">
-        <label class="field">Nome completo
-          <input id="familyCreateName" type="text" />
-        </label>
-        <label class="field">Data de nascimento
-          <input id="familyCreateBirth" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" />
-        </label>
-        <label class="field">Estado civil
-          <select id="familyCreateCivil">
-            <option value="">Selecione</option>
-            <option value="solteiro">Solteiro(a)</option>
-            <option value="casado">Casado(a)</option>
-            <option value="divorciado">Divorciado(a)</option>
-            <option value="viuvo">Viuvo(a)</option>
-          </select>
-        </label>
-        <label class="field">Celular
-          <input id="familyCreatePhone" type="text" inputmode="tel" placeholder="+55 21 999999999" />
-        </label>
-        <label class="field">Email
-          <input id="familyCreateEmail" type="email" />
-        </label>
-        <label class="field">Endereco
-          <input id="familyCreateAddress" type="text" />
-        </label>
-      </div>
-      <div class="actions">
-        <button id="btnFamilyCreateResponsible" class="primary" type="button">Cadastrar responsavel</button>
-        <button id="btnFamilyClearCreate" class="ghost" type="button">Limpar</button>
-      </div>
-      <div id="familyCreateStatus" class="summary"></div>
+      <details id="familyCreatePanel" class="collapsible-panel">
+        <summary>
+          <span>Cadastrar Responsavel</span>
+          <span class="collapse-icon" aria-hidden="true"></span>
+        </summary>
+        <div class="grid-2">
+          <label class="field">Nome completo
+            <input id="familyCreateName" type="text" />
+          </label>
+          <label class="field">Data de nascimento
+            <input id="familyCreateBirth" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" />
+          </label>
+          <label class="field">Estado civil
+            <select id="familyCreateCivil">
+              <option value="">Selecione</option>
+              <option value="solteiro">Solteiro(a)</option>
+              <option value="casado">Casado(a)</option>
+              <option value="divorciado">Divorciado(a)</option>
+              <option value="viuvo">Viuvo(a)</option>
+            </select>
+          </label>
+          <label class="field">Celular
+            <input id="familyCreatePhone" type="text" inputmode="tel" placeholder="+55 21 999999999" />
+          </label>
+          <label class="field">Email
+            <input id="familyCreateEmail" type="email" />
+          </label>
+          <label class="field">Endereco
+            <input id="familyCreateAddress" type="text" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="btnFamilyCreateResponsible" class="primary" type="button">Cadastrar responsavel</button>
+          <button id="btnFamilyClearCreate" class="ghost" type="button">Limpar</button>
+        </div>
+        <div id="familyCreateStatus" class="summary"></div>
+      </details>
     </section>
   </main>
 
@@ -572,6 +577,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260802k"></script>
+  <script src="app.js?v=20260802l"></script>
 </body>
 </html>

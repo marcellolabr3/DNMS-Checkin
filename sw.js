@@ -1,11 +1,11 @@
-const CACHE_NAME = "checkin-cache-v105";
+const CACHE_NAME = "checkin-cache-v106";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./styles.css?v=20260802c",
+  "./styles.css?v=20260802d",
   "./app.js",
-  "./app.js?v=20260802k",
+  "./app.js?v=20260802l",
   "./manifest.json",
   "./manifest.json?v=20260330h",
   "./print.html",

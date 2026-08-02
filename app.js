@@ -3813,12 +3813,14 @@ function renderFamiliesPanel() {
     els.btnExportFamilies.disabled = !filtered.length;
   }
   if (!search) {
-    els.familyList.innerHTML = `<div class="summary">Digite um nome, email ou telefone para buscar.</div>`;
+    els.familyList.innerHTML = "";
+    els.familyList.style.display = "none";
     els.familyEditor.innerHTML = "";
     familyContext.selectedProfileId = "";
     return;
   }
 
+  els.familyList.style.display = "";
   if (!filtered.length) {
     els.familyList.innerHTML = `<div class="summary">Nenhuma familia encontrada.</div>`;
     els.familyEditor.innerHTML = "";

@@ -10,6 +10,11 @@ async function openStudentsPanel(page) {
   }
 }
 
+async function openFamiliesPanel(page) {
+  await page.click("#btnFamiliesPanel");
+  await expect(page.locator("#familiesCard")).toBeVisible();
+}
+
 function studentItem(page, name) {
   return page.locator("#studentList .list-item").filter({ hasText: name });
 }
@@ -182,6 +187,25 @@ test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) 
     expect(sizes.address).toBeGreaterThan(sizes.birth);
   }
   expect(sizes.birthInput).toBeLessThanOrEqual(190);
+});
+
+test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await expect(page.locator("#familyList")).toBeHidden();
+  await expect(page.locator("#familyEditor")).toBeHidden();
+  await expect(page.locator("#familyCreatePanel")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#familyCreateName")).toBeHidden();
+
+  await page.locator("#familyCreatePanel summary").click();
+  await expect(page.locator("#familyCreatePanel")).toHaveAttribute("open", "");
+  await expect(page.locator("#familyCreateName")).toBeVisible();
+
+  await page.fill("#familySearch", "Responsavel");
+  await expect(page.locator("#familyList")).toBeVisible();
+  await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
 });
 
 test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
