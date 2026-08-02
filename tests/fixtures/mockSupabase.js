@@ -214,6 +214,7 @@ function createMockSupabaseScript() {
   }
 
   window.__mockDnmsDb = db;
+  window.__mockStorageUploads = [];
   window.supabase = {
     createClient() {
       return {
@@ -251,7 +252,8 @@ function createMockSupabaseScript() {
         storage: {
           from() {
             return {
-              async upload() {
+              async upload(path, file) {
+                window.__mockStorageUploads.push({ path, name: file?.name || "", type: file?.type || "" });
                 return { error: null };
               },
               getPublicUrl(path) {

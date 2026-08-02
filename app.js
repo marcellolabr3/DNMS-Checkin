@@ -4927,8 +4927,14 @@ async function saveStudent(event) {
     }
     if (photoFile) {
       const upload = await uploadStudentPhoto(data.id, photoFile);
-      if (upload.ok) {
-        await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
+      if (!upload.ok) {
+        alert(`Falha ao atualizar foto do aluno: ${upload.error || "erro inesperado"}`);
+        return;
+      }
+      const photoUpdate = await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
+      if (photoUpdate.error) {
+        alert(`Falha ao salvar foto do aluno: ${photoUpdate.error.message || "erro inesperado"}`);
+        return;
       }
     }
     if (!existing?.id) {
@@ -6019,7 +6025,7 @@ async function uploadFileToStorage(path, file) {
 
 async function uploadStudentPhoto(studentId, file) {
   const ext = getFileExtension(file);
-  const path = `students/${studentId}/profile.${ext}`;
+  const path = `students/${studentId}/profile-${Date.now()}-${uid()}.${ext}`;
   return uploadFileToStorage(path, file);
 }
 
@@ -6028,7 +6034,7 @@ async function uploadProfilePhotoForUser(user, file) {
     return { ok: false, error: "Usuario invalido." };
   }
   const ext = getFileExtension(file);
-  const path = `profiles/${user.id}/profile.${ext}`;
+  const path = `profiles/${user.id}/profile-${Date.now()}-${uid()}.${ext}`;
   const upload = await uploadFileToStorage(path, file);
   if (upload.ok) {
     await supabaseClient

@@ -105,3 +105,37 @@ test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
     .poll(() => page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.name))
     .toBe("Maria Clara");
 });
+
+test("foto da crianca pode ser trocada mais de uma vez", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.setInputFiles("#studentPhoto", {
+    name: "foto.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("primeira-foto")
+  });
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  const firstUrl = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.photo_url);
+  expect(firstUrl).toContain("students/student-kids/profile-");
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.setInputFiles("#studentPhoto", {
+    name: "foto.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("segunda-foto")
+  });
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  const secondUrl = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.photo_url);
+  expect(secondUrl).toContain("students/student-kids/profile-");
+  expect(secondUrl).not.toBe(firstUrl);
+  await expect.poll(() => page.evaluate(() => window.__mockStorageUploads.length)).toBe(2);
+});
