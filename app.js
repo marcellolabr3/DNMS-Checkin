@@ -1696,7 +1696,6 @@ function renderDashboard() {
         const detailsHtml = expanded
           ? `
             <div class="summary" style="margin-top:8px">
-              <strong>Coordenador:</strong> ${coord}<br />
               <strong>Maternal:</strong> ${(group.roles.MATERNAL || []).join(", ") || "-"}<br />
               <strong>Kids:</strong> ${(group.roles.KIDS || []).join(", ") || "-"}<br />
               <strong>Juniors:</strong> ${(group.roles.JUNIORS || []).join(", ") || "-"}<br />
