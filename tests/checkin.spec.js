@@ -193,16 +193,19 @@ test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   const ana = studentItem(page, "Ana Kids");
   await expect(ana).toBeVisible();
   await expect(ana.getByRole("button", { name: "Editar" })).toHaveCount(0);
-  await expect(page.locator("#btnAddStudent")).toBeDisabled();
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Sem permissao para cadastrar crianca.");
-    await dialog.accept();
-  });
-  await page.evaluate(() => {
-    document.querySelector("#btnAddStudent")?.removeAttribute("disabled");
-  });
+  await expect(page.locator("#btnAddStudent")).toBeEnabled();
   await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "joao equipe");
+  await page.fill("#studentBirth", "10/01/2020");
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Equipe");
+  await page.click("#btnSaveStudent");
   await expect(page.locator("#studentDialog")).toBeHidden();
+  const joao = studentItem(page, "Joao Equipe");
+  await expect(joao).toBeVisible();
+  await expect(joao.getByRole("button", { name: "Editar" })).toHaveCount(0);
   await ana.getByRole("button", { name: "Check-in" }).click();
   await expect(ana.getByRole("button", { name: "Checkout" })).toBeVisible();
 

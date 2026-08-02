@@ -5789,10 +5789,7 @@ function canCreateStudent() {
   if (!state.session) {
     return false;
   }
-  if (isEquipe()) {
-    return false;
-  }
-  return isSadmin() || isAdmin() || normalizeRole(state.session.role) === "responsavel";
+  return isSadmin() || isAdmin() || isEquipe() || normalizeRole(state.session.role) === "responsavel";
 }
 
 function canDeleteStudent(student) {
