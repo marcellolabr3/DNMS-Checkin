@@ -19,6 +19,14 @@ function studentItem(page, name) {
   return page.locator("#studentList .list-item").filter({ hasText: name });
 }
 
+function todayIso() {
+  const date = new Date();
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 test("check-in e checkout manual atualizam o estado da crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -206,6 +214,33 @@ test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ p
   await page.fill("#familySearch", "Responsavel");
   await expect(page.locator("#familyList")).toBeVisible();
   await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
+});
+
+test("log gera relatorio de cadastro de criancas", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "relatorio teste");
+  await page.fill("#studentBirth", "10/01/2020");
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Relatorio");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await page.click("#btnLogPanel");
+  await expect(page.locator("#logCard")).toBeVisible();
+  await page.selectOption("#logReportType", "child_created");
+  await page.fill("#logStart", todayIso());
+  await page.fill("#logEnd", todayIso());
+
+  await expect(page.locator("#logSummary")).toContainText("Cadastro de criancas");
+  await expect(page.locator("#logList")).toContainText("Relatorio Teste");
+  await expect(page.locator("#logList")).toContainText("Crianca cadastrada");
+  await expect(page.locator("#btnExport")).toBeEnabled();
 });
 
 test("sadmin edita qualquer usuario e crianca", async ({ page }) => {

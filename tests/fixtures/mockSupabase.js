@@ -37,6 +37,7 @@ function createMockSupabaseScript() {
     schedules: [],
     tips: [],
     tip_reads: [],
+    audit_logs: [],
     dashboard_info: []
   };
 
@@ -173,6 +174,9 @@ function createMockSupabaseScript() {
           }
           if (this.table === "checkins" && !row.checked_in_at) {
             row.checked_in_at = new Date().toISOString();
+          }
+          if (this.table === "audit_logs" && !row.created_at) {
+            row.created_at = new Date().toISOString();
           }
           rows.push(row);
           return clone(row);

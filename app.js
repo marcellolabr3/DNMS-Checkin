@@ -125,6 +125,7 @@ const els = {
   btnRoomDialogClose: document.getElementById("btnRoomDialogClose"),
   btnExport: document.getElementById("btnExport"),
   btnShareWhatsapp: document.getElementById("btnShareWhatsapp"),
+  logReportType: document.getElementById("logReportType"),
   logStart: document.getElementById("logStart"),
   logEnd: document.getElementById("logEnd"),
   logClassFilter: document.getElementById("logClassFilter"),
@@ -305,8 +306,11 @@ function bindEvents() {
   );
   els.btnExport.addEventListener("click", exportCsv);
   els.btnShareWhatsapp?.addEventListener("click", shareLogWhatsapp);
+  els.logReportType?.addEventListener("change", renderLog);
   els.logStart.addEventListener("change", renderLog);
+  els.logStart.addEventListener("input", renderLog);
   els.logEnd.addEventListener("change", renderLog);
+  els.logEnd.addEventListener("input", renderLog);
   els.logClassFilter?.addEventListener("change", () => {
     state.ui.logSelectedStudentIds = [];
     renderLog();
@@ -614,7 +618,7 @@ async function refreshPanelData(panel) {
     return;
   }
   if (panel === "log") {
-    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms()]);
+    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs()]);
     return;
   }
   if (panel === "invite") {
@@ -993,6 +997,7 @@ async function hydrateFromSupabase() {
       state.rooms = [];
       state.checkins = [];
       state.profiles = [];
+      state.auditLogs = [];
       state.schedules = [];
       state.tips = [];
       state.tipReads = [];
@@ -1022,6 +1027,7 @@ async function hydrateFromSupabase() {
     await fetchRooms();
     await fetchStudents();
     await fetchCheckins();
+    await fetchAuditLogs();
     if (canAccessManagementPanel() || isEquipe()) {
       await fetchProfiles();
     }
@@ -1207,6 +1213,79 @@ async function fetchCheckins() {
       actor: state.session?.name || ""
     };
   });
+}
+
+async function fetchAuditLogs() {
+  if (!supabaseClient || !state.session || !(isAdmin() || isEquipe())) {
+    state.auditLogs = [];
+    return;
+  }
+  const { data, error } = await supabaseClient.from("audit_logs").select("*");
+  if (error) {
+    console.warn("Falha ao buscar audit_logs", error);
+    state.auditLogs = [];
+    return;
+  }
+  state.auditLogs = (data || [])
+    .map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      actorId: row.actor_id || "",
+      actorName: row.actor_name || "",
+      actorRole: normalizeRole(row.actor_role || ""),
+      actionType: row.action_type || "",
+      targetType: row.target_type || "",
+      targetId: row.target_id || "",
+      targetName: row.target_name || "",
+      details: row.details || "",
+      metadata: row.metadata || {}
+    }))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+async function recordAuditLog(actionType, targetType, targetId, targetName, details = "", metadata = {}) {
+  const createdAt = new Date().toISOString();
+  const entry = {
+    id: uid(),
+    createdAt,
+    actorId: state.session?.id || "",
+    actorName: state.session?.name || "",
+    actorRole: normalizeRole(state.session?.role || ""),
+    actionType,
+    targetType,
+    targetId: targetId || "",
+    targetName: targetName || "",
+    details,
+    metadata: metadata || {}
+  };
+  state.auditLogs = [entry, ...(state.auditLogs || [])];
+  if (!supabaseClient || !state.session) {
+    return entry;
+  }
+  const { data, error } = await supabaseClient
+    .from("audit_logs")
+    .insert({
+      actor_id: entry.actorId || null,
+      actor_name: entry.actorName,
+      actor_role: entry.actorRole,
+      action_type: entry.actionType,
+      target_type: entry.targetType,
+      target_id: entry.targetId || null,
+      target_name: entry.targetName,
+      details: entry.details,
+      metadata: entry.metadata
+    })
+    .select("*")
+    .single();
+  if (error) {
+    console.warn("Falha ao gravar audit_logs", error);
+    return entry;
+  }
+  if (data?.id) {
+    entry.id = data.id;
+    entry.createdAt = data.created_at || entry.createdAt;
+  }
+  return entry;
 }
 
 function renderRooms() {
@@ -2032,15 +2111,28 @@ function renderLog() {
     return;
   }
 
+  const reportType = getLogReportType();
   renderLogClassFilterOptions();
   renderLogStudentFilterOptions();
+  const isAttendance = reportType === "attendance";
+  if (els.logClassFilter) {
+    els.logClassFilter.closest(".field").style.display = isAttendance ? "" : "none";
+  }
+  if (els.logStudentFilter) {
+    els.logStudentFilter.closest(".field").style.display = isAttendance ? "" : "none";
+  }
+  if (els.btnLogSelectStudents) {
+    els.btnLogSelectStudents.style.display = isAttendance ? "" : "none";
+  }
   const startValue = els.logStart?.value || "";
   const endValue = els.logEnd?.value || "";
   if (!startValue || !endValue) {
     if (els.logSelectedStudentsSummary) {
-      els.logSelectedStudentsSummary.textContent = "Selecione o periodo para habilitar a selecao de criancas.";
+      els.logSelectedStudentsSummary.textContent = isAttendance
+        ? "Selecione o periodo para habilitar a selecao de criancas."
+        : "";
     }
-    els.logSummary.textContent = "Selecione o periodo (De e Ate) para gerar a lista de frequencia.";
+    els.logSummary.textContent = "Selecione o periodo (De e Ate) para gerar o relatorio.";
     els.logCounts.textContent = "";
     els.logList.innerHTML = "";
     if (els.btnExport) {
@@ -2052,6 +2144,11 @@ function renderLog() {
     if (els.btnLogSelectStudents) {
       els.btnLogSelectStudents.disabled = true;
     }
+    return;
+  }
+
+  if (!isAttendance) {
+    renderAuditReport(reportType);
     return;
   }
 
@@ -2099,6 +2196,46 @@ function renderLogSummaryToday() {
   const total = items.length;
   els.logSummary.textContent = `Resumo do dia (${today}): ${total} check-in(s).`;
   els.logCounts.textContent = formatCounts(counts);
+}
+
+function renderAuditReport(reportType) {
+  if (els.logSelectedStudentsSummary) {
+    els.logSelectedStudentsSummary.textContent = "";
+  }
+  const rows = getFilteredAuditRows(reportType);
+  els.logList.innerHTML = "";
+  rows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    const title = document.createElement("strong");
+    title.textContent = `${formatAuditAction(row.actionType)} - ${row.targetName || row.targetType || "-"}`;
+    const date = document.createElement("span");
+    date.className = "muted";
+    date.textContent = `Data: ${formatDateTimeFromIso(row.createdAt)}`;
+    const actor = document.createElement("span");
+    actor.className = "muted";
+    actor.textContent = `Responsavel pela acao: ${row.actorName || "-"} (${formatRole(row.actorRole)})`;
+    const details = document.createElement("span");
+    details.className = "muted";
+    details.textContent = row.details || formatAuditMetadata(row);
+    item.append(title, date, actor, details);
+    els.logList.appendChild(item);
+  });
+
+  if (!rows.length) {
+    els.logSummary.textContent = "Nenhum evento encontrado para o periodo selecionado.";
+    els.logCounts.textContent = "";
+  } else {
+    els.logSummary.textContent = `${formatReportType(reportType)}: ${rows.length} evento(s) encontrado(s).`;
+    els.logCounts.textContent = buildAuditCountsLabel(rows);
+  }
+  els.btnExport.disabled = !rows.length;
+  if (els.btnShareWhatsapp) {
+    els.btnShareWhatsapp.disabled = true;
+  }
+  if (els.btnLogSelectStudents) {
+    els.btnLogSelectStudents.disabled = true;
+  }
 }
 
 function toggleLogPanel() {
@@ -2909,6 +3046,13 @@ async function confirmCheckout(event) {
     checkin.checkedOutAt = timeNow();
   }
   checkin.checkedOutBy = state.session?.name || "";
+  const checkoutStudent = state.students.find((student) => student.id === checkin.studentId);
+  await recordAuditLog("checkout_created", "checkin", checkin.id, checkoutStudent?.name || checkin.studentId || "Aluno", `Checkout de ${checkoutStudent?.name || "aluno"} registrado.`, {
+    studentId: checkin.studentId,
+    roomId: checkin.roomId,
+    roomName: checkin.roomName,
+    checkedOutAt: checkedOutIso
+  });
   els.checkoutDialog?.close();
   render();
 }
@@ -4012,6 +4156,10 @@ async function deleteProfileAndOwnedStudents(profile) {
     return { ok: false, message: "Banco de dados indisponivel para excluir usuario." };
   }
   const primaryStudentIds = getPrimaryStudentIdsForProfile(profile);
+  const deletedChildren = (state.students || [])
+    .filter((student) => primaryStudentIds.includes(student.id))
+    .map((student) => student.name)
+    .filter(Boolean);
   const linkedStudentIds = await getLinkedStudentIdsForProfile(profile.id);
   const onlyLinkedStudentIds = linkedStudentIds.filter((studentId) => !primaryStudentIds.includes(studentId));
 
@@ -4050,7 +4198,7 @@ async function deleteProfileAndOwnedStudents(profile) {
   if (profileResult.error) {
     return { ok: false, message: `Falha ao excluir usuario: ${profileResult.error.message || "erro inesperado"}` };
   }
-  return { ok: true };
+  return { ok: true, deletedChildren, deletedPrimaryStudentIds: primaryStudentIds };
 }
 
 async function getLinkedStudentIdsForProfile(profileId) {
@@ -4107,6 +4255,10 @@ async function saveFamilyProfile(profileId) {
     alert(`Falha ao salvar responsavel: ${error.message || "erro inesperado"}`);
     return;
   }
+  await recordAuditLog("user_updated", "profile", profileId, name, `Dados do usuario ${name} alterados.`, {
+    phone,
+    address
+  });
   await fetchProfiles();
   render();
 }
@@ -4132,6 +4284,13 @@ async function deleteFamilyUser(profile, typedName) {
     alert(result.message);
     return;
   }
+  await recordAuditLog("user_deleted", "profile", profile.id, profile.name || profile.email || profile.id, `Usuario ${expected} excluido.`, {
+    deletedUserName: profile.name || "",
+    deletedUserEmail: profile.email || "",
+    deletedUserRole: normalizeRole(profile.role || ""),
+    deletedChildren: result.deletedChildren || [],
+    deletedBySelf: profile.id === state.session?.id
+  });
   familyContext.selectedProfileId = "";
   await fetchProfiles();
   await fetchStudents();
@@ -4288,6 +4447,11 @@ async function handleCreateFamilyResponsible() {
     alert(`Responsavel criado, mas falhou o envio de email de senha: ${reset.error.message || "erro inesperado"}`);
     return;
   }
+  await recordAuditLog("user_created", "profile", createdUser.id, name, `Responsavel ${name} cadastrado.`, {
+    email,
+    phone,
+    role: "responsavel"
+  });
   clearFamilyCreateForm();
   if (els.familyCreateStatus) {
     els.familyCreateStatus.textContent = `Responsavel ${name} cadastrado. Email enviado para definir senha no primeiro acesso.`;
@@ -4318,6 +4482,10 @@ async function updateUserAccess(profile, nextRole) {
     alert(`Falha ao atualizar acesso: ${error.message || "erro inesperado"}`);
     return;
   }
+  await recordAuditLog("user_updated", "profile", profile.id, profile.name || profile.email || profile.id, `Acesso de ${profile.name || profile.email || profile.id} alterado para ${formatRole(nextRole)}.`, {
+    previousRole: normalizeRole(profile.role || ""),
+    nextRole
+  });
   await fetchProfiles();
   render();
 }
@@ -4349,6 +4517,10 @@ async function updateUserName(profile, nextName) {
     alert(`Falha ao atualizar nome: ${error.message || "erro inesperado"}`);
     return;
   }
+  await recordAuditLog("user_updated", "profile", profile.id, sanitizedName, `Nome do usuario alterado para ${sanitizedName}.`, {
+    previousName: profile.name || "",
+    nextName: sanitizedName
+  });
   await fetchProfiles();
   await fetchStudents();
   render();
@@ -4373,6 +4545,13 @@ async function deleteUserProfile(profile) {
     alert(result.message);
     return;
   }
+  await recordAuditLog("user_deleted", "profile", profile.id, profile.name || profile.email || profile.id, `Usuario ${profile.name || profile.email || profile.id} excluido.`, {
+    deletedUserName: profile.name || "",
+    deletedUserEmail: profile.email || "",
+    deletedUserRole: normalizeRole(profile.role || ""),
+    deletedChildren: result.deletedChildren || [],
+    deletedBySelf: profile.id === state.session?.id
+  });
   if (state.ui.selectedManageUserId === profile.id) {
     state.ui.selectedManageUserId = "";
   }
@@ -4652,6 +4831,11 @@ async function openRoom(roomId) {
     room.closedAt = "";
   }
   setActiveRoom(room.id);
+  await recordAuditLog("room_opened", "room", room.id, room.name, `Sala ${room.name} aberta.`, {
+    classTarget: room.classTarget,
+    date: room.date,
+    openedAt: openedAtIso
+  });
   render();
 }
 
@@ -4702,6 +4886,11 @@ async function closeRoom(roomId, options = {}) {
     state.activeRoomId = openRooms.length ? openRooms[0].id : "";
   }
   state.roomView = "closed";
+  await recordAuditLog("room_closed", "room", room.id, room.name, `Sala ${room.name} fechada.`, {
+    classTarget: room.classTarget,
+    date: room.date,
+    closedAt: closedAtIso
+  });
   render();
 }
 
@@ -5109,6 +5298,19 @@ async function saveStudent(event) {
         return;
       }
     }
+    await recordAuditLog(
+      existing?.id ? "child_updated" : "child_created",
+      "student",
+      data.id,
+      payload.name,
+      existing?.id ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
+      {
+        className: payload.className,
+        guardianName: payload.guardian,
+        guardianProfileId,
+        isVisitor: payload.isVisitor
+      }
+    );
     await fetchStudents();
   } else {
     const index = state.students.findIndex((student) => student.id === payload.id);
@@ -5123,6 +5325,14 @@ async function saveStudent(event) {
       const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : "";
       state.students.push({ ...payload, photoUrl });
     }
+    await recordAuditLog(
+      index >= 0 ? "child_updated" : "child_created",
+      "student",
+      payload.id,
+      payload.name,
+      index >= 0 ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
+      { className: payload.className, guardianName: payload.guardian, guardianProfileId, isVisitor: payload.isVisitor }
+    );
   }
 
   els.studentDialog.close();
@@ -5156,11 +5366,19 @@ async function deleteStudentFromDialog(event) {
       alert(result.message);
       return;
     }
+    await recordAuditLog("child_deleted", "student", student.id, student.name, `Crianca ${student.name} excluida.`, {
+      className: student.className,
+      guardianName: student.guardian
+    });
     await fetchStudents();
     await fetchCheckins();
   } else {
     state.students = state.students.filter((item) => item.id !== studentId);
     state.checkins = state.checkins.filter((item) => item.studentId !== studentId);
+    await recordAuditLog("child_deleted", "student", student.id, student.name, `Crianca ${student.name} excluida.`, {
+      className: student.className,
+      guardianName: student.guardian
+    });
   }
   els.studentDialog?.close();
   render();
@@ -5622,6 +5840,12 @@ async function handleManualCheckin(studentId, options = {}) {
     };
   }
   state.checkins.push(record);
+  await recordAuditLog("checkin_created", "checkin", record.id, student.name, `Check-in de ${student.name} registrado.`, {
+    studentId: student.id,
+    roomId: room.id,
+    roomName: room.name,
+    className
+  });
   showLabel(student, record, { autoPrint: true, openPreview: false });
   render();
   return { ok: true, message: `Check-in confirmado para ${student.name}.` };
@@ -5775,6 +5999,11 @@ function exportCsv() {
     alert("Sem permissao para exportar.");
     return;
   }
+  const reportType = getLogReportType();
+  if (reportType !== "attendance") {
+    exportAuditCsv(reportType);
+    return;
+  }
   const rows = buildLogFrequencyRows(getFilteredCheckins());
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para exportar.");
@@ -5791,6 +6020,37 @@ function exportCsv() {
   const link = document.createElement("a");
   link.href = url;
   link.download = `frequencia_${periodLabel}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  render();
+}
+
+function exportAuditCsv(reportType) {
+  const rows = getFilteredAuditRows(reportType);
+  if (!rows.length) {
+    alert("Nenhum evento encontrado para exportar.");
+    return;
+  }
+  const header = ["Data", "Relatorio", "Acao", "Alvo", "Autor", "Perfil", "Detalhes"];
+  const csvRows = rows.map((row) => [
+    formatDateTimeFromIso(row.createdAt),
+    formatReportType(reportType),
+    formatAuditAction(row.actionType),
+    row.targetName || "",
+    row.actorName || "",
+    formatRole(row.actorRole),
+    row.details || formatAuditMetadata(row)
+  ]);
+  const startValue = els.logStart?.value || "inicio";
+  const endValue = els.logEnd?.value || "fim";
+  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${reportType}_${startValue}_${endValue}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -6617,6 +6877,83 @@ function buildLogFrequencyRows(checkins) {
       };
     })
     .sort((a, b) => a.studentName.localeCompare(b.studentName));
+}
+
+function getLogReportType() {
+  return els.logReportType?.value || "attendance";
+}
+
+function getFilteredAuditRows(reportType = getLogReportType()) {
+  const startDate = parseInputDate(els.logStart?.value || "");
+  const endDate = parseInputDate(els.logEnd?.value || "");
+  if (!startDate || !endDate) {
+    return [];
+  }
+  endDate.setHours(23, 59, 59, 999);
+  return (state.auditLogs || []).filter((row) => {
+    const date = new Date(row.createdAt);
+    if (Number.isNaN(date.getTime()) || date < startDate || date > endDate) {
+      return false;
+    }
+    if (reportType === "audit_all") {
+      return true;
+    }
+    if (reportType === "child_created") {
+      return row.actionType === "child_created";
+    }
+    if (reportType === "user_deleted") {
+      return row.actionType === "user_deleted";
+    }
+    if (reportType === "changes") {
+      return ["child_updated", "user_updated", "room_opened", "room_closed"].includes(row.actionType);
+    }
+    return false;
+  });
+}
+
+function buildAuditCountsLabel(rows) {
+  const counts = rows.reduce((acc, row) => {
+    const key = formatAuditAction(row.actionType);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts).map(([key, value]) => `${key}: ${value}`).join(" | ");
+}
+
+function formatReportType(type) {
+  if (type === "child_created") return "Cadastro de criancas";
+  if (type === "user_deleted") return "Exclusoes de usuarios";
+  if (type === "changes") return "Alteracoes de dados";
+  if (type === "audit_all") return "Todos os eventos";
+  return "Assiduidade";
+}
+
+function formatAuditAction(type) {
+  const labels = {
+    child_created: "Crianca cadastrada",
+    child_updated: "Crianca alterada",
+    child_deleted: "Crianca excluida",
+    user_created: "Usuario cadastrado",
+    user_updated: "Usuario alterado",
+    user_deleted: "Usuario excluido",
+    checkin_created: "Check-in",
+    checkout_created: "Checkout",
+    room_opened: "Sala aberta",
+    room_closed: "Sala fechada"
+  };
+  return labels[type] || type || "Evento";
+}
+
+function formatAuditMetadata(row) {
+  const metadata = row.metadata || {};
+  if (row.actionType === "user_deleted") {
+    const mode = row.actorId && row.targetId && row.actorId === row.targetId ? "Usuario se excluiu." : "Usuario foi excluido por outro usuario.";
+    const children = Array.isArray(metadata.deletedChildren) && metadata.deletedChildren.length
+      ? ` Filhos excluidos: ${metadata.deletedChildren.join(", ")}.`
+      : "";
+    return `${mode}${children}`;
+  }
+  return metadata.summary || "-";
 }
 
 function getAvailableLogStudents(checkins) {
@@ -7855,6 +8192,7 @@ function loadState() {
           selectedRoomId: "",
           roomView: "open",
           profiles: [],
+          auditLogs: [],
           schedules: [],
           tips: [],
           tipReads: [],
@@ -7877,6 +8215,7 @@ function loadState() {
     rooms: [],
     checkins: [],
     profiles: [],
+    auditLogs: [],
     schedules: [],
     tips: [],
     tipReads: [],

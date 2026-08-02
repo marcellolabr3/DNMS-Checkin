@@ -19,6 +19,7 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `schedules`
 - `tips`
 - `tip_reads`
+- `audit_logs`
 
 ### Campos importantes adicionais já aplicados
 - `schedules.target_user` (fallback de vinculação por e-mail/nome)
@@ -41,6 +42,8 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_is_staff_include_dnms_kids.sql`
 - `supabase/patch_phone_normalization.sql`
 - `supabase/patch_checkin_active_guard.sql`
+- `supabase/patch_audit_logs.sql`
+- `supabase/patch_responsavel_delete_own_student.sql`
 
 ### Proteção de check-in ativo (atual)
 - Regra: cada criança pode ter no máximo 1 check-in ativo (`checked_out_at IS NULL`).
@@ -95,6 +98,7 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - Escalas aparecem no dashboard do usuário.
 - Painel de impressão lista apenas crianças com check-in do dia.
 - Log por período funciona com filtro por turma/criança e exportação.
+- Relatórios de auditoria funcionam após aplicar `patch_audit_logs.sql`.
 
 ## Boas práticas para não perder funcionamento
 

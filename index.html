@@ -171,6 +171,15 @@
         </div>
       </div>
       <div class="filters">
+        <label class="field">Relatorio
+          <select id="logReportType">
+            <option value="attendance">Assiduidade</option>
+            <option value="child_created">Cadastro de criancas</option>
+            <option value="user_deleted">Exclusoes de usuarios</option>
+            <option value="changes">Alteracoes de dados</option>
+            <option value="audit_all">Todos os eventos</option>
+          </select>
+        </label>
         <label class="field">De
           <input id="logStart" type="date" />
         </label>
@@ -577,6 +586,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260802p"></script>
+  <script src="app.js?v=20260802q"></script>
 </body>
 </html>
