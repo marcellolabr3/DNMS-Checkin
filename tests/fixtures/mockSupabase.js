@@ -44,6 +44,22 @@ function createMockSupabaseScript() {
     });
   }
 
+  if (new URLSearchParams(window.location.search).get("scenario") === "upcoming-schedules") {
+    for (let index = 0; index < 12; index += 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + index);
+      const dateIso = date.toISOString().slice(0, 10);
+      db.schedules.push({
+        id: "schedule-" + index,
+        date: dateIso,
+        profile_id: "",
+        target_user: "Coord " + String(index + 1).padStart(2, "0"),
+        lesson_theme: "Escala Coordenacao",
+        details: "Coordenacao"
+      });
+    }
+  }
+
   let currentUser = null;
   let idCounter = 1;
 
