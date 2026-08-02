@@ -5151,9 +5151,9 @@ async function deleteStudentFromDialog(event) {
   }
 
   if (supabaseClient) {
-    const { error } = await supabaseClient.from("students").delete().eq("id", studentId);
-    if (error) {
-      alert(`Falha ao excluir crianca: ${error.message || "erro inesperado"}`);
+    const result = await deleteStudentRecords(studentId);
+    if (!result.ok) {
+      alert(result.message);
       return;
     }
     await fetchStudents();
@@ -5164,6 +5164,22 @@ async function deleteStudentFromDialog(event) {
   }
   els.studentDialog?.close();
   render();
+}
+
+async function deleteStudentRecords(studentId) {
+  const checkinsResult = await supabaseClient.from("checkins").delete().eq("student_id", studentId);
+  if (checkinsResult.error) {
+    return { ok: false, message: `Falha ao excluir check-ins da crianca: ${checkinsResult.error.message || "erro inesperado"}` };
+  }
+  const linksResult = await supabaseClient.from("student_guardians").delete().eq("student_id", studentId);
+  if (linksResult.error) {
+    return { ok: false, message: `Falha ao excluir vinculos da crianca: ${linksResult.error.message || "erro inesperado"}` };
+  }
+  const studentResult = await supabaseClient.from("students").delete().eq("id", studentId);
+  if (studentResult.error) {
+    return { ok: false, message: `Falha ao excluir crianca: ${studentResult.error.message || "erro inesperado"}` };
+  }
+  return { ok: true };
 }
 
 async function linkGuardianToStudent(studentId, guardianName, guardianProfileId = "") {
@@ -5864,7 +5880,13 @@ function canDeleteStudent(student) {
   if (!state.session || !student) {
     return false;
   }
-  return isSadmin() || isAdmin();
+  if (isSadmin() || isAdmin()) {
+    return true;
+  }
+  if (isEquipe()) {
+    return false;
+  }
+  return normalizeRole(state.session.role) === "responsavel" && isStudentOwnedBySession(student);
 }
 
 function canCheckinStudent(student) {
@@ -5872,6 +5894,16 @@ function canCheckinStudent(student) {
     return false;
   }
   if (isEquipe() || isAdmin()) {
+    return true;
+  }
+  return student.guardian === state.session.name || student.owner === state.session.name;
+}
+
+function isStudentOwnedBySession(student) {
+  if (!state.session || !student) {
+    return false;
+  }
+  if (student.guardianProfileId && student.guardianProfileId === state.session.id) {
     return true;
   }
   return student.guardian === state.session.name || student.owner === state.session.name;
