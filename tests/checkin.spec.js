@@ -158,3 +158,28 @@ test("trocar de aba atualiza dados sem novo login", async ({ page }) => {
   await expect(studentItem(page, "Ana Atualizada")).toBeVisible();
   await expect(page.locator("#authCard")).toBeHidden();
 });
+
+test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  const ana = studentItem(page, "Ana Kids");
+  await expect(ana.locator(".student-list-photo")).toBeVisible();
+
+  await ana.getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+
+  const sizes = await page.evaluate(() => {
+    const name = document.querySelector(".student-name-field").getBoundingClientRect().width;
+    const birth = document.querySelector(".student-birth-field").getBoundingClientRect().width;
+    const address = document.querySelector(".student-address-field").getBoundingClientRect().width;
+    const birthInput = document.querySelector("#studentBirth").getBoundingClientRect().width;
+    return { name, birth, address, birthInput };
+  });
+  if (page.viewportSize().width > 420) {
+    expect(sizes.name).toBeGreaterThan(sizes.birth);
+    expect(sizes.address).toBeGreaterThan(sizes.birth);
+  }
+  expect(sizes.birthInput).toBeLessThanOrEqual(190);
+});

@@ -480,6 +480,32 @@ body.role-theme-sadmin {
   font-size: 13px;
 }
 
+.student-list-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.student-list-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(28, 40, 36, 0.08);
+}
+
+.student-list-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .muted {
   color: var(--muted);
   font-size: 13px;
@@ -1048,6 +1074,40 @@ button:disabled,
   align-items: start;
 }
 
+#studentDialog .student-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 12px;
+}
+
+#studentDialog .student-form-grid > .field {
+  grid-column: span 1;
+}
+
+#studentDialog .student-name-field {
+  grid-column: 1;
+}
+
+#studentDialog .student-birth-field {
+  grid-column: 2;
+}
+
+#studentDialog .student-address-field {
+  grid-column: 1 / -1;
+}
+
+#studentGuardianField {
+  grid-column: 1 / -1;
+}
+
+.student-birth-field input {
+  max-width: 150px;
+}
+
+#studentDialog .field:not(.student-birth-field) input {
+  width: 100%;
+}
+
 .dialog-body > .field,
 .dialog-body .grid-2 > .field {
   padding: 10px;
@@ -1353,6 +1413,20 @@ button:disabled,
     grid-template-columns: 1fr;
   }
 
+  #studentDialog .student-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #studentDialog .student-name-field,
+  #studentDialog .student-address-field,
+  #studentDialog .student-birth-field {
+    grid-column: 1;
+  }
+
+  .student-birth-field input {
+    max-width: 180px;
+  }
+
   .dialog-body {
     border-radius: 14px;
     padding: 14px;
@@ -1401,6 +1475,16 @@ button:disabled,
   .filters input,
   .filters select {
     font-size: 16px;
+  }
+
+  .student-list-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .student-list-photo {
+    width: 58px;
+    height: 58px;
   }
 }
 

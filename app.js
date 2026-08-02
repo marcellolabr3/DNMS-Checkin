@@ -1586,16 +1586,21 @@ function renderStudents() {
       ? `<button class="ghost" data-checkout="${student.id}">Checkout</button>`
       : "";
     item.innerHTML = `
-      ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
-      <strong>${student.name}</strong>
-      <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
-      <span class="muted">Nascimento: ${birthLabel} | Observacoes: ${observationText}</span>
-      <span class="muted">Telefone do responsavel: ${contact.phone || "-"}</span>
-      <span class="muted">Endereco do responsavel: ${contact.address || "-"}</span>
-      <div class="actions">
-        <button class="ghost" data-edit="${student.id}">Editar</button>
-        ${checkoutButton}
-        <button class="primary" data-checkin="${student.id}">Check-in</button>
+      <div class="student-list-card">
+        <img class="student-list-photo" src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
+        <div class="student-list-content">
+          ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
+          <strong>${student.name}</strong>
+          <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
+          <span class="muted">Nascimento: ${birthLabel} | Observacoes: ${observationText}</span>
+          <span class="muted">Telefone do responsavel: ${contact.phone || "-"}</span>
+          <span class="muted">Endereco do responsavel: ${contact.address || "-"}</span>
+          <div class="actions">
+            <button class="ghost" data-edit="${student.id}">Editar</button>
+            ${checkoutButton}
+            <button class="primary" data-checkin="${student.id}">Check-in</button>
+          </div>
+        </div>
       </div>
     `;
     const btnEdit = item.querySelector("[data-edit]");
