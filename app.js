@@ -5779,6 +5779,9 @@ function canEditStudent(student) {
   if (isSadmin() || isAdmin()) {
     return true;
   }
+  if (isEquipe()) {
+    return false;
+  }
   return student.guardian === state.session.name || student.owner === state.session.name;
 }
 
@@ -5786,7 +5789,10 @@ function canCreateStudent() {
   if (!state.session) {
     return false;
   }
-  return isSadmin() || isAdmin() || state.session.role === "responsavel";
+  if (isEquipe()) {
+    return false;
+  }
+  return isSadmin() || isAdmin() || normalizeRole(state.session.role) === "responsavel";
 }
 
 function canDeleteStudent(student) {

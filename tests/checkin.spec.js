@@ -194,6 +194,15 @@ test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   await expect(ana).toBeVisible();
   await expect(ana.getByRole("button", { name: "Editar" })).toHaveCount(0);
   await expect(page.locator("#btnAddStudent")).toBeDisabled();
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Sem permissao para cadastrar crianca.");
+    await dialog.accept();
+  });
+  await page.evaluate(() => {
+    document.querySelector("#btnAddStudent")?.removeAttribute("disabled");
+  });
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeHidden();
   await ana.getByRole("button", { name: "Check-in" }).click();
   await expect(ana.getByRole("button", { name: "Checkout" })).toBeVisible();
 
