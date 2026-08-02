@@ -6,6 +6,7 @@ const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
 const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 const DEFAULT_RECURRENCE_WEEKS = 4;
+const DASHBOARD_UPCOMING_SCHEDULE_LIMIT = 3;
 const PRINT_SERVICE_URL = "http://localhost:3001";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -1679,7 +1680,7 @@ function renderDashboard() {
   } else {
     const expandedSet = new Set(state.ui.expandedScheduleDates || []);
     els.dashboardSchedules.innerHTML = upcomingGroups
-      .slice(0, 12)
+      .slice(0, DASHBOARD_UPCOMING_SCHEDULE_LIMIT)
       .map((group) => {
         const dateObj = parseInputDate(group.date);
         const dateLabel = dateObj ? formatDate(dateObj) : group.date;
