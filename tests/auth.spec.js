@@ -25,6 +25,17 @@ test("login e logout funcionam com perfil valido", async ({ page }) => {
   await expect(page.locator("#sessionRole")).toContainText("Deslogado");
 });
 
+test("enter no campo de senha executa login", async ({ page }) => {
+  await openApp(page);
+
+  await page.fill("#loginEmail", "admin@dnms.test");
+  await page.fill("#loginPassword", "senha123");
+  await page.press("#loginPassword", "Enter");
+
+  await expect(page.locator("#authCard")).toBeHidden();
+  await expect(page.locator("#sessionRole")).toContainText("Admin");
+});
+
 test("recuperacao de senha envia email e fecha a janela", async ({ page }) => {
   await openApp(page);
 

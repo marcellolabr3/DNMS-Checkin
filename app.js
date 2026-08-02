@@ -255,6 +255,13 @@ async function boot() {
 
 function bindEvents() {
   els.btnLogin.addEventListener("click", handleLogin);
+  [els.loginEmail, els.loginPassword].forEach((input) => {
+    input?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        handleLogin(event);
+      }
+    });
+  });
   els.sessionRole?.addEventListener("click", openMyDataDialog);
   els.sessionRole?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
