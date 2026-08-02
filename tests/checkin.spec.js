@@ -139,3 +139,22 @@ test("foto da crianca pode ser trocada mais de uma vez", async ({ page }) => {
   expect(secondUrl).not.toBe(firstUrl);
   await expect.poll(() => page.evaluate(() => window.__mockStorageUploads.length)).toBe(2);
 });
+
+test("trocar de aba atualiza dados sem novo login", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+  await expect(studentItem(page, "Ana Kids")).toBeVisible();
+
+  await page.evaluate(() => {
+    const student = window.__mockDnmsDb.students.find((item) => item.id === "student-kids");
+    student.name = "Ana Atualizada";
+  });
+
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await page.click("#btnStudentsPanel");
+
+  await expect(studentItem(page, "Ana Atualizada")).toBeVisible();
+  await expect(page.locator("#authCard")).toBeHidden();
+});

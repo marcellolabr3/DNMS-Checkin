@@ -34,6 +34,7 @@ const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
+const panelRefreshContext = { inProgress: false, pendingPanel: "" };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -557,6 +558,66 @@ function setActivePanel(panel) {
   state.ui.showLogPanel = panel === "log";
   state.ui.showInvitePanel = panel === "invite";
   render();
+  requestPanelDataRefresh(panel);
+}
+
+function requestPanelDataRefresh(panel) {
+  if (!supabaseClient || !state.session) {
+    return;
+  }
+  panelRefreshContext.pendingPanel = panel;
+  if (panelRefreshContext.inProgress) {
+    return;
+  }
+  runPendingPanelDataRefresh();
+}
+
+async function runPendingPanelDataRefresh() {
+  panelRefreshContext.inProgress = true;
+  try {
+    while (panelRefreshContext.pendingPanel) {
+      const panel = panelRefreshContext.pendingPanel;
+      panelRefreshContext.pendingPanel = "";
+      await refreshPanelData(panel);
+      normalizeStudents();
+      render();
+    }
+  } catch (err) {
+    console.warn("Falha ao atualizar dados da aba", err);
+  } finally {
+    panelRefreshContext.inProgress = false;
+  }
+}
+
+async function refreshPanelData(panel) {
+  if (!supabaseClient || !state.session) {
+    return;
+  }
+  const canLoadProfiles = canAccessManagementPanel() || isEquipe();
+  const fetchProfilesIfAllowed = () => (canLoadProfiles ? fetchProfiles() : Promise.resolve());
+  if (panel === "dashboard") {
+    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins(), fetchProfilesIfAllowed(), fetchDashboardData()]);
+    return;
+  }
+  if (panel === "rooms") {
+    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins()]);
+    return;
+  }
+  if (panel === "students") {
+    await Promise.all([fetchStudents(), fetchRooms(), fetchCheckins(), fetchProfilesIfAllowed()]);
+    return;
+  }
+  if (panel === "families") {
+    await Promise.all([fetchProfilesIfAllowed(), fetchStudents()]);
+    return;
+  }
+  if (panel === "log") {
+    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms()]);
+    return;
+  }
+  if (panel === "invite") {
+    await Promise.all([fetchProfilesIfAllowed(), fetchStudents(), fetchDashboardData()]);
+  }
 }
 
 function ensureDefaultActivePanel() {
