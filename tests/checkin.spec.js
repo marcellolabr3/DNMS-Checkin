@@ -71,3 +71,21 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
     .poll(() => getAlerts(page))
     .toContainEqual(expect.stringContaining("ja possui um check-in ativo"));
 });
+
+test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+
+  await page.locator("#studentBirth").evaluate((input) => input.setSelectionRange(0, 0));
+  await page.press("#studentBirth", "2");
+  await page.press("#studentBirth", "5");
+  await expect(page.locator("#studentBirth")).toHaveValue(/25\/04\/\d{4}/);
+
+  await page.press("#studentBirth", "1");
+  await page.press("#studentBirth", "2");
+  await expect(page.locator("#studentBirth")).toHaveValue(/25\/12\/\d{4}/);
+});

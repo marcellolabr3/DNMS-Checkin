@@ -381,16 +381,7 @@ function bindEvents() {
     renderGuardianOptions(els.studentGuardian.value);
     syncGuardianSelectionFromInput();
   });
-  [els.studentBirth, els.signupBirth].forEach((input) => {
-    input?.addEventListener("input", () => {
-      input.value = applyBirthDateMask(input.value);
-    });
-  });
-  [els.familyCreateBirth].forEach((input) => {
-    input?.addEventListener("input", () => {
-      input.value = applyBirthDateMask(input.value);
-    });
-  });
+  [els.studentBirth, els.signupBirth, els.familyCreateBirth].forEach(bindBirthDateInput);
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
     if (els.labelDialog) {
@@ -6103,6 +6094,58 @@ function applyBirthDateMask(value) {
     return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function bindBirthDateInput(input) {
+  if (!input) {
+    return;
+  }
+  input.addEventListener("beforeinput", handleBirthDateBeforeInput);
+  input.addEventListener("input", () => {
+    input.value = applyBirthDateMask(input.value);
+  });
+}
+
+function handleBirthDateBeforeInput(event) {
+  const input = event.currentTarget;
+  const digit = event.data || "";
+  if (
+    event.inputType !== "insertText" ||
+    !/^\d$/.test(digit) ||
+    !/^\d{2}\/\d{2}\/\d{4}$/.test(input.value || "")
+  ) {
+    return;
+  }
+
+  const start = input.selectionStart ?? input.value.length;
+  const digitIndex = getBirthDateDigitIndexForCaret(start);
+  if (digitIndex >= 8) {
+    event.preventDefault();
+    return;
+  }
+
+  event.preventDefault();
+  const digits = input.value.replace(/\D/g, "").slice(0, 8).split("");
+  digits[digitIndex] = digit;
+  input.value = applyBirthDateMask(digits.join(""));
+  const nextCaret = getBirthDateCaretForDigitIndex(digitIndex + 1);
+  input.setSelectionRange(nextCaret, nextCaret);
+}
+
+function getBirthDateDigitIndexForCaret(position) {
+  if (position <= 0) return 0;
+  if (position <= 1) return 1;
+  if (position <= 3) return 2;
+  if (position <= 4) return 3;
+  if (position <= 6) return 4;
+  if (position <= 7) return 5;
+  if (position <= 8) return 6;
+  if (position <= 9) return 7;
+  return 8;
+}
+
+function getBirthDateCaretForDigitIndex(index) {
+  return [0, 1, 3, 4, 6, 7, 8, 9, 10][Math.min(Math.max(index, 0), 8)];
 }
 
 function formatBirthDateForInput(value) {
