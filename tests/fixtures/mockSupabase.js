@@ -15,6 +15,7 @@ function createMockSupabaseScript() {
 
   const db = {
     profiles: [
+      { id: "sadmin-1", name: "Sadmin DNMS", role: "admin", email: "marvinlabre@gmail.com", phone: "11911110000", address: "Rua Sadmin", photo_url: "" },
       { id: "admin-1", name: "Admin DNMS", role: "admin", email: "admin@dnms.test", phone: "11999990000", address: "Rua Admin", photo_url: "" },
       { id: "team-1", name: "Equipe DNMS", role: "equipe", email: "equipe@dnms.test", phone: "11966660000", address: "Rua Equipe", photo_url: "" },
       { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "" }

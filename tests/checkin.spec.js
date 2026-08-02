@@ -208,6 +208,33 @@ test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ p
   await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
 });
 
+test("sadmin edita qualquer usuario e crianca", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Equipe");
+  await expect(page.locator("#familyList")).toContainText("Equipe DNMS");
+  await expect(page.locator("#familyEditName")).toBeEnabled();
+  await expect(page.locator("#familyEditPhone")).toBeEnabled();
+  await expect(page.locator("#familyEditAddress")).toBeEnabled();
+  await page.fill("#familyEditAddress", "Rua Atualizada Sadmin");
+  await page.click("#btnFamilySaveProfile");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.profiles.find((item) => item.id === "team-1")?.address))
+    .toBe("Rua Atualizada Sadmin");
+
+  await openStudentsPanel(page);
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await expect(page.locator("#btnDeleteStudent")).toBeVisible();
+  await page.fill("#studentNotes", "Atualizado pelo SADMIN");
+  await page.click("#btnSaveStudent");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.notes))
+    .toBe("Atualizado pelo SADMIN");
+});
+
 test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "equipe@dnms.test");

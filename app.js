@@ -3977,7 +3977,7 @@ function getFamiliesWithChildren() {
   (state.profiles || []).forEach((profile) => {
     const role = normalizeRole(profile.role);
     const children = childrenByGuardian.get(profile.id) || [];
-    const shouldInclude = role === "responsavel" || children.length > 0;
+    const shouldInclude = isSadmin() || role === "responsavel" || children.length > 0;
     if (!shouldInclude) {
       return;
     }
@@ -5815,7 +5815,10 @@ function canManageResponsibleProfile(profile) {
   if (!profile) {
     return false;
   }
-  if (!(isSadmin() || isAdmin())) {
+  if (isSadmin()) {
+    return true;
+  }
+  if (!isAdmin()) {
     return false;
   }
   return normalizeRole(profile.role) === "responsavel";
