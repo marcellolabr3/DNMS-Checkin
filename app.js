@@ -1758,7 +1758,7 @@ function renderDashboard() {
     }
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
-    return dateObj >= dayStart;
+    return dateObj > dayStart;
   });
   if (!upcomingGroups.length) {
     els.dashboardSchedules.innerHTML = `<div class="summary">Sem escalas futuras cadastradas.</div>`;

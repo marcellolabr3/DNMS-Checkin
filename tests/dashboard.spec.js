@@ -7,9 +7,11 @@ test("dashboard mostra somente as tres proximas escalas", async ({ page }) => {
 
   const schedules = page.locator("#dashboardSchedules .list-item");
   await expect(schedules).toHaveCount(3);
-  await expect(page.locator("#dashboardSchedules")).toContainText("Coord 01");
-  await expect(page.locator("#dashboardSchedules")).toContainText("Coord 03");
-  await expect(page.locator("#dashboardSchedules")).not.toContainText("Coord 04");
+  await expect(page.locator("#dashboardLessonToday")).toContainText("Coord 01");
+  await expect(page.locator("#dashboardSchedules")).not.toContainText("Coord 01");
+  await expect(page.locator("#dashboardSchedules")).toContainText("Coord 02");
+  await expect(page.locator("#dashboardSchedules")).toContainText("Coord 04");
+  await expect(page.locator("#dashboardSchedules")).not.toContainText("Coord 05");
 
   await schedules.first().click({ position: { x: 16, y: 76 } });
   const expandedDetails = schedules.first().locator(".summary");
