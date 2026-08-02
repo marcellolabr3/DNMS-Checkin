@@ -31,7 +31,9 @@ async function openApp(page, options = {}) {
     });
   });
   await page.goto(options.path || "/index.html");
-  await expect(page.locator("#authCard")).toBeVisible();
+  if (options.waitForAuth !== false) {
+    await expect(page.locator("#authCard")).toBeVisible();
+  }
 }
 
 async function loginAs(page, email, password = "senha123") {

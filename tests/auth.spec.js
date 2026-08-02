@@ -25,6 +25,14 @@ test("login e logout funcionam com perfil valido", async ({ page }) => {
   await expect(page.locator("#sessionRole")).toContainText("Deslogado");
 });
 
+test("restauracao de sessao nao mostra tela de login", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=restore-session", waitForAuth: false });
+
+  await expect(page.locator("#authCard")).toBeHidden();
+  await expect(page.locator("#dashboardCard")).toBeVisible();
+  await expect(page.locator("#sessionRole")).toContainText("Admin");
+});
+
 test("nome do usuario e salvo com iniciais maiusculas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

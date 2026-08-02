@@ -35,6 +35,7 @@ const studentDialogContext = { guardianProfileId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
 const panelRefreshContext = { inProgress: false, pendingPanel: "" };
+const bootContext = { loadingSession: Boolean(supabaseClient) };
 
 const els = {
   sessionRole: document.getElementById("sessionRole"),
@@ -244,6 +245,7 @@ async function boot() {
   if (supabaseClient) {
     await hydrateFromSupabase();
   } else {
+    bootContext.loadingSession = false;
     if (!state.students.length) {
       seedData();
     }
@@ -1037,6 +1039,9 @@ async function hydrateFromSupabase() {
     alert("Falha ao carregar dados do Supabase. Verifique sua conexao.");
     state.session = null;
     render();
+  } finally {
+    bootContext.loadingSession = false;
+    render();
   }
 }
 
@@ -1208,7 +1213,7 @@ function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
   const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada");
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
-  const canManageRoom = isAdmin() || isEquipe();
+  const canManageRoom = canManageRooms();
   const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
   state.ui.selectedRoomIds = (state.ui.selectedRoomIds || []).filter((id) => visibleRoomIds.has(id));
   const selectedSet = new Set(state.ui.selectedRoomIds || []);
@@ -1290,8 +1295,8 @@ function getSelectedRoomIdsInList() {
 }
 
 async function handleBulkEditRooms() {
-  if (!isAdmin() && !isEquipe()) {
-    alert("Somente administradores e equipe podem editar salas.");
+  if (!canManageRooms()) {
+    alert("Somente administradores podem editar salas.");
     return;
   }
   const ids = getSelectedRoomIdsInList();
@@ -1391,8 +1396,8 @@ async function handleBulkEditRooms() {
 }
 
 async function handleBulkDeleteRooms() {
-  if (!isAdmin() && !isEquipe()) {
-    alert("Somente administradores e equipe podem excluir salas.");
+  if (!canManageRooms()) {
+    alert("Somente administradores podem excluir salas.");
     return;
   }
   const ids = getSelectedRoomIdsInList();
@@ -1555,6 +1560,7 @@ function renderStudents() {
     if (els.btnParentCheckin) {
       els.btnParentCheckin.style.display = "none";
     }
+    els.btnAddStudent.disabled = !canCreateStudent();
     if (isResponsavel) {
       els.btnAddStudent.textContent = items.length ? "Cadastrar nova crianca" : "Cadastrar crianca";
     } else {
@@ -1596,7 +1602,7 @@ function renderStudents() {
           <span class="muted">Telefone do responsavel: ${contact.phone || "-"}</span>
           <span class="muted">Endereco do responsavel: ${contact.address || "-"}</span>
           <div class="actions">
-            <button class="ghost" data-edit="${student.id}">Editar</button>
+            ${canEditStudent(student) ? `<button class="ghost" data-edit="${student.id}">Editar</button>` : ""}
             ${checkoutButton}
             <button class="primary" data-checkin="${student.id}">Check-in</button>
           </div>
@@ -1607,7 +1613,7 @@ function renderStudents() {
     const btnCheckin = item.querySelector("[data-checkin]");
     const btnCheckout = item.querySelector("[data-checkout]");
 
-    btnEdit.addEventListener("click", () => openStudentDialog(student));
+    btnEdit?.addEventListener("click", () => openStudentDialog(student));
     btnCheckin.addEventListener("click", () => handleManualCheckin(student.id));
     btnCheckout?.addEventListener("click", () => openCheckoutDialog(openCheckin));
     item.addEventListener("click", (event) => {
@@ -1625,7 +1631,7 @@ function renderStudents() {
       btnCheckout.style.display = "none";
     }
 
-    if (!canEditStudent(student)) {
+    if (btnEdit && !canEditStudent(student)) {
       btnEdit.disabled = true;
     }
 
@@ -1771,8 +1777,7 @@ function renderDashboard() {
               <strong>Maternal:</strong> ${(group.roles.MATERNAL || []).join(", ") || "-"}<br />
               <strong>Kids:</strong> ${(group.roles.KIDS || []).join(", ") || "-"}<br />
               <strong>Juniors:</strong> ${(group.roles.JUNIORS || []).join(", ") || "-"}<br />
-              <strong>Teens:</strong> ${(group.roles.TEENS || []).join(", ") || "-"}<br />
-              <strong>Check-in:</strong> ${(group.roles.CHECK_IN || []).join(", ") || "-"}
+              <strong>Teens:</strong> ${(group.roles.TEENS || []).join(", ") || "-"}
             </div>
           `
           : "";
@@ -1924,10 +1929,10 @@ function renderRoleVisibility() {
   const isResponsavel = session?.role === "responsavel";
 
   if (authCard) {
-    authCard.style.display = session ? "none" : "flex";
+    authCard.style.display = session || bootContext.loadingSession ? "none" : "flex";
   }
 
-  if (!session) {
+  if (!session || bootContext.loadingSession) {
     if (dashboardCard) {
       dashboardCard.style.display = "none";
     }
@@ -3861,7 +3866,7 @@ function renderFamiliesPanel() {
         <strong>${child.name}</strong>
         <span class="muted">Turma: ${child.className || getClassForBirth(child.birth)}</span>
         <div class="actions">
-          <button type="button" class="ghost" data-family-edit-child="${child.id}">Editar crianca</button>
+          ${canEditStudent(child) ? `<button type="button" class="ghost" data-family-edit-child="${child.id}">Editar crianca</button>` : ""}
           <button type="button" class="primary" data-family-checkin-child="${child.id}">Check-in</button>
         </div>
       </div>
@@ -4363,8 +4368,8 @@ async function handleSendInvite(event) {
 }
 
 async function createRooms() {
-  if (!isAdmin() && !isEquipe()) {
-    alert("Somente administradores e equipe podem criar eventos.");
+  if (!canManageRooms()) {
+    alert("Somente administradores podem criar ou editar eventos.");
     return;
   }
   const name = els.roomName.value.trim();
@@ -4502,7 +4507,7 @@ async function createRooms() {
 }
 
 function openRoomDialog() {
-  if (!isAdmin() && !isEquipe()) {
+  if (!canOperateRooms()) {
     alert("Somente administradores e equipe podem abrir salas.");
     return;
   }
@@ -4547,7 +4552,7 @@ async function openAllRooms(event) {
 }
 
 async function openRoom(roomId) {
-  if (!isAdmin() && !isEquipe()) {
+  if (!canOperateRooms()) {
     alert("Somente administradores e equipe podem abrir salas.");
     return;
   }
@@ -4565,6 +4570,10 @@ async function openRoom(roomId) {
     alert("Esta sala ja esta aberta.");
     return;
   }
+  if (!canOpenRoomNow(room)) {
+    alert("Equipe so pode abrir a sala no dia e dentro do horario programado.");
+    return;
+  }
   const openedAtIso = new Date().toISOString();
   if (supabaseClient) {
     await supabaseClient.from("rooms").update({ status: "Aberta", opened_at: openedAtIso, closed_at: null }).eq("id", room.id);
@@ -4579,7 +4588,7 @@ async function openRoom(roomId) {
 }
 
 async function closeRoom(roomId, options = {}) {
-  if (!isAdmin() && !isEquipe()) {
+  if (!canOperateRooms()) {
     alert("Somente administradores e equipe podem fechar salas.");
     return;
   }
@@ -4593,6 +4602,10 @@ async function closeRoom(roomId, options = {}) {
   const room = state.rooms.find((item) => item.id === roomId);
   if (!room) {
     alert("Sala nao encontrada.");
+    return;
+  }
+  if (!canCloseRoomNow(room)) {
+    alert("Equipe so pode fechar a sala apos o horario de termino programado.");
     return;
   }
   const closedAtIso = new Date().toISOString();
@@ -4625,8 +4638,8 @@ async function closeRoom(roomId, options = {}) {
 }
 
 async function reopenRoom(roomId) {
-  if (!isAdmin() && !isEquipe()) {
-    alert("Somente administradores e equipe podem reabrir salas.");
+  if (!canManageRooms()) {
+    alert("Somente administradores podem reabrir salas.");
     return;
   }
   const room = state.rooms.find((item) => item.id === roomId);
@@ -4649,8 +4662,8 @@ async function reopenRoom(roomId) {
 }
 
 async function deleteRoom(roomId, options = {}) {
-  if (!isAdmin() && !isEquipe()) {
-    alert("Somente administradores e equipe podem excluir salas.");
+  if (!canManageRooms()) {
+    alert("Somente administradores podem excluir salas.");
     return;
   }
   if (!options.skipConfirm && !confirm("Tem certeza que deseja excluir esta sala?")) {
@@ -4719,7 +4732,8 @@ function renderRoomDetailsDialog(room) {
   if (!room) {
     return;
   }
-  const canManageRoom = isAdmin() || isEquipe();
+  const canManageRoom = canManageRooms();
+  const canOperateRoom = canOperateRooms();
   const students = getRoomCheckinStudents(room.id);
   if (els.roomDetailsTitle) {
     els.roomDetailsTitle.textContent = `Turma ${room.classTarget || "-"} (${room.status})`;
@@ -4754,16 +4768,16 @@ function renderRoomDetailsDialog(room) {
     }
   }
   if (els.btnRoomDialogOpen) {
-    els.btnRoomDialogOpen.style.display = canManageRoom ? "inline-flex" : "none";
-    els.btnRoomDialogOpen.disabled = room.status === "Aberta";
+    els.btnRoomDialogOpen.style.display = canOperateRoom ? "inline-flex" : "none";
+    els.btnRoomDialogOpen.disabled = room.status === "Aberta" || !canOpenRoomNow(room);
   }
   if (els.btnRoomDialogEdit) {
     els.btnRoomDialogEdit.style.display = canManageRoom ? "inline-flex" : "none";
     els.btnRoomDialogEdit.disabled = false;
   }
   if (els.btnRoomDialogClose) {
-    els.btnRoomDialogClose.style.display = canManageRoom ? "inline-flex" : "none";
-    els.btnRoomDialogClose.disabled = room.status !== "Aberta";
+    els.btnRoomDialogClose.style.display = canOperateRoom ? "inline-flex" : "none";
+    els.btnRoomDialogClose.disabled = room.status !== "Aberta" || !canCloseRoomNow(room);
   }
 }
 
@@ -4802,6 +4816,10 @@ function startRoomEdit(room) {
   if (!room) {
     return;
   }
+  if (!canManageRooms()) {
+    alert("Somente administradores podem editar salas.");
+    return;
+  }
   roomFormContext.editingId = room.id;
   els.roomName.value = room.name || "";
   els.roomDate.value = room.dateIso || "";
@@ -4836,6 +4854,10 @@ async function handleDeleteRoomFromEdit() {
 }
 
 function openStudentDialog(student) {
+  if (!student && !canCreateStudent()) {
+    alert("Sem permissao para cadastrar crianca.");
+    return;
+  }
   if (student && !canEditStudent(student)) {
     alert("Voce nao pode editar este aluno.");
     return;
@@ -4920,6 +4942,14 @@ async function saveStudent(event) {
   const ownerName = isAdmin() || isEquipe() ? guardianName : state.session?.name || guardianName;
   const isVisitor = isResponsavel ? false : Boolean(els.studentIsVisitor.checked);
   const existing = state.students.find((student) => student.id === els.studentId.value);
+  if (existing && !canEditStudent(existing)) {
+    alert("Voce nao pode editar este aluno.");
+    return;
+  }
+  if (!existing && !canCreateStudent()) {
+    alert("Sem permissao para cadastrar crianca.");
+    return;
+  }
   const birthRaw = els.studentBirth.value;
   const birthIso = normalizeBirthDateInput(birthRaw);
   if (birthRaw && !birthIso) {
@@ -5746,10 +5776,17 @@ function canEditStudent(student) {
   if (!state.session) {
     return false;
   }
-  if (isAdmin() || isEquipe()) {
+  if (isSadmin() || isAdmin()) {
     return true;
   }
   return student.guardian === state.session.name || student.owner === state.session.name;
+}
+
+function canCreateStudent() {
+  if (!state.session) {
+    return false;
+  }
+  return isSadmin() || isAdmin() || state.session.role === "responsavel";
 }
 
 function canDeleteStudent(student) {
@@ -6093,6 +6130,52 @@ async function uploadStudentPhoto(studentId, file) {
   const ext = getFileExtension(file);
   const path = `students/${studentId}/profile-${Date.now()}-${uid()}.${ext}`;
   return uploadFileToStorage(path, file);
+}
+
+function canManageRooms() {
+  return isSadmin() || isAdmin();
+}
+
+function canOperateRooms() {
+  return canManageRooms() || isEquipe();
+}
+
+function canOpenRoomNow(room) {
+  if (!room) {
+    return false;
+  }
+  if (!isEquipe() || canManageRooms()) {
+    return true;
+  }
+  if (room.date !== formatToday()) {
+    return false;
+  }
+  const now = currentTimeValue();
+  const start = room.startTime || room.time || "";
+  const end = room.endTime || "";
+  if (start && now < start) {
+    return false;
+  }
+  if (end && now > end) {
+    return false;
+  }
+  return true;
+}
+
+function canCloseRoomNow(room) {
+  if (!room) {
+    return false;
+  }
+  if (!isEquipe() || canManageRooms()) {
+    return true;
+  }
+  const end = room.endTime || "";
+  return !end || currentTimeValue() >= end;
+}
+
+function currentTimeValue() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
 async function uploadProfilePhotoForUser(user, file) {
@@ -6660,8 +6743,8 @@ function renderActiveRoomSelect(openRooms, activeRoom) {
   if (!els.roomActive) {
     return;
   }
-  const canManageRoom = isAdmin() || isEquipe();
-  els.roomActive.disabled = !openRooms.length && !canManageRoom;
+  const canOperateRoom = canOperateRooms();
+  els.roomActive.disabled = !openRooms.length && !canOperateRoom;
   els.roomActive.innerHTML = "";
   if (!openRooms.length) {
     const option = document.createElement("option");

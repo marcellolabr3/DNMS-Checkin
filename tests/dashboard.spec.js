@@ -14,6 +14,7 @@ test("dashboard mostra somente as tres proximas escalas", async ({ page }) => {
   await schedules.first().click({ position: { x: 16, y: 76 } });
   const expandedDetails = schedules.first().locator(".summary");
   await expect(expandedDetails).not.toContainText("Coordenador:");
+  await expect(expandedDetails).not.toContainText("Check-in:");
   await expect(expandedDetails).toContainText("Maternal:");
 });
 

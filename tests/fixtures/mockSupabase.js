@@ -6,15 +6,22 @@ function createMockSupabaseScript() {
   const mm = String(today.getMonth() + 1).padStart(2, "0");
   const dd = String(today.getDate()).padStart(2, "0");
   const todayIso = yyyy + "-" + mm + "-" + dd;
+  function timeOffset(minutes) {
+    const date = new Date(today.getTime() + minutes * 60000);
+    return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+  }
+  const startedAt = timeOffset(-120);
+  const endedAt = timeOffset(-60);
 
   const db = {
     profiles: [
       { id: "admin-1", name: "Admin DNMS", role: "admin", email: "admin@dnms.test", phone: "11999990000", address: "Rua Admin", photo_url: "" },
+      { id: "team-1", name: "Equipe DNMS", role: "equipe", email: "equipe@dnms.test", phone: "11966660000", address: "Rua Equipe", photo_url: "" },
       { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "" }
     ],
     rooms: [
-      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: "09:00", end_time: "10:00", class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null },
-      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: "09:00", end_time: "10:00", class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null }
+      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null },
+      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null }
     ],
     students: [
       { id: "student-kids", name: "Ana Kids", birth_date: (yyyy - 5) + "-04-10", class_name: "Kids", primary_guardian_name: "Responsavel Teste", phone: "11988880000", address: "Rua Familia", notes: "Alergia leve", is_visitor: false, photo_url: "" },
@@ -66,6 +73,9 @@ function createMockSupabaseScript() {
   }
 
   let currentUser = null;
+  if (new URLSearchParams(window.location.search).get("scenario") === "restore-session") {
+    currentUser = { id: "admin-1", email: "admin@dnms.test" };
+  }
   let idCounter = 1;
 
   function clone(value) {

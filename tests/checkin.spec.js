@@ -183,3 +183,27 @@ test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) 
   }
   expect(sizes.birthInput).toBeLessThanOrEqual(190);
 });
+
+test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "equipe@dnms.test");
+
+  await expect(page.locator("#sessionRole")).toContainText("Equipe");
+  await openStudentsPanel(page);
+  const ana = studentItem(page, "Ana Kids");
+  await expect(ana).toBeVisible();
+  await expect(ana.getByRole("button", { name: "Editar" })).toHaveCount(0);
+  await expect(page.locator("#btnAddStudent")).toBeDisabled();
+  await ana.getByRole("button", { name: "Check-in" }).click();
+  await expect(ana.getByRole("button", { name: "Checkout" })).toBeVisible();
+
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await expect(page.locator("#btnCreateRoom")).toBeDisabled();
+  await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
+  await expect(page.locator("#btnBulkDeleteRooms")).toBeDisabled();
+  await page.locator("#roomList .list-item").filter({ hasText: "Culto Kids" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+  await expect(page.locator("#btnRoomDialogEdit")).toBeHidden();
+  await expect(page.locator("#btnRoomDialogClose")).toBeVisible();
+});
