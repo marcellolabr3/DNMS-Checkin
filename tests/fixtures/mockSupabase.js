@@ -60,6 +60,11 @@ function createMockSupabaseScript() {
     }
   }
 
+  if (new URLSearchParams(window.location.search).get("scenario") === "single-birthday") {
+    db.students[0].birth_date = (yyyy - 5) + "-" + mm + "-10";
+    db.students[1].birth_date = (yyyy - 8) + "-01-12";
+  }
+
   let currentUser = null;
   let idCounter = 1;
 
