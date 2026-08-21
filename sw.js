@@ -1,4 +1,4 @@
-const CACHE_NAME = "checkin-cache-v112";
+const CACHE_NAME = "checkin-cache-v113";
 const ASSETS = [
   "./",
   "./index.html",
@@ -14,7 +14,8 @@ const ASSETS = [
   "./vendor/supabase-js.js",
   "./vendor/supabase-js.js?v=20260330h",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./logo-loading.png"
 ];
 
 self.addEventListener("install", (event) => {
