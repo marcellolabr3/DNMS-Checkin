@@ -5870,7 +5870,9 @@ async function printCurrentLabel(options = {}) {
     return true;
   } catch (error) {
     console.warn("Falha ao enviar etiqueta para o servico de impressao", error);
-    alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
+    if (!options.silentFailure) {
+      alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
+    }
     return false;
   } finally {
     clearTimeout(timeoutId);
@@ -5900,7 +5902,9 @@ function showLabel(person, checkin, options = {}) {
     els.labelDialog.showModal();
   }
   if (autoPrint) {
-    // Auto-print agora e responsabilidade do servico local ouvindo novos check-ins no Supabase.
+    if (shouldUseLocalPrintService()) {
+      printCurrentLabel({ checkinId: checkin.id, type: "print", silentFailure: true });
+    }
     return;
   }
 }

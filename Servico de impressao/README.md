@@ -4,6 +4,11 @@ Servico local Node.js para executar impressao da etiqueta recebendo HTML pronto 
 
 Tambem possui modo de auto-impressao: ao iniciar, ele escuta novos `checkins` no Supabase e imprime automaticamente no desktop (inclusive check-ins feitos pelo celular).
 
+Quando o PWA e usado no mesmo computador em que o servico e a Brother estao instalados, o check-in envia a etiqueta diretamente para `http://localhost:3001/print`.
+Nesse modo direto, o `SUPABASE_SERVICE_ROLE_KEY` nao e necessario para receber a etiqueta do PWA.
+
+Quando o check-in e feito em outro dispositivo, como celular ou outro computador, `localhost` aponta para esse outro dispositivo. Para imprimir na Brother do computador principal nesses casos, use o modo de auto-impressao por listener com `SUPABASE_SERVICE_ROLE_KEY`.
+
 ## Endpoints
 
 - `POST http://localhost:3001/print`
@@ -118,12 +123,13 @@ cmd /c npm run package:portable
 `dist-pacote\DNMS-Servico-de-impressao-portable.zip`
 
 3. Extraia o ZIP no computador que ficara ligado a impressora.
-4. Se quiser autoimpressao de check-ins feitos por celular, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `SUPABASE_SERVICE_ROLE_KEY`.
-5. Inicie com duplo clique em:
+4. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
+5. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `SUPABASE_SERVICE_ROLE_KEY`.
+6. Inicie com duplo clique em:
 
 `Iniciar Servico de impressao.cmd`
 
-6. Valide em:
+7. Valide em:
 
 `http://localhost:3001/health`
 
