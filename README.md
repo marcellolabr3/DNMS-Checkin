@@ -111,7 +111,7 @@ npm test
 * [x] Redesign visual responsivo
 * [x] Navegação lateral no desktop e navegação mobile compacta
 * [x] Atualização forçada do PWA ao publicar nova versão
-* [x] Carregamento inicial com logo transparente animada, sem piscar a tela de login ao restaurar sessão
+* [x] Logo transparente aplicada no carregamento, header, favicon e PWA, sem piscar a tela de login ao restaurar sessão
 * [x] Bloqueio de login para contas Auth sem perfil ativo, evitando recriar usuário excluído
 * [x] Checkout automático dos alunos ao fechar ou excluir sala
 * [x] Proteção contra mais de um check-in ativo por criança
