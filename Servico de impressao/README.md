@@ -105,6 +105,30 @@ Ou com duplo clique no arquivo:
 
 `Iniciar Servico de impressao.cmd`
 
+## Gerar pacote portatil para instalar em outro Windows
+
+1. Gere o pacote:
+
+```powershell
+cmd /c npm run package:portable
+```
+
+2. O pacote sera criado em:
+
+`dist-pacote\DNMS-Servico-de-impressao-portable.zip`
+
+3. Extraia o ZIP no computador que ficara ligado a impressora.
+4. Se quiser autoimpressao de check-ins feitos por celular, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `SUPABASE_SERVICE_ROLE_KEY`.
+5. Inicie com duplo clique em:
+
+`Iniciar Servico de impressao.cmd`
+
+6. Valide em:
+
+`http://localhost:3001/health`
+
+O servico esta operacional quando o health retornar `ok: true` e `target_printer` com uma impressora contendo `BROTHER QL-810W`.
+
 ## Requisito para o executavel
 
 O executavel usa Chrome/Edge instalado no Windows para renderizar o HTML em modo invisivel.

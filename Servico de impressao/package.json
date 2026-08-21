@@ -10,7 +10,8 @@
     "prepare:sumatra": "node ./scripts/prepare-sumatra.js",
     "start:bg": "powershell -ExecutionPolicy Bypass -File ./scripts/start-background.ps1",
     "stop:bg": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-background.ps1",
-    "build:exe": "cmd /c npm run prepare:sumatra && npx pkg server.js --targets node18-win-x64 --output dist/Servico-de-impressao.exe"
+    "build:exe": "cmd /c npm run prepare:sumatra && npx pkg server.js --targets node18-win-x64 --output dist/Servico-de-impressao.exe",
+    "package:portable": "powershell -ExecutionPolicy Bypass -File ./scripts/package-portable.ps1"
   },
   "dependencies": {
     "cors": "^2.8.5",

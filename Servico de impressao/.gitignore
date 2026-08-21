@@ -3,3 +3,4 @@ node_modules/
 npm-debug.log*
 bin/*.exe
 dist/*.exe
+dist-pacote/
