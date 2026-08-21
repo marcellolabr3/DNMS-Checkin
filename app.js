@@ -32,6 +32,7 @@ const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
+const labelContext = { checkinId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
 const panelRefreshContext = { inProgress: false, pendingPanel: "" };
@@ -5834,18 +5835,21 @@ async function handleManualCheckin(studentId, options = {}) {
 }
 
 async function printCurrentLabel(options = {}) {
+  const checkinId = options.checkinId || labelContext.checkinId || "";
+  const type = options.type === "reprint" ? "reprint" : "print";
   if (!shouldUseLocalPrintService()) {
     // Em celular/PWA mobile, localhost aponta para o proprio aparelho.
-    // O check-in deve seguir sem bloquear por impressao local.
+    // Check-in segue pelo listener do servico; reimpressao vira fila no Supabase.
+    if (type === "reprint") {
+      return requestRemoteReprint(checkinId, { silentFailure: options.silentFailure });
+    }
     return true;
   }
   if (!els.labelPreview?.innerHTML) {
     return false;
   }
-  const checkinId = options.checkinId || uid();
-  const type = options.type === "reprint" ? "reprint" : "print";
   const payload = {
-    checkin_id: checkinId,
+    checkin_id: checkinId || uid(),
     conteudo: buildLabelDocumentHtml(els.labelPreview.innerHTML),
     tipo: type
   };
@@ -5870,6 +5874,9 @@ async function printCurrentLabel(options = {}) {
     return true;
   } catch (error) {
     console.warn("Falha ao enviar etiqueta para o servico de impressao", error);
+    if (type === "reprint" && checkinId) {
+      return requestRemoteReprint(checkinId, { silentFailure: options.silentFailure });
+    }
     if (!options.silentFailure) {
       alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
     }
@@ -5881,6 +5888,31 @@ async function printCurrentLabel(options = {}) {
 
 function shouldUseLocalPrintService() {
   return !isMobileDevice();
+}
+
+async function requestRemoteReprint(checkinId, options = {}) {
+  if (!supabaseClient || !checkinId) {
+    if (!options.silentFailure) {
+      alert("Nao foi possivel solicitar reimpressao remota.");
+    }
+    return false;
+  }
+  const { error } = await supabaseClient.from("print_jobs").insert({
+    job_type: "reprint",
+    checkin_id: checkinId,
+    status: "pending"
+  });
+  if (error) {
+    const duplicate = error.code === "23505" || String(error.message || "").includes("print_jobs_one_open");
+    if (!options.silentFailure) {
+      alert(duplicate ? "Essa reimpressao ja esta na fila." : `Falha ao solicitar reimpressao: ${error.message}`);
+    }
+    return duplicate;
+  }
+  if (!options.silentFailure) {
+    alert("Reimpressao enviada para a fila da Brother.");
+  }
+  return true;
 }
 
 function showLabel(person, checkin, options = {}) {
@@ -5897,6 +5929,7 @@ function showLabel(person, checkin, options = {}) {
       <div class="label-line">Observacao: ${notes || "{{observacao}}"}</div>
     </div>
   `;
+  labelContext.checkinId = checkin?.id || "";
   els.labelPreview.innerHTML = label;
   if (openPreview) {
     els.labelDialog.showModal();

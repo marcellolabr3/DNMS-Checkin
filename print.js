@@ -139,11 +139,12 @@ async function printCheckin(checkin) {
     labelHtml: els.printLabel.innerHTML
   });
   if (!sent) {
-    return;
+    return false;
   }
   if (checkin.markPrinted) {
     await markPrinted(checkin.id);
   }
+  return sent;
 }
 
 async function fetchStudent(studentId) {
@@ -260,14 +261,20 @@ async function handleConfirmReprintFromDialog() {
     return;
   }
   isPrinting = true;
+  let result = false;
   try {
-    await printCheckin({ ...latest, markPrinted: false });
+    result = await printCheckin({ ...latest, markPrinted: false });
   } finally {
     isPrinting = false;
   }
   processQueue();
   if (els.printAuthStatus) {
-    els.printAuthStatus.textContent = `Etiqueta reimpressa para ${reprintContext.studentName}.`;
+    els.printAuthStatus.textContent =
+      result === "printed"
+        ? `Etiqueta reimpressa para ${reprintContext.studentName}.`
+        : result === "queued"
+          ? `Reimpressao enviada para a fila da Brother para ${reprintContext.studentName}.`
+          : `Falha ao solicitar reimpressao para ${reprintContext.studentName}.`;
   }
 }
 
@@ -298,14 +305,34 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
       } catch (_error) {}
       throw new Error(message);
     }
-    return true;
+    return "printed";
   } catch (error) {
     console.warn("Falha ao enviar para servico de impressao", error);
+    if (type === "reprint" && checkinId) {
+      const queued = await requestRemoteReprint(checkinId);
+      return queued ? "queued" : false;
+    }
     alert(`Falha ao imprimir: ${error?.message || "servico indisponivel"}`);
     return false;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function requestRemoteReprint(checkinId) {
+  const { error } = await supabaseClient.from("print_jobs").insert({
+    job_type: "reprint",
+    checkin_id: checkinId,
+    status: "pending"
+  });
+  if (error) {
+    const duplicate = error.code === "23505" || String(error.message || "").includes("print_jobs_one_open");
+    if (!duplicate) {
+      alert(`Falha ao solicitar reimpressao remota: ${error.message}`);
+      return false;
+    }
+  }
+  return true;
 }
 
 function buildLabelDocumentHtml(labelBodyHtml) {

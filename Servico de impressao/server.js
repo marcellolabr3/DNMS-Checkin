@@ -20,12 +20,18 @@ const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
 const SUPABASE_ACCESS_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT;
 const supabaseClient = SUPABASE_ACCESS_KEY ? createClient(SUPABASE_URL, SUPABASE_ACCESS_KEY) : null;
+const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY);
 
 const autoPrintQueue = [];
 const autoPrintSeen = new Set();
+const reprintJobSeen = new Set();
+const PRINT_WORKER_ID = `${os.hostname()}-${process.pid}`;
 let autoPrintProcessing = false;
+let reprintJobProcessing = false;
 let realtimeChannel = null;
+let reprintJobsChannel = null;
 let autoPrintPollTimer = null;
+let reprintJobPollTimer = null;
 
 const app = express();
 
@@ -53,6 +59,8 @@ app.get("/health", async (_req, res) => {
       target_printer: printer.name || "-",
       auto_print_listener: Boolean(supabaseClient),
       auto_print_polling: Boolean(autoPrintPollTimer),
+      reprint_queue_listener: Boolean(supabaseClient && canUseReprintQueue),
+      reprint_queue_polling: Boolean(reprintJobPollTimer),
       supabase_role: usingServiceRole ? "service_role" : "anon"
     });
   } catch (error) {
@@ -350,7 +358,7 @@ async function processAutoPrintQueue() {
   autoPrintProcessing = false;
 }
 
-async function printCheckinById(checkinId) {
+async function printCheckinById(checkinId, options = {}) {
   if (!supabaseClient || !checkinId) {
     return;
   }
@@ -362,7 +370,8 @@ async function printCheckinById(checkinId) {
   if (checkinError || !checkin) {
     throw new Error(`checkin nao encontrado: ${checkinError?.message || "-"}`);
   }
-  if (checkin.printed_at) {
+  const isReprint = options.type === "reprint";
+  if (checkin.printed_at && !isReprint) {
     return;
   }
 
@@ -395,13 +404,15 @@ async function printCheckinById(checkinId) {
     pages: "1"
   });
   await safeUnlink(pdfPath);
-  await markCheckinPrinted(checkinId);
+  if (!isReprint) {
+    await markCheckinPrinted(checkinId);
+  }
   logPrint({
     checkinId,
-    tipo: "print",
+    tipo: isReprint ? "reprint" : "print",
     date: new Date(),
     status: "sucesso",
-    details: `Auto-print via listener (${printer.name || "-"})`
+    details: `${isReprint ? "Reimpressao via fila" : "Auto-print via listener"} (${printer.name || "-"})`
   });
 }
 
@@ -460,6 +471,122 @@ function startAutoPrintPolling() {
   }
   console.log(
     `[Servico de impressao] polling de check-ins pendentes ativo (intervalo ${AUTO_PRINT_POLL_INTERVAL_MS}ms).`
+  );
+}
+
+function triggerReprintJobProcessing() {
+  processPendingReprintJobs().catch((error) => {
+    console.warn("[Servico de impressao] falha ao processar fila de reimpressao:", error?.message || error);
+  });
+}
+
+async function processPendingReprintJobs() {
+  if (!supabaseClient || !canUseReprintQueue || reprintJobProcessing) {
+    return;
+  }
+  reprintJobProcessing = true;
+  try {
+    while (true) {
+      const job = await claimNextReprintJob();
+      if (!job?.id) {
+        break;
+      }
+      if (reprintJobSeen.has(job.id)) {
+        break;
+      }
+      reprintJobSeen.add(job.id);
+      try {
+        await printCheckinById(job.checkin_id, { type: "reprint" });
+        await completeReprintJob(job.id);
+      } catch (error) {
+        await failReprintJob(job.id, error);
+        console.warn(`[Servico de impressao] falha na reimpressao ${job.id}:`, error?.message || error);
+      } finally {
+        reprintJobSeen.delete(job.id);
+      }
+    }
+  } finally {
+    reprintJobProcessing = false;
+  }
+}
+
+async function claimNextReprintJob() {
+  const { data, error } = await supabaseClient.rpc("claim_next_reprint_job", {
+    worker_id: PRINT_WORKER_ID
+  });
+  if (error) {
+    const missing = String(error.message || "").includes("claim_next_reprint_job");
+    if (!missing) {
+      console.warn("[Servico de impressao] falha ao reservar reimpressao:", error.message || error);
+    }
+    return null;
+  }
+  return Array.isArray(data) ? data[0] || null : data || null;
+}
+
+async function completeReprintJob(jobId) {
+  if (!jobId) {
+    return;
+  }
+  await supabaseClient
+    .from("print_jobs")
+    .update({
+      status: "printed",
+      printed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      error_message: null
+    })
+    .eq("id", jobId);
+}
+
+async function failReprintJob(jobId, error) {
+  if (!jobId) {
+    return;
+  }
+  const message = String(error?.message || error || "Falha ao reimprimir.").slice(0, 1000);
+  await supabaseClient
+    .from("print_jobs")
+    .update({
+      status: "failed",
+      failed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      error_message: message
+    })
+    .eq("id", jobId);
+}
+
+async function startRealtimeReprintJobs() {
+  if (!supabaseClient || !canUseReprintQueue) {
+    return;
+  }
+  await processPendingReprintJobs();
+  reprintJobsChannel = supabaseClient
+    .channel("reprint-jobs-service")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "print_jobs" }, (payload) => {
+      if (payload?.new?.job_type === "reprint" && payload?.new?.status === "pending") {
+        triggerReprintJobProcessing();
+      }
+    })
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        console.log("[Servico de impressao] Listener de reimpressao ativo.");
+      }
+    });
+}
+
+function startReprintJobPolling() {
+  if (!supabaseClient || !canUseReprintQueue) {
+    return;
+  }
+  if (reprintJobPollTimer) {
+    clearInterval(reprintJobPollTimer);
+  }
+  reprintJobPollTimer = setInterval(triggerReprintJobProcessing, AUTO_PRINT_POLL_INTERVAL_MS);
+  if (typeof reprintJobPollTimer?.unref === "function") {
+    reprintJobPollTimer.unref();
+  }
+  console.log(
+    `[Servico de impressao] polling de reimpressao ativo (intervalo ${AUTO_PRINT_POLL_INTERVAL_MS}ms).`
   );
 }
 
@@ -535,7 +662,11 @@ app.listen(PORT, () => {
     `[Servico de impressao] Supabase auth: ${SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "anon"}`
   );
   startAutoPrintPolling();
+  startReprintJobPolling();
   startRealtimeAutoPrint().catch((error) => {
     console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
+  });
+  startRealtimeReprintJobs().catch((error) => {
+    console.warn("[Servico de impressao] falha ao iniciar listener de reimpressao:", error?.message || error);
   });
 });

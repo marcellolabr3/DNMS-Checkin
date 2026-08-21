@@ -33,6 +33,20 @@ Ao iniciar, o servico:
 
 Para esse modo funcionar com permissao completa, use `SUPABASE_SERVICE_ROLE_KEY` (pode estar no `.codex-secrets.env`).
 
+## Reimpressao remota por fila
+
+Reimpressao feita no proprio computador da Brother continua usando `http://localhost:3001/reprint`.
+
+Quando a reimpressao for solicitada fora do computador da Brother, o app cria um registro em `print_jobs`. O servico de impressao, rodando com `SUPABASE_SERVICE_ROLE_KEY`, reserva um job por vez com `claim_next_reprint_job`, imprime e marca o job como `printed`.
+
+Antes de usar esse fluxo, aplique no Supabase:
+
+```sql
+supabase/patch_reprint_queue.sql
+```
+
+A tabela impede mais de uma reimpressao aberta para o mesmo check-in (`pending` ou `processing`). Se houver duas instancias do servico, apenas uma reserva cada job.
+
 ## Payload esperado
 
 ```json
