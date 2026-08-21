@@ -1006,12 +1006,11 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
-    let profile = await fetchProfile(session.user.id);
+    const profile = await fetchProfile(session.user.id);
     if (!profile) {
-      profile = await ensureProfileFromAuthUser(session.user);
-    }
-    if (!profile) {
+      await supabaseClient.auth.signOut();
       state.session = null;
+      alert("Usuario nao encontrado. Solicite um novo cadastro ao administrador.");
       render();
       return;
     }

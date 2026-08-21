@@ -112,6 +112,7 @@ npm test
 * [x] Navegação lateral no desktop e navegação mobile compacta
 * [x] Atualização forçada do PWA ao publicar nova versão
 * [x] Carregamento inicial sem piscar a tela de login ao restaurar sessão
+* [x] Bloqueio de login para contas Auth sem perfil ativo, evitando recriar usuário excluído
 * [x] Checkout automático dos alunos ao fechar ou excluir sala
 * [x] Proteção contra mais de um check-in ativo por criança
 * [x] Testes automatizados (fluxos críticos e regressão)

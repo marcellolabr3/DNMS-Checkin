@@ -42,6 +42,32 @@ test("restauracao lenta mostra carregamento sem piscar login", async ({ page }) 
   await expect(page.locator("#sessionRole")).toContainText("Admin");
 });
 
+test("sessao sem perfil faz logout e nao recria usuario excluido", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=missing-profile-session", waitForAuth: false });
+
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect(page.locator("#sessionRole")).toContainText("Deslogado");
+  await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("Usuario nao encontrado"));
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "deleted-auth-1"))))
+    .toBe(false);
+});
+
+test("login com auth sem perfil e bloqueado sem recriar usuario", async ({ page }) => {
+  await openApp(page);
+
+  await page.fill("#loginEmail", "excluido@dnms.test");
+  await page.fill("#loginPassword", "senha123");
+  await page.click("#btnLogin");
+
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect(page.locator("#sessionRole")).toContainText("Deslogado");
+  await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("Usuario nao encontrado"));
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "deleted-auth-1"))))
+    .toBe(false);
+});
+
 test("nome do usuario e salvo com iniciais maiusculas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

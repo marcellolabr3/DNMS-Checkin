@@ -19,7 +19,8 @@ function createMockSupabaseScript() {
       { id: "admin-1", email: "admin@dnms.test" },
       { id: "team-1", email: "equipe@dnms.test" },
       { id: "parent-1", email: "responsavel@dnms.test" },
-      { id: "parent-2", email: "secundario@dnms.test" }
+      { id: "parent-2", email: "secundario@dnms.test" },
+      { id: "deleted-auth-1", email: "excluido@dnms.test" }
     ],
     profiles: [
       { id: "sadmin-1", name: "Sadmin DNMS", role: "admin", email: "marvinlabre@gmail.com", phone: "11911110000", address: "Rua Sadmin", photo_url: "" },
@@ -86,6 +87,9 @@ function createMockSupabaseScript() {
   let currentUser = null;
   if (["restore-session", "slow-restore-session"].includes(new URLSearchParams(window.location.search).get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };
+  }
+  if (new URLSearchParams(window.location.search).get("scenario") === "missing-profile-session") {
+    currentUser = { id: "deleted-auth-1", email: "excluido@dnms.test" };
   }
   let idCounter = 1;
 
@@ -330,12 +334,11 @@ function createMockSupabaseScript() {
             if (!password || password === "erro") {
               return { data: null, error: { message: "Invalid login credentials" } };
             }
-            const profile = db.profiles.find((item) => item.email === String(email || "").toLowerCase());
             const authUser = db.auth_users.find((item) => item.email === String(email || "").toLowerCase());
-            if (!profile || !authUser) {
+            if (!authUser) {
               return { data: null, error: { message: "Invalid login credentials" } };
             }
-            currentUser = { id: profile.id, email: profile.email };
+            currentUser = { id: authUser.id, email: authUser.email };
             return { data: { user: currentUser, session: { user: currentUser } }, error: null };
           },
           async signOut() {
