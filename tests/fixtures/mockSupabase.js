@@ -84,13 +84,17 @@ function createMockSupabaseScript() {
   }
 
   let currentUser = null;
-  if (new URLSearchParams(window.location.search).get("scenario") === "restore-session") {
+  if (["restore-session", "slow-restore-session"].includes(new URLSearchParams(window.location.search).get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };
   }
   let idCounter = 1;
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   function normalizeValue(row, column) {
@@ -317,6 +321,9 @@ function createMockSupabaseScript() {
       return {
         auth: {
           async getSession() {
+            if (new URLSearchParams(window.location.search).get("scenario") === "slow-restore-session") {
+              await delay(1000);
+            }
             return { data: { session: currentUser ? { user: currentUser } : null }, error: null };
           },
           async signInWithPassword({ email, password }) {

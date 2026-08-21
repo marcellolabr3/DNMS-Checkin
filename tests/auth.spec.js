@@ -33,6 +33,15 @@ test("restauracao de sessao nao mostra tela de login", async ({ page }) => {
   await expect(page.locator("#sessionRole")).toContainText("Admin");
 });
 
+test("restauracao lenta mostra carregamento sem piscar login", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=slow-restore-session", waitForAuth: false });
+
+  await expect(page.locator("#bootCard")).toBeVisible({ timeout: 200 });
+  await expect(page.locator("#authCard")).toBeHidden();
+  await expect(page.locator("#dashboardCard")).toBeVisible();
+  await expect(page.locator("#sessionRole")).toContainText("Admin");
+});
+
 test("nome do usuario e salvo com iniciais maiusculas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

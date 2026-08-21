@@ -38,6 +38,7 @@ const panelRefreshContext = { inProgress: false, pendingPanel: "" };
 const bootContext = { loadingSession: Boolean(supabaseClient) };
 
 const els = {
+  bootCard: document.getElementById("bootCard"),
   sessionRole: document.getElementById("sessionRole"),
   btnHomePanel: document.getElementById("btnHomePanel"),
   btnRoomsPanel: document.getElementById("btnRoomsPanel"),
@@ -1023,15 +1024,16 @@ async function hydrateFromSupabase() {
       address: profile.address || "",
       photoUrl: profile.photo_url || ""
     };
+    bootContext.loadingSession = false;
+    ensureDefaultActivePanel();
+    render();
     await uploadPendingProfilePhoto(session.user);
-    await fetchRooms();
-    await fetchStudents();
-    await fetchCheckins();
-    await fetchAuditLogs();
+    await Promise.all([fetchRooms(), fetchStudents()]);
+    const dataTasks = [fetchCheckins(), fetchAuditLogs(), fetchDashboardData()];
     if (canAccessManagementPanel() || isEquipe()) {
-      await fetchProfiles();
+      dataTasks.push(fetchProfiles());
     }
-    await fetchDashboardData();
+    await Promise.all(dataTasks);
     normalizeStudents();
     ensureDefaultActivePanel();
     if (canAccessManagementPanel()) {
@@ -2005,7 +2007,12 @@ function renderRoleVisibility() {
   const logCard = document.getElementById("logCard");
   const inviteCard = document.getElementById("inviteCard");
   const authCard = document.getElementById("authCard");
+  const bootCard = els.bootCard || document.getElementById("bootCard");
   const isResponsavel = session?.role === "responsavel";
+
+  if (bootCard) {
+    bootCard.style.display = bootContext.loadingSession ? "flex" : "none";
+  }
 
   if (authCard) {
     authCard.style.display = session || bootContext.loadingSession ? "none" : "flex";
