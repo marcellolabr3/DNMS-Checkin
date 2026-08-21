@@ -293,6 +293,9 @@ test("exclusao de usuario remove filhos somente quando ele e responsavel princip
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2"))))
     .toBe(false);
   await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.auth_users.find((item) => item.id === "parent-2"))))
+    .toBe(false);
+  await expect
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.students.find((item) => item.id === "student-kids"))))
     .toBe(true);
   await expect
@@ -305,6 +308,9 @@ test("exclusao de usuario remove filhos somente quando ele e responsavel princip
   await page.click("#btnFamilyDeleteUser");
   await expect
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.profiles.find((item) => item.id === "parent-1"))))
+    .toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.auth_users.find((item) => item.id === "parent-1"))))
     .toBe(false);
   await expect
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.students.find((item) => item.id === "student-kids"))))

@@ -44,6 +44,12 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_checkin_active_guard.sql`
 - `supabase/patch_audit_logs.sql`
 - `supabase/patch_responsavel_delete_own_student.sql`
+- `supabase/patch_delete_user_account.sql`
+
+### Exclusao completa de usuario (atual)
+- A exclusao feita por `SADMIN`/`Admin` deve chamar a RPC `delete_user_account`.
+- Essa RPC remove o usuario de `auth.users`, alem de limpar `profiles`, vinculos, filhos principais e check-ins relacionados.
+- Sem aplicar `patch_delete_user_account.sql`, excluir apenas `profiles` deixa a conta Auth ativa e o usuario pode continuar ocupando espaco no Auth.
 
 ### Proteção de check-in ativo (atual)
 - Regra: cada criança pode ter no máximo 1 check-in ativo (`checked_out_at IS NULL`).

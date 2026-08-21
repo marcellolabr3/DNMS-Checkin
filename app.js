@@ -4155,50 +4155,26 @@ async function deleteProfileAndOwnedStudents(profile) {
   if (!supabaseClient || !profile?.id) {
     return { ok: false, message: "Banco de dados indisponivel para excluir usuario." };
   }
-  const primaryStudentIds = getPrimaryStudentIdsForProfile(profile);
-  const deletedChildren = (state.students || [])
-    .filter((student) => primaryStudentIds.includes(student.id))
-    .map((student) => student.name)
-    .filter(Boolean);
-  const linkedStudentIds = await getLinkedStudentIdsForProfile(profile.id);
-  const onlyLinkedStudentIds = linkedStudentIds.filter((studentId) => !primaryStudentIds.includes(studentId));
-
-  if (primaryStudentIds.length) {
-    const checkinsResult = await supabaseClient.from("checkins").delete().in("student_id", primaryStudentIds);
-    if (checkinsResult.error) {
-      return { ok: false, message: `Falha ao excluir check-ins dos filhos: ${checkinsResult.error.message || "erro inesperado"}` };
+  const { data, error } = await supabaseClient.rpc("delete_user_account", {
+    target_profile_id: profile.id
+  });
+  if (error) {
+    const message = String(error.message || "").toLowerCase();
+    if (message.includes("delete_user_account") || message.includes("function") || error.code === "42883") {
+      return {
+        ok: false,
+        message: "Falha ao excluir usuario: aplique o patch supabase/patch_delete_user_account.sql no Supabase."
+      };
     }
-    const linksResult = await supabaseClient.from("student_guardians").delete().in("student_id", primaryStudentIds);
-    if (linksResult.error) {
-      return { ok: false, message: `Falha ao excluir vinculos dos filhos: ${linksResult.error.message || "erro inesperado"}` };
-    }
-    const studentsResult = await supabaseClient.from("students").delete().in("id", primaryStudentIds);
-    if (studentsResult.error) {
-      return { ok: false, message: `Falha ao excluir filhos do usuario: ${studentsResult.error.message || "erro inesperado"}` };
-    }
+    return { ok: false, message: `Falha ao excluir usuario: ${error.message || "erro inesperado"}` };
   }
-
-  if (onlyLinkedStudentIds.length) {
-    const linkedResult = await supabaseClient
-      .from("student_guardians")
-      .delete()
-      .eq("guardian_id", profile.id)
-      .in("student_id", onlyLinkedStudentIds);
-    if (linkedResult.error) {
-      return { ok: false, message: `Falha ao remover vinculos do usuario: ${linkedResult.error.message || "erro inesperado"}` };
-    }
-  } else {
-    const linkedResult = await supabaseClient.from("student_guardians").delete().eq("guardian_id", profile.id);
-    if (linkedResult.error) {
-      return { ok: false, message: `Falha ao remover vinculos do usuario: ${linkedResult.error.message || "erro inesperado"}` };
-    }
-  }
-
-  const profileResult = await supabaseClient.from("profiles").delete().eq("id", profile.id);
-  if (profileResult.error) {
-    return { ok: false, message: `Falha ao excluir usuario: ${profileResult.error.message || "erro inesperado"}` };
-  }
-  return { ok: true, deletedChildren, deletedPrimaryStudentIds: primaryStudentIds };
+  const result = data || {};
+  return {
+    ok: true,
+    deletedChildren: result.deleted_children || [],
+    deletedPrimaryStudentIds: result.deleted_primary_student_ids || [],
+    deletedAuthUser: result.deleted_auth_user === true
+  };
 }
 
 async function getLinkedStudentIdsForProfile(profileId) {

@@ -14,6 +14,13 @@ function createMockSupabaseScript() {
   const endedAt = timeOffset(-60);
 
   const db = {
+    auth_users: [
+      { id: "sadmin-1", email: "marvinlabre@gmail.com" },
+      { id: "admin-1", email: "admin@dnms.test" },
+      { id: "team-1", email: "equipe@dnms.test" },
+      { id: "parent-1", email: "responsavel@dnms.test" },
+      { id: "parent-2", email: "secundario@dnms.test" }
+    ],
     profiles: [
       { id: "sadmin-1", name: "Sadmin DNMS", role: "admin", email: "marvinlabre@gmail.com", phone: "11911110000", address: "Rua Sadmin", photo_url: "" },
       { id: "admin-1", name: "Admin DNMS", role: "admin", email: "admin@dnms.test", phone: "11999990000", address: "Rua Admin", photo_url: "" },
@@ -88,6 +95,79 @@ function createMockSupabaseScript() {
 
   function normalizeValue(row, column) {
     return row[column];
+  }
+
+  function canDeleteProfile(actorId, targetId) {
+    if (!actorId || !targetId || actorId === targetId) {
+      return false;
+    }
+    const actor = db.profiles.find((item) => item.id === actorId);
+    const target = db.profiles.find((item) => item.id === targetId);
+    if (!actor || !target) {
+      return false;
+    }
+    if (String(actor.email || "").toLowerCase() === "marvinlabre@gmail.com") {
+      return true;
+    }
+    if (actor.role === "admin") {
+      return ["equipe", "responsavel", "dnms_kids"].includes(target.role);
+    }
+    return false;
+  }
+
+  function deleteUserAccount(targetProfileId) {
+    if (!canDeleteProfile(currentUser?.id, targetProfileId)) {
+      return { data: null, error: { message: "Sem permissao para excluir este usuario." } };
+    }
+    const profile = db.profiles.find((item) => item.id === targetProfileId);
+    if (!profile) {
+      return { data: null, error: { message: "Perfil nao encontrado." } };
+    }
+    const profileName = String(profile.name || "").trim().toLowerCase();
+    const primaryStudentIds = db.students
+      .filter((student) => String(student.primary_guardian_name || "").trim().toLowerCase() === profileName)
+      .map((student) => student.id);
+    const deletedChildren = db.students
+      .filter((student) => primaryStudentIds.includes(student.id))
+      .map((student) => student.name);
+
+    for (let index = db.checkins.length - 1; index >= 0; index -= 1) {
+      if (primaryStudentIds.includes(db.checkins[index].student_id)) {
+        db.checkins.splice(index, 1);
+      }
+    }
+    for (let index = db.student_guardians.length - 1; index >= 0; index -= 1) {
+      const link = db.student_guardians[index];
+      if (primaryStudentIds.includes(link.student_id) || link.guardian_id === targetProfileId) {
+        db.student_guardians.splice(index, 1);
+      }
+    }
+    for (let index = db.students.length - 1; index >= 0; index -= 1) {
+      if (primaryStudentIds.includes(db.students[index].id)) {
+        db.students.splice(index, 1);
+      }
+    }
+    for (let index = db.profiles.length - 1; index >= 0; index -= 1) {
+      if (db.profiles[index].id === targetProfileId) {
+        db.profiles.splice(index, 1);
+      }
+    }
+    let deletedAuthUser = false;
+    for (let index = db.auth_users.length - 1; index >= 0; index -= 1) {
+      if (db.auth_users[index].id === targetProfileId) {
+        db.auth_users.splice(index, 1);
+        deletedAuthUser = true;
+      }
+    }
+    return {
+      data: {
+        ok: true,
+        deleted_auth_user: deletedAuthUser,
+        deleted_children: deletedChildren,
+        deleted_primary_student_ids: primaryStudentIds
+      },
+      error: null
+    };
   }
 
   class Query {
@@ -244,7 +324,8 @@ function createMockSupabaseScript() {
               return { data: null, error: { message: "Invalid login credentials" } };
             }
             const profile = db.profiles.find((item) => item.email === String(email || "").toLowerCase());
-            if (!profile) {
+            const authUser = db.auth_users.find((item) => item.email === String(email || "").toLowerCase());
+            if (!profile || !authUser) {
               return { data: null, error: { message: "Invalid login credentials" } };
             }
             currentUser = { id: profile.id, email: profile.email };
@@ -265,6 +346,12 @@ function createMockSupabaseScript() {
         },
         from(table) {
           return new Query(table);
+        },
+        async rpc(name, params) {
+          if (name === "delete_user_account") {
+            return deleteUserAccount(params?.target_profile_id);
+          }
+          return { data: null, error: { message: "Function not found", code: "42883" } };
         },
         storage: {
           from() {
