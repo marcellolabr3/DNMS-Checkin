@@ -817,7 +817,7 @@ function renderTipsComposerControls() {
     .concat(
       state.profiles
         .filter((profile) => profile.id !== state.session?.id)
-        .map((profile) => `<option value="${profile.id}">${profile.name} (${formatRole(profile.role)})</option>`)
+        .map((profile) => `<option value="${escapeAttribute(profile.id)}">${escapeHtml(profile.name)} (${formatRole(profile.role)})</option>`)
     )
     .join("");
   els.tipsRecipientSelect.innerHTML = options;
@@ -1358,7 +1358,7 @@ function renderRooms() {
     details.className = "room-month-group";
     details.open = index === 0 || group.rooms.some((room) => room.status === "Aberta");
     const summary = document.createElement("summary");
-    summary.innerHTML = `<strong>${group.label}</strong><span>${group.rooms.length} evento(s)</span>`;
+    summary.innerHTML = `<strong>${escapeHtml(group.label)}</strong><span>${group.rooms.length} evento(s)</span>`;
     details.appendChild(summary);
     group.rooms.forEach((room) => {
       details.appendChild(createRoomListItem(room, canManageRoom, selectedSet));
@@ -1373,12 +1373,12 @@ function createRoomListItem(room, canManageRoom, selectedSet) {
   item.innerHTML = `
     ${
       canManageRoom
-        ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${room.id}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
+        ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
         : ""
     }
-    <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
-    <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
-    <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
+    <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}</strong>
+    <span class="muted">Turma: ${escapeHtml(room.classTarget || "-")} | Status: ${escapeHtml(room.status)}</span>
+    <span class="muted">Abertura: ${escapeHtml(room.openedAt || "-")} | Fechamento: ${escapeHtml(room.closedAt || "-")}</span>
   `;
   item.addEventListener("click", (event) => {
     const target = event.target;
@@ -1736,22 +1736,22 @@ function renderStudents() {
       targetRoom && state.checkins.find((checkin) => checkin.roomId === targetRoom.id && checkin.studentId === student.id)
     );
     const checkoutButton = openCheckin
-      ? `<button class="ghost" data-checkout="${student.id}">Checkout</button>`
+      ? `<button class="ghost" data-checkout="${escapeAttribute(student.id)}">Checkout</button>`
       : "";
     item.innerHTML = `
       <div class="student-list-card">
-        <img class="student-list-photo" src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
+        <img class="student-list-photo" src="${escapeAttribute(student.photoUrl || getStudentPhotoPlaceholderUrl())}" alt="Foto de ${escapeAttribute(student.name)}" />
         <div class="student-list-content">
-          ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${student.id}" /></label>` : ""}
-          <strong>${student.name}</strong>
-          <span class="muted">Turma: ${className} | Responsavel: ${student.guardian}</span>
-          <span class="muted">Nascimento: ${birthLabel} | Observacoes: ${observationText}</span>
-          <span class="muted">Telefone do responsavel: ${contact.phone || "-"}</span>
-          <span class="muted">Endereco do responsavel: ${contact.address || "-"}</span>
+          ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${escapeAttribute(student.id)}" /></label>` : ""}
+          <strong>${escapeHtml(student.name)}</strong>
+          <span class="muted">Turma: ${escapeHtml(className)} | Responsavel: ${escapeHtml(student.guardian)}</span>
+          <span class="muted">Nascimento: ${escapeHtml(birthLabel)} | Observacoes: ${escapeHtml(observationText)}</span>
+          <span class="muted">Telefone do responsavel: ${escapeHtml(contact.phone || "-")}</span>
+          <span class="muted">Endereco do responsavel: ${escapeHtml(contact.address || "-")}</span>
           <div class="actions">
-            ${canEditStudent(student) ? `<button class="ghost" data-edit="${student.id}">Editar</button>` : ""}
+            ${canEditStudent(student) ? `<button class="ghost" data-edit="${escapeAttribute(student.id)}">Editar</button>` : ""}
             ${checkoutButton}
-            <button class="primary" data-checkin="${student.id}">Check-in</button>
+            <button class="primary" data-checkin="${escapeAttribute(student.id)}">Check-in</button>
           </div>
         </div>
       </div>
@@ -1856,7 +1856,7 @@ function renderDashboard() {
   if (roomsWithoutTime.length) {
     alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
   }
-  const alertsLine = alerts.length ? `${alerts.join("<br />")}<br />` : "";
+  const alertsLine = alerts.length ? `${alerts.map((alert) => escapeHtml(alert)).join("<br />")}<br />` : "";
   const infoText = state.dashboardInfo || "Nenhuma informacao cadastrada.";
   const neuroExpanded = Boolean(state.ui.dashboardNeuroExpanded);
   const neuroSummaryHtml = neuroStudents.length
@@ -1868,14 +1868,14 @@ function renderDashboard() {
           ${neuroStudents
             .map(
               (student) =>
-                `<button type="button" class="ghost" data-dashboard-neuro-student="${student.id}" style="text-align:left;justify-content:flex-start">${student.name}</button>`
+                `<button type="button" class="ghost" data-dashboard-neuro-student="${escapeAttribute(student.id)}" style="text-align:left;justify-content:flex-start">${escapeHtml(student.name)}</button>`
             )
             .join("")}
         </div>`
       : "";
   els.dashboardAlerts.innerHTML = `
     <strong>Informacoes</strong><br />
-    ${infoText}<br />
+    ${escapeHtml(infoText)}<br />
     ${alertsLine}
   `;
   els.dashboardAttention.innerHTML = `
@@ -1921,17 +1921,17 @@ function renderDashboard() {
         const detailsHtml = expanded
           ? `
             <div class="summary" style="margin-top:8px">
-              <strong>Maternal:</strong> ${(group.roles.MATERNAL || []).join(", ") || "-"}<br />
-              <strong>Kids:</strong> ${(group.roles.KIDS || []).join(", ") || "-"}<br />
-              <strong>Juniors:</strong> ${(group.roles.JUNIORS || []).join(", ") || "-"}<br />
-              <strong>Teens:</strong> ${(group.roles.TEENS || []).join(", ") || "-"}
+              <strong>Maternal:</strong> ${escapeHtml((group.roles.MATERNAL || []).join(", ") || "-")}<br />
+              <strong>Kids:</strong> ${escapeHtml((group.roles.KIDS || []).join(", ") || "-")}<br />
+              <strong>Juniors:</strong> ${escapeHtml((group.roles.JUNIORS || []).join(", ") || "-")}<br />
+              <strong>Teens:</strong> ${escapeHtml((group.roles.TEENS || []).join(", ") || "-")}
             </div>
           `
           : "";
         return `
-          <div class="list-item dashboard-schedule-card" data-schedule-date="${group.date}" role="button" tabindex="0">
+          <div class="list-item dashboard-schedule-card" data-schedule-date="${escapeAttribute(group.date)}" role="button" tabindex="0">
             <div class="tip-message-preview">
-              <strong>${dateLabel}</strong> - Coordenador: ${coord}
+              <strong>${escapeHtml(dateLabel)}</strong> - Coordenador: ${escapeHtml(coord)}
             </div>
             ${detailsHtml}
           </div>
@@ -1963,11 +1963,11 @@ function renderDashboard() {
     const coord = todayGroup.roles.COORDENACAO?.length ? todayGroup.roles.COORDENACAO.join(", ") : "-";
     els.dashboardLessonToday.innerHTML = `
       <strong>Escala de hoje</strong><br />
-      Coordenador: ${coord}<br />
-      Maternal: ${(todayGroup.roles.MATERNAL || []).join(", ") || "-"}<br />
-      Kids: ${(todayGroup.roles.KIDS || []).join(", ") || "-"}<br />
-      Juniors: ${(todayGroup.roles.JUNIORS || []).join(", ") || "-"}<br />
-      Teens: ${(todayGroup.roles.TEENS || []).join(", ") || "-"}
+      Coordenador: ${escapeHtml(coord)}<br />
+      Maternal: ${escapeHtml((todayGroup.roles.MATERNAL || []).join(", ") || "-")}<br />
+      Kids: ${escapeHtml((todayGroup.roles.KIDS || []).join(", ") || "-")}<br />
+      Juniors: ${escapeHtml((todayGroup.roles.JUNIORS || []).join(", ") || "-")}<br />
+      Teens: ${escapeHtml((todayGroup.roles.TEENS || []).join(", ") || "-")}
     `;
   }
 
@@ -1978,12 +1978,12 @@ function renderDashboard() {
     els.dashboardBirthdays.innerHTML = birthdayStudents
       .map(
         (student) => `
-          <div class="dashboard-birthday-item" data-birthday-student="${student.id}">
+            <div class="dashboard-birthday-item" data-birthday-student="${escapeAttribute(student.id)}">
             <div class="dashboard-balloon">
-              <img src="${student.photoUrl || getStudentPhotoPlaceholderUrl()}" alt="Foto de ${student.name}" />
+              <img src="${escapeAttribute(student.photoUrl || getStudentPhotoPlaceholderUrl())}" alt="Foto de ${escapeAttribute(student.name)}" />
             </div>
-            <div class="dashboard-birthday-name">${student.name}</div>
-            <div class="dashboard-birthday-date">${formatBirthdayLabel(student.birth)}</div>
+            <div class="dashboard-birthday-name">${escapeHtml(student.name)}</div>
+            <div class="dashboard-birthday-date">${escapeHtml(formatBirthdayLabel(student.birth))}</div>
           </div>
         `
       )
@@ -2236,9 +2236,9 @@ function renderLog() {
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
-      <strong>${row.studentName}</strong>
-      <span class="muted">Turma: ${row.className}</span>
-      <span class="muted">Horarios de check-in: ${row.timesLabel || "-"}</span>
+      <strong>${escapeHtml(row.studentName)}</strong>
+      <span class="muted">Turma: ${escapeHtml(row.className)}</span>
+      <span class="muted">Horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
     `;
     els.logList.appendChild(item);
   });
@@ -3941,7 +3941,7 @@ function renderManagementPanel() {
     ? sortedProfiles.filter((profile) => (profile.name || "").toLowerCase().includes(searchTerm))
     : sortedProfiles;
   if (!filteredProfiles.length) {
-    els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado para "${searchTerm}".</div>`;
+    els.manageUsersList.innerHTML = `<div class="summary">Nenhum usuario encontrado para "${escapeHtml(searchTerm)}".</div>`;
     els.manageUserEditor.innerHTML = `<strong>Nenhum usuario selecionado.</strong>`;
     return;
   }
@@ -3954,8 +3954,8 @@ function renderManagementPanel() {
     const item = document.createElement("div");
     item.className = `list-item ${selectedId === profile.id ? "is-selected" : ""}`;
     item.innerHTML = `
-      <strong>${profile.name || "Usuario"}</strong>
-      <span class="muted">${profile.email || "-"}</span>
+      <strong>${escapeHtml(profile.name || "Usuario")}</strong>
+      <span class="muted">${escapeHtml(profile.email || "-")}</span>
       <span class="muted">Acesso atual: ${formatRole(profile.role)}</span>
     `;
     item.style.cursor = "pointer";
@@ -3978,12 +3978,12 @@ function renderManagementPanel() {
   const roleOptions = getAllowedRoleTargets()
     .map(
       (role) =>
-        `<option value="${role}" ${normalizeRole(selectedProfile.role) === role ? "selected" : ""}>${formatRole(role)}</option>`
+        `<option value="${escapeAttribute(role)}" ${normalizeRole(selectedProfile.role) === role ? "selected" : ""}>${formatRole(role)}</option>`
     )
     .join("");
   els.manageUserEditor.innerHTML = `
-    <strong>Usuario selecionado: ${selectedProfile.name || "Usuario"}</strong><br />
-    <span class="muted">${selectedProfile.email || "-"}</span>
+    <strong>Usuario selecionado: ${escapeHtml(selectedProfile.name || "Usuario")}</strong><br />
+    <span class="muted">${escapeHtml(selectedProfile.email || "-")}</span>
     <div class="actions" style="margin-top:10px">
       <input id="manageSelectedName" type="text" ${canChangeName ? "" : "disabled"} />
       <button id="btnManageSaveName" class="ghost" type="button" ${canChangeName ? "" : "disabled"}>Salvar nome</button>
@@ -4055,8 +4055,8 @@ function renderFamiliesPanel() {
     item.className = `list-item ${familyContext.selectedProfileId === entry.profile.id ? "is-selected" : ""}`;
     item.style.cursor = "pointer";
     item.innerHTML = `
-      <strong>${entry.profile.name || "Responsavel"}</strong>
-      <span class="muted">${entry.profile.email || "-"}</span>
+      <strong>${escapeHtml(entry.profile.name || "Responsavel")}</strong>
+      <span class="muted">${escapeHtml(entry.profile.email || "-")}</span>
       <span class="muted">Filhos: ${entry.children.length}</span>
     `;
     item.addEventListener("click", () => {
@@ -4075,18 +4075,18 @@ function renderFamiliesPanel() {
   const canDelete = canManageResponsible;
   const assignableStudents = getFamilyAssignableStudents(selected.profile.id, selected.children);
   const assignOptions = assignableStudents
-    .map((student) => `<option value="${student.id}">${student.name} - ${student.className || getClassForBirth(student.birth)}</option>`)
+    .map((student) => `<option value="${escapeAttribute(student.id)}">${escapeHtml(student.name)} - ${escapeHtml(student.className || getClassForBirth(student.birth))}</option>`)
     .join("");
   const childrenHtml = selected.children.length
     ? selected.children
         .map(
           (child) => `
       <div class="list-item">
-        <strong>${child.name}</strong>
-        <span class="muted">Turma: ${child.className || getClassForBirth(child.birth)}</span>
+        <strong>${escapeHtml(child.name)}</strong>
+        <span class="muted">Turma: ${escapeHtml(child.className || getClassForBirth(child.birth))}</span>
         <div class="actions">
-          ${canEditStudent(child) ? `<button type="button" class="ghost" data-family-edit-child="${child.id}">Editar crianca</button>` : ""}
-          <button type="button" class="primary" data-family-checkin-child="${child.id}">Check-in</button>
+          ${canEditStudent(child) ? `<button type="button" class="ghost" data-family-edit-child="${escapeAttribute(child.id)}">Editar crianca</button>` : ""}
+          <button type="button" class="primary" data-family-checkin-child="${escapeAttribute(child.id)}">Check-in</button>
         </div>
       </div>
     `
@@ -4097,16 +4097,16 @@ function renderFamiliesPanel() {
   els.familyEditor.innerHTML = `
     <strong>Responsavel selecionado</strong>
     <label class="field">Nome
-      <input id="familyEditName" type="text" value="${selected.profile.name || ""}" ${canManageResponsible ? "" : "disabled"} />
+      <input id="familyEditName" type="text" value="${escapeAttribute(selected.profile.name || "")}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <label class="field">Email
-      <input id="familyEditEmail" type="email" value="${selected.profile.email || ""}" readonly />
+      <input id="familyEditEmail" type="email" value="${escapeAttribute(selected.profile.email || "")}" readonly />
     </label>
     <label class="field">Telefone
-      <input id="familyEditPhone" type="text" value="${formatPhoneForDisplay(selected.profile.phone || "")}" ${canManageResponsible ? "" : "disabled"} />
+      <input id="familyEditPhone" type="text" value="${escapeAttribute(formatPhoneForDisplay(selected.profile.phone || ""))}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <label class="field">Endereco
-      <input id="familyEditAddress" type="text" value="${selected.profile.address || ""}" ${canManageResponsible ? "" : "disabled"} />
+      <input id="familyEditAddress" type="text" value="${escapeAttribute(selected.profile.address || "")}" ${canManageResponsible ? "" : "disabled"} />
     </label>
     <div class="actions">
       <button id="btnFamilySaveProfile" type="button" class="primary" ${canManageResponsible ? "" : "disabled"}>Salvar responsavel</button>
@@ -4127,7 +4127,7 @@ function renderFamiliesPanel() {
         ? `
       <div class="summary" style="margin-top:10px">
         <strong>Excluir usuario</strong><br />
-        Digite o nome para confirmar: <strong>${selected.profile.name || "-"}</strong>
+        Digite o nome para confirmar: <strong>${escapeHtml(selected.profile.name || "-")}</strong>
         <label class="field">
           <input id="familyDeleteConfirmName" type="text" placeholder="Digite o nome exatamente" />
         </label>
@@ -5085,11 +5085,11 @@ function renderRoomDetailsDialog(room) {
   }
   if (els.roomDetailsMeta) {
     els.roomDetailsMeta.innerHTML = `
-      <strong>Evento:</strong> ${room.name}<br />
-      <strong>Data:</strong> ${room.date}<br />
-      <strong>Horario:</strong> ${room.startTime || "-"}${room.endTime ? ` - ${room.endTime}` : ""}<br />
-      <strong>Turma:</strong> ${room.classTarget || "-"}<br />
-      <strong>Abertura:</strong> ${room.openedAt || "-"} | <strong>Fechamento:</strong> ${room.closedAt || "-"}
+      <strong>Evento:</strong> ${escapeHtml(room.name)}<br />
+      <strong>Data:</strong> ${escapeHtml(room.date)}<br />
+      <strong>Horario:</strong> ${escapeHtml(room.startTime || "-")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""}<br />
+      <strong>Turma:</strong> ${escapeHtml(room.classTarget || "-")}<br />
+      <strong>Abertura:</strong> ${escapeHtml(room.openedAt || "-")} | <strong>Fechamento:</strong> ${escapeHtml(room.closedAt || "-")}
     `;
   }
   if (els.roomDetailsStudents) {
@@ -5103,7 +5103,9 @@ function renderRoomDetailsDialog(room) {
       students.forEach((entry) => {
         const item = document.createElement("div");
         item.className = "list-item";
-        item.innerHTML = `<strong>${entry.name}</strong>`;
+        const name = document.createElement("strong");
+        name.textContent = entry.name;
+        item.appendChild(name);
         if (entry.student) {
           item.style.cursor = "pointer";
           item.addEventListener("click", () => openStudentDetailsDialog(entry.student));
@@ -5908,8 +5910,8 @@ function openParentCheckinDialog(ownedStudents) {
     const item = document.createElement("label");
     item.className = "room-open-item";
     item.innerHTML = `
-      <input type="checkbox" data-parent-checkin="${student.id}" />
-      <span>${student.name} - ${student.className || getClassForBirth(student.birth)}</span>
+      <input type="checkbox" data-parent-checkin="${escapeAttribute(student.id)}" />
+      <span>${escapeHtml(student.name)} - ${escapeHtml(student.className || getClassForBirth(student.birth))}</span>
     `.trim();
     els.parentCheckinList.appendChild(item);
   });
@@ -6119,11 +6121,11 @@ function showLabel(person, checkin, options = {}) {
   const autoPrint = options.autoPrint === true;
   const openPreview = options.openPreview === true;
   const label = `
-    <div class="label-name">${person.name || "{{nome}}"}</div>
+    <div class="label-name">${escapeHtml(person.name || "{{nome}}")}</div>
     <div class="label-body">
-      <div class="label-line">Turma: ${className || "{{turma}}"}</div>
-      <div class="label-line">Responsavel: ${guardian || "{{responsavel}}"}</div>
-      <div class="label-line">Observacao: ${notes || "{{observacao}}"}</div>
+      <div class="label-line">Turma: ${escapeHtml(className || "{{turma}}")}</div>
+      <div class="label-line">Responsavel: ${escapeHtml(guardian || "{{responsavel}}")}</div>
+      <div class="label-line">Observacao: ${escapeHtml(notes || "{{observacao}}")}</div>
     </div>
   `;
   labelContext.checkinId = checkin?.id || "";
@@ -6569,12 +6571,12 @@ function openStudentDetailsDialog(student) {
     const contact = getResponsibleContactForStudent(student);
     const birthLabel = formatBirthDateShort(student.birth) || "-";
     els.studentDetailsInfo.innerHTML = `
-      <div class="student-details-row"><strong>Turma:</strong><span>${className || "-"}</span></div>
-      <div class="student-details-row"><strong>Nascimento:</strong><span>${birthLabel}</span></div>
-      <div class="student-details-row"><strong>Responsavel:</strong><span>${student.guardian || "-"}</span></div>
-      <div class="student-details-row"><strong>Telefone:</strong><span>${contact.phone || "-"}</span></div>
-      <div class="student-details-row"><strong>Endereco:</strong><span>${contact.address || "-"}</span></div>
-      <div class="student-details-row"><strong>Observacoes:</strong><span>${student.notes || ""}</span></div>
+      <div class="student-details-row"><strong>Turma:</strong><span>${escapeHtml(className || "-")}</span></div>
+      <div class="student-details-row"><strong>Nascimento:</strong><span>${escapeHtml(birthLabel)}</span></div>
+      <div class="student-details-row"><strong>Responsavel:</strong><span>${escapeHtml(student.guardian || "-")}</span></div>
+      <div class="student-details-row"><strong>Telefone:</strong><span>${escapeHtml(contact.phone || "-")}</span></div>
+      <div class="student-details-row"><strong>Endereco:</strong><span>${escapeHtml(contact.address || "-")}</span></div>
+      <div class="student-details-row"><strong>Observacoes:</strong><span>${escapeHtml(student.notes || "")}</span></div>
     `;
   }
   const openCheckin = getOpenCheckinForStudent(student.id);
@@ -7300,8 +7302,8 @@ function openLogStudentsDialog() {
     const row = document.createElement("label");
     row.className = "field checkbox-field";
     row.innerHTML = `
-      <span>${student.name} (${student.className})</span>
-      <input type="checkbox" data-log-student-id="${student.id}" ${selectedSet.has(student.id) ? "checked" : ""} />
+      <span>${escapeHtml(student.name)} (${escapeHtml(student.className)})</span>
+      <input type="checkbox" data-log-student-id="${escapeAttribute(student.id)}" ${selectedSet.has(student.id) ? "checked" : ""} />
     `;
     const box = row.querySelector('input[type="checkbox"][data-log-student-id]');
     box?.addEventListener("change", syncLogStudentsSelectAllState);
@@ -7510,8 +7512,8 @@ function renderRoomOpenList(roomsToday) {
     const item = document.createElement("label");
     item.className = "room-open-item";
     item.innerHTML = `
-      <input type="checkbox" data-room-id="${room.id}" />
-      <span>${room.name} - ${room.time || ""} (${room.classTarget || "-"})</span>
+      <input type="checkbox" data-room-id="${escapeAttribute(room.id)}" />
+      <span>${escapeHtml(room.name)} - ${escapeHtml(room.time || "")} (${escapeHtml(room.classTarget || "-")})</span>
     `.trim();
     els.roomOpenList.appendChild(item);
   });
@@ -7572,6 +7574,19 @@ function escapeCsv(value) {
     return `"${safe.replace(/"/g, '""')}"`;
   }
   return safe;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }
 
 function uid() {

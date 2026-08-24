@@ -125,11 +125,11 @@ async function printCheckin(checkin) {
   const notes = checkin?.notes_snapshot || student?.notes || "-";
 
   els.printLabel.innerHTML = `
-    <div class="label-name">${name}</div>
+    <div class="label-name">${escapeHtml(name)}</div>
     <div class="label-body">
-      <div class="label-line">Turma: ${className}</div>
-      <div class="label-line">Responsavel: ${guardian}</div>
-      <div class="label-line">Observacao: ${notes}</div>
+      <div class="label-line">Turma: ${escapeHtml(className)}</div>
+      <div class="label-line">Responsavel: ${escapeHtml(guardian)}</div>
+      <div class="label-line">Observacao: ${escapeHtml(notes)}</div>
     </div>
   `;
 
@@ -221,7 +221,9 @@ function renderStudentsForReprint() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "print-student-item";
-    row.innerHTML = `<span>${student.name}</span>`;
+    const name = document.createElement("span");
+    name.textContent = student.name;
+    row.appendChild(name);
     row.addEventListener("click", () => {
       openReprintDialog(student);
     });
@@ -427,4 +429,13 @@ function getTodayUtcRange() {
   const startLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
   const endLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
   return { startIso: startLocal.toISOString(), endIso: endLocal.toISOString() };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

@@ -132,6 +132,34 @@ test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
     .toBe("Maria Clara");
 });
 
+test("dados com HTML sao exibidos como texto nas listas, detalhes e etiqueta", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const student = window.__mockDnmsDb.students.find((item) => item.id === "student-kids");
+    student.name = 'Ana <img src=x onerror="window.__xssFromName=1"> Kids';
+    student.primary_guardian_name = 'Responsavel <b>Teste</b>';
+    student.notes = '<script>window.__xssFromNotes=1</script>Observacao';
+  });
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await expect(page.locator("#studentList")).toContainText('Ana <img src=x onerror="window.__xssFromName=1"> Kids');
+  await expect(page.locator("#studentList img[onerror]")).toHaveCount(0);
+  await expect(page.locator("#studentList script")).toHaveCount(0);
+
+  await page.locator("#studentList .list-item").filter({ hasText: "Ana <img" }).click();
+  await expect(page.locator("#studentDetailsDialog")).toBeVisible();
+  await expect(page.locator("#studentDetailsInfo")).toContainText("<script>window.__xssFromNotes=1</script>Observacao");
+  await expect(page.locator("#studentDetailsInfo script")).toHaveCount(0);
+  await page.locator("#studentDetailsDialog").evaluate((dialog) => dialog.close());
+
+  await page.locator("#studentList .list-item").filter({ hasText: "Ana <img" }).getByRole("button", { name: "Check-in" }).click();
+  await expect(page.locator("#labelPreview")).toContainText('Ana <img src=x onerror="window.__xssFromName=1"> Kids');
+  await expect(page.locator("#labelPreview img[onerror]")).toHaveCount(0);
+  await expect(page.locator("#labelPreview script")).toHaveCount(0);
+  expect(await page.evaluate(() => Boolean(window.__xssFromName || window.__xssFromNotes))).toBe(false);
+});
+
 test("nao cadastra a mesma crianca duas vezes para o mesmo responsavel", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
