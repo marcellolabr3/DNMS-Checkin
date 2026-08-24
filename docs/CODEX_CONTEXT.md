@@ -124,7 +124,7 @@ Migracoes recentes:
 - `patch_delete_user_account.sql` - exclusao completa de usuario/perfil/vinculos conforme regras.
 
 Estado do banco:
-`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24. Depois, `patch_duplicate_students_scope_guardian.sql` foi aplicado em 2026-08-24 para reduzir falso positivo entre familias diferentes. Em 2026-08-24, `patch_backfill_student_guardian_links.sql` inseriu 1 vinculo ausente em `student_guardians`; verificacao posterior encontrou 0 criancas sem vinculo.
+`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24. Depois, `patch_duplicate_students_scope_guardian.sql` foi aplicado em 2026-08-24 para reduzir falso positivo entre familias diferentes. Em 2026-08-24, `patch_backfill_student_guardian_links.sql` inseriu 1 vinculo ausente em `student_guardians`; verificacao posterior encontrou 0 criancas sem vinculo. Em 2026-08-24, `patch_audit_logs.sql` foi aplicado no Supabase porque `public.audit_logs` nao existia em producao; em seguida foram inseridos 2 eventos `child_created` de recuperacao para criancas cadastradas no dia antes da tabela existir.
 
 ---
 
@@ -163,7 +163,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, testes focados de log/service worker/payload e `cmd /c npm test` (90 testes em desktop/mobile). Verificacao direta do banco local/producao nao foi feita porque `psql` nao esta instalado nesta maquina.
+Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, testes focados de log/service worker/payload e `cmd /c npm test` (90 testes em desktop/mobile). Verificacao direta do banco foi feita via Node `pg`: `public.audit_logs` nao existia, `patch_audit_logs.sql` foi aplicado, policies ficaram ativas e 2 eventos `child_created` de hoje foram recuperados.
 
 ---
 
@@ -233,7 +233,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Commitar e enviar a correcao do Log para `origin/main`; depois validar no app publicado abrindo Log como admin/equipe sem preencher datas.
+Validar no app publicado abrindo Log como admin/equipe, selecionar "Cadastro de criancas" e confirmar que os 2 cadastros recuperados de hoje aparecem.
 
 ---
 
@@ -243,10 +243,10 @@ Foi feito:
 Correcao do Log aplicada: `setActivePanel("log")` preenche `logStart`/`logEnd` com a data de hoje quando os campos estao vazios. `setup_dnms_checkin.sql` recebeu a criacao de `audit_logs`, indices e policies equivalentes ao patch de auditoria. O PWA passou para `app.js?v=20260824g` e cache `checkin-cache-v123`. Foi adicionado teste para abrir o Log e ver assiduidade do dia sem preencher periodo manualmente.
 
 Ficou funcionando:
-Log abre com periodo de hoje e mostra assiduidade quando ha check-ins do dia. Relatorio de cadastro de criancas continua funcionando sem exigir preenchimento manual das datas. `cmd /c npm test` passou com 90 testes em desktop/mobile.
+Log abre com periodo de hoje e mostra assiduidade quando ha check-ins do dia. Relatorio de cadastro de criancas continua funcionando sem exigir preenchimento manual das datas. Em producao, `public.audit_logs` foi criada/aplicada e 2 cadastros de criancas feitos hoje foram recuperados no log. `cmd /c npm test` passou com 90 testes em desktop/mobile.
 
 Ficou pendente:
-Commit/push da correcao do Log. Validar em producao se `audit_logs` existe/policies estao aplicadas; nesta maquina `psql` nao esta instalado para checagem direta. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824g`/`checkin-cache-v123` e se "Cadastro de criancas" mostra os eventos recuperados. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
