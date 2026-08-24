@@ -73,6 +73,7 @@ const els = {
   dashboardAlerts: document.getElementById("dashboardAlerts"),
   dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
+  dashboardTips: document.getElementById("dashboardTips"),
   dashboardSchedules: document.getElementById("dashboardSchedules"),
   dashboardBirthdays: document.getElementById("dashboardBirthdays"),
   dashboardAdminTools: document.getElementById("dashboardAdminTools"),
@@ -876,6 +877,49 @@ function resolveTipRecipientLabel(tip) {
   }
   const profile = state.profiles.find((item) => item.id === recipientId);
   return profile?.name || "Usuario";
+}
+
+function renderDashboardTips() {
+  if (!els.dashboardTips) {
+    return;
+  }
+  const tips = getVisibleTipsForCurrentUser().slice(0, 5);
+  if (!tips.length) {
+    els.dashboardTips.innerHTML = `<div class="summary">Nenhuma mensagem recente.</div>`;
+    return;
+  }
+  els.dashboardTips.innerHTML = `
+    <div class="dashboard-tips-header">
+      <span>${escapeHtml(tips.length)} recente(s)</span>
+      <button id="btnDashboardOpenTips" type="button" class="link-button">Ver todas</button>
+    </div>
+    <div class="list dashboard-tips-list">
+      ${tips
+        .map((tip) => {
+          const read = isTipReadByCurrentUser(tip.id);
+          return `
+            <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}">
+              <strong>${escapeHtml(resolveTipRecipientLabel(tip))}</strong>
+              <span class="muted">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
+              <span>${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+  document.getElementById("btnDashboardOpenTips")?.addEventListener("click", () => setActivePanel("tips"));
+  els.dashboardTips.querySelectorAll("[data-dashboard-tip-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tipId = button.getAttribute("data-dashboard-tip-id");
+      if (tipId) {
+        const expanded = new Set(state.ui?.expandedTips || []);
+        expanded.add(tipId);
+        state.ui.expandedTips = Array.from(expanded);
+      }
+      setActivePanel("tips");
+    });
+  });
 }
 
 async function deleteTipMessage(tipId) {
@@ -1862,6 +1906,7 @@ function renderDashboard() {
     !els.dashboardAttention ||
     !els.dashboardBirthdays ||
     !els.dashboardSchedules ||
+    !els.dashboardTips ||
     !els.dashboardLessonToday
   ) {
     return;
@@ -1934,6 +1979,8 @@ function renderDashboard() {
       }
     });
   });
+
+  renderDashboardTips();
 
   const groupedSchedules = getGroupedScheduleByDate();
   const upcomingGroups = groupedSchedules.filter((group) => {

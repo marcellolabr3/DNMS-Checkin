@@ -37,3 +37,27 @@ test("admin envia mensagem pelo painel navegavel", async ({ page }) => {
   await expect(page.locator("#tipsList")).toContainText("Nova mensagem pelo painel.");
   await expect(await getAlerts(page)).toContain("Mensagem enviada.");
 });
+
+test("dashboard mostra mensagens recentes e abre painel completo", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-panel" });
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#dashboardCard")).toBeVisible();
+  await expect(page.locator("#dashboardTips")).toContainText("Mensagem de outra familia.");
+  await expect(page.locator("#dashboardTips")).toContainText("Mensagem direcionada ao responsavel.");
+  await expect(page.locator("#dashboardTips")).toContainText("Aviso geral para todas as familias.");
+
+  await page.click("#btnDashboardOpenTips");
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#dashboardCard")).toBeHidden();
+});
+
+test("mensagem recente do dashboard abre expandida no painel", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-panel" });
+  await loginAs(page, "admin@dnms.test");
+
+  await page.locator("#dashboardTips [data-dashboard-tip-id='tip-all-1']").click();
+
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#tipsList [data-tip-id='tip-all-1']")).toHaveText("Aviso geral para todas as familias.");
+});

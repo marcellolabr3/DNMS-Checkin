@@ -1112,6 +1112,35 @@ button:disabled,
   gap: 12px;
 }
 
+.dashboard-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-tips-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-tips-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.dashboard-tip-card {
+  width: 100%;
+  min-height: 104px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+
 .dashboard-schedules .list-item {
   min-height: 96px;
 }

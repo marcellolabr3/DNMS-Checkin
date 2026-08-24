@@ -144,6 +144,7 @@ Estado do banco:
 - Correcao do Log: ao abrir o painel de Log, periodo inicial passa a ser hoje quando `De`/`Ate` estao vazios; `setup_dnms_checkin.sql` agora inclui `audit_logs`, indices e policies do patch de auditoria para novos ambientes.
 - Correcao de exportacao CSV: arquivos de Log/Familias agora usam BOM UTF-8, separador `;`, CRLF, limpeza de caracteres de controle/quebras dentro das celulas e ordenacao mais previsivel para planilhas em pt-BR.
 - Sprint 2 de Mensagens/Avisos: popup removido e substituido por painel navegavel `#tipsCard`, com badge de nao lidas, envio/leitura/exclusao preservados e testes Playwright adicionados.
+- Sprint 3 de Mensagens/Avisos: Dashboard recebeu bloco `#dashboardTips` com ate 5 mensagens recentes e atalho para o painel completo.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -152,7 +153,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 2 da refatoracao de Mensagens/Avisos concluida: trocar popup por painel navegavel.
+Sprint 3 da refatoracao de Mensagens/Avisos concluida: integrar mensagens recentes ao Dashboard.
 
 Arquivos envolvidos:
 
@@ -166,10 +167,10 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 2 concluida. O popup `#tipsDialog` foi removido do HTML e Mensagens agora usa o painel `#tipsCard`, aberto pelo botao `#btnTipsInbox` via `setActivePanel("tips")`. O painel reaproveita `getVisibleTipsForCurrentUser()`, `renderTipsComposerControls()`, `sendTipMessage()`, `markTipAsRead()`, `markAllTipsAsRead()`, `deleteTipMessage()` e `deleteAllVisibleTips()`. O contador de nao lidas foi mantido; clicar na previa expande/recolhe e marca como lida. SADMIN/Admin continuam vendo composer e botoes de apagar; responsavel ve apenas mensagens gerais ou destinadas a ele. `app.js` passou para `v=20260824m`, `styles.css` para `v=20260824c` e service worker para `checkin-cache-v129`.
+Sprint 3 concluida. Dashboard agora mostra bloco `#dashboardTips` com ate 5 mensagens recentes visiveis para o usuario, usando `getVisibleTipsForCurrentUser()` e respeitando leituras/permissoes ja existentes. O bloco tem atalho "Ver todas" para `setActivePanel("tips")`; clicar em uma mensagem recente abre o painel Mensagens com a mensagem colocada em `state.ui.expandedTips`. Nao houve mudanca de schema. `app.js` passou para `v=20260824n`, `styles.css` para `v=20260824d` e service worker para `checkin-cache-v130`.
 
 Validacao:
-`npm.cmd test` passou com 104 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel de mensagens e `tests/service-worker.spec.js` para cache.
+`npm.cmd test` passou com 108 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel de mensagens, mensagens recentes no Dashboard e `tests/service-worker.spec.js` para cache.
 
 Achados de banco/RLS: `tips` guarda `message`, `recipient_id`, `created_by`, `created_at`, e producao tambem tem `sender_name`. `tip_reads` guarda leitura por `(tip_id, user_id)`. Producao tem policies DELETE para `tips` e `tip_reads` por admin/SADMIN; `supabase/setup_dnms_checkin.sql` ainda nao reflete `tips.sender_name` nem essas policies DELETE, embora o app use `sender_name` e botoes de apagar. `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros.
 
@@ -177,12 +178,12 @@ Sprints sugeridos:
 
 1. Concluido: mapear fluxo atual.
 2. Concluido: criar painel "Mensagens" navegavel.
-3. Integrar Dashboard: bloco "Mensagens recentes" com ultimas 3-5 mensagens e atalho "Ver todas".
+3. Concluido: integrar Dashboard com bloco "Mensagens recentes" e atalho "Ver todas".
 4. Refinar UX mobile/estados: vazio, carregando, erro, texto longo sem overflow.
-5. Testes e contexto: ampliar Playwright quando Sprint 3 adicionar dashboard recentes; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
+5. Testes e contexto: ampliar Playwright se Sprint 4 adicionar novos estados de UX; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
 
 Proxima sprint:
-Sprint 3 deve integrar Mensagens ao Dashboard com bloco "Mensagens recentes" (3-5 itens) e atalho "Ver todas", sem mudar schema. Manter badge no header e reaproveitar o painel `tips`.
+Sprint 4 deve refinar UX de Mensagens em mobile/estados: vazio, carregando/atualizando, erro, texto longo sem overflow e acessibilidade dos cards/botoes. Manter schema atual.
 
 ---
 
@@ -246,7 +247,7 @@ Prioridade media:
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
-- [ ] Refatorar Mensagens/Avisos em sprints: adicionar resumo no Dashboard, refinar UX mobile/estados e cobrir novas telas com testes.
+- [ ] Refatorar Mensagens/Avisos em sprints: refinar UX mobile/estados, sincronizar schema SQL de mensagens e cobrir novas telas com testes quando necessario.
 - [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 
 Prioridade baixa:
@@ -257,20 +258,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 3 de Mensagens: adicionar ao Dashboard um bloco "Mensagens recentes" com ultimas 3-5 mensagens visiveis e atalho para o painel `tips`.
+Iniciar Sprint 4 de Mensagens: refinar UX mobile/estados do painel e do bloco de Dashboard (vazio, atualizando, erro, texto longo e acessibilidade), mantendo schema atual.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 2 de Mensagens concluida: o popup `#tipsDialog` foi removido e Mensagens agora abre o painel `#tipsCard` via `#btnTipsInbox`/`setActivePanel("tips")`. Funcoes de envio, leitura, exclusao e badge foram preservadas.
+Sprint 3 de Mensagens concluida: Dashboard agora mostra `#dashboardTips` com ate 5 mensagens recentes visiveis e atalho "Ver todas" para o painel `tips`. Clicar em uma mensagem recente abre o painel com essa mensagem em `state.ui.expandedTips`.
 
 Ficou funcionando:
-Painel navegavel de Mensagens em desktop/mobile para responsavel e admin. Responsavel ve mensagens gerais/direcionadas e marca como lida ao expandir; admin ve composer e envia mensagem pelo painel. `npm.cmd test` passou com 104 testes.
+Painel navegavel de Mensagens permanece funcionando em desktop/mobile e o Dashboard mostra mensagens recentes para usuarios com acesso ao Dashboard. `npm.cmd test` passou com 108 testes.
 
 Ficou pendente:
-Executar Sprint 3 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Executar Sprint 4 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
