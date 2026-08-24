@@ -143,12 +143,14 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigir animacao do logo na tela "Carregando sessao" no desktop.
+Trocar seletor de turmas da criacao de salas por checkboxes de selecao multipla.
 
 Arquivos envolvidos:
 
+- `app.js`
+- `index.html`
 - `styles.css`
-- `tests/auth.spec.js`
+- `tests/checkin.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -166,7 +168,7 @@ Implementado no app, validado com testes locais e commitado.
 - Responsavel comum nao pode se vincular automaticamente a crianca existente. Motivo: seguranca familiar e privacidade.
 - Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
 - Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
-- Criacao de eventos pode selecionar varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
+- Criacao de eventos usa checkboxes de turma para selecionar uma ou varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
 - Logo da tela "Carregando sessao" deve manter rotacao ativa tambem quando o navegador sinaliza movimento reduzido; nesse caso a animacao fica mais lenta, nao desligada.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
@@ -215,20 +217,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Commitar/publicar a correcao da animacao do logo e validar no desktop real.
+Publicar e validar no app a criacao de salas com duas ou mais turmas marcadas.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Corrigida a animacao do logo na tela "Carregando sessao": `prefers-reduced-motion` agora reduz a velocidade em vez de desligar a rotacao.
+Substituido o `select multiple` de turmas por checkboxes explicitos para Maternal, Kids, Juniors e Teens.
 
 Ficou funcionando:
-Teste de restauracao lenta confirma `app-loading-spin` no logo; teste com movimento reduzido tambem confirma animacao ativa; spec de auth passou em desktop e mobile.
+Criacao de eventos em lote continua criando combinacoes de turmas marcadas e recorrencia mensal; spec de check-in passou em desktop e mobile.
 
 Ficou pendente:
-Push/publicacao da correcao da animacao, se aprovado.
+Push/publicacao da correcao de checkboxes de turmas, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

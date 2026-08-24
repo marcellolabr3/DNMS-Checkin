@@ -217,7 +217,8 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
   await page.fill("#roomDate", futureIso(3));
   await page.fill("#roomStartTime", "10:00");
   await page.fill("#roomEndTime", "11:00");
-  await page.selectOption("#roomClass", ["Maternal", "Teens"]);
+  await page.locator('#roomClass input[value="Maternal"]').check();
+  await page.locator('#roomClass input[value="Teens"]').check();
   await page.selectOption("#roomRecurrence", "months:2");
   await page.click("#btnCreateRoom");
 

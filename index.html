@@ -108,14 +108,15 @@
           <label class="field">Horario de termino
             <input id="roomEndTime" type="time" />
           </label>
-          <label class="field">Turmas
-            <select id="roomClass" multiple size="4">
-              <option value="Maternal">Maternal</option>
-              <option value="Kids">Kids</option>
-              <option value="Juniors">Juniors</option>
-              <option value="Teens">Teens</option>
-            </select>
-          </label>
+          <fieldset class="field room-class-field">
+            <legend>Turmas</legend>
+            <div id="roomClass" class="room-class-options">
+              <label><input type="checkbox" value="Maternal" /> Maternal</label>
+              <label><input type="checkbox" value="Kids" /> Kids</label>
+              <label><input type="checkbox" value="Juniors" /> Juniors</label>
+              <label><input type="checkbox" value="Teens" /> Teens</label>
+            </div>
+          </fieldset>
           <label class="field">Recorrencia
             <select id="roomRecurrence">
               <option value="none">Nao recorrente</option>

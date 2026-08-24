@@ -4757,13 +4757,10 @@ function getSelectedRoomClasses() {
   if (!els.roomClass) {
     return [];
   }
-  const selected = Array.from(els.roomClass.selectedOptions || [])
-    .map((option) => option.value)
+  const selected = Array.from(els.roomClass.querySelectorAll('input[type="checkbox"]:checked'))
+    .map((input) => input.value)
     .filter(Boolean);
-  if (selected.length) {
-    return selected;
-  }
-  return els.roomClass.value ? [els.roomClass.value] : [];
+  return selected;
 }
 
 function setSelectedRoomClasses(classes = []) {
@@ -4771,8 +4768,8 @@ function setSelectedRoomClasses(classes = []) {
     return;
   }
   const selected = new Set(classes.filter(Boolean));
-  Array.from(els.roomClass.options || []).forEach((option) => {
-    option.selected = selected.has(option.value);
+  Array.from(els.roomClass.querySelectorAll('input[type="checkbox"]')).forEach((input) => {
+    input.checked = selected.has(input.value);
   });
 }
 
