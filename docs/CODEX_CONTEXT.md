@@ -151,7 +151,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Planejar refatoracao do painel de Mensagens/Avisos para deixar de funcionar como popup.
+Sprint 1 da refatoracao de Mensagens/Avisos: mapear fluxo atual antes de trocar popup por painel.
 
 Arquivos envolvidos:
 
@@ -165,7 +165,9 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Planejamento registrado: popup de mensagens foi considerado estranho/desfuncional. Direcao recomendada e transformar Mensagens em painel proprio da navegacao, com resumo no Dashboard. Antes de implementar, mapear fluxo atual de `tips`/`tip_reads`, permissoes de envio/leitura e impacto mobile.
+Sprint 1 concluida como mapeamento, sem alteracao de comportamento. Fluxo atual: botao `#btnTipsInbox` no header abre `openTipsDialog()`, que chama `tipsDialog.showModal()`; HTML do popup fica em `index.html` (`#tipsDialog`, `#tipsComposer`, `#tipsList`). Dados carregam em `fetchDashboardData()` junto com dashboard/schedules, usando `tips` e `tip_reads`; badge de nao lidas usa `getUnreadTipsForCurrentUser()`. Todos os usuarios logados veem o botao Mensagens. SADMIN/Admin (`canAccessManagementPanel`) podem compor/apagar mensagens e ver mensagens de terceiros; responsavel/equipe veem mensagens gerais ou direcionadas a si pelo filtro do app. Ao clicar na previa da mensagem, ela expande/recolhe e marca como lida em `tip_reads`; "Marcar todas como lidas" usa upsert em `tip_reads`. Dashboard ainda nao mostra resumo de mensagens; so carrega os dados para badge/popup.
+
+Achados de banco/RLS: `tips` guarda `message`, `recipient_id`, `created_by`, `created_at`, e producao tambem tem `sender_name`. `tip_reads` guarda leitura por `(tip_id, user_id)`. Producao tem policies DELETE para `tips` e `tip_reads` por admin/SADMIN; `supabase/setup_dnms_checkin.sql` ainda nao reflete `tips.sender_name` nem essas policies DELETE, embora o app use `sender_name` e botoes de apagar. `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros.
 
 Sprints sugeridos:
 
@@ -174,6 +176,9 @@ Sprints sugeridos:
 3. Integrar Dashboard: bloco "Mensagens recentes" com ultimas 3-5 mensagens e atalho "Ver todas".
 4. Refinar UX mobile/estados: vazio, carregando, erro, texto longo sem overflow.
 5. Testes e contexto: Playwright para abrir painel, ver nao lidas, marcar como lida, dashboard recentes e visibilidade por perfil; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
+
+Proxima sprint:
+Sprint 2 deve criar o painel "Mensagens" mantendo as funcoes existentes como base, sem mudar schema. Reaproveitar `getVisibleTipsForCurrentUser()`, `renderTipsComposerControls()`, `sendTipMessage()`, `markTipAsRead()`, `markAllTipsAsRead()`, `deleteTipMessage()` e `deleteAllVisibleTips()`, mas trocar `showModal()`/`#tipsDialog` por secao navegavel. Tambem atualizar querystring/cache do PWA se `index.html`, `app.js` ou `sw.js` mudarem.
 
 ---
 
@@ -238,6 +243,7 @@ Prioridade media:
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
 - [ ] Refatorar Mensagens/Avisos em sprints: trocar popup por painel proprio, adicionar resumo no Dashboard e cobrir fluxo com testes.
+- [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 
 Prioridade baixa:
 
@@ -247,20 +253,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 1 de Mensagens: mapear implementacao atual do popup, tabelas `tips`/`tip_reads`, permissoes por perfil e pontos de entrada no Dashboard/navegacao.
+Iniciar Sprint 2 de Mensagens: criar painel proprio "Mensagens" na navegacao reaproveitando a logica atual, mantendo badge de nao lidas e composer para SADMIN/Admin.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Planejamento da refatoracao de Mensagens registrado. Decisao: evitar popup e migrar para painel proprio, com resumo no Dashboard e testes por perfil.
+Sprint 1 de Mensagens concluida: fluxo atual mapeado. O popup atual vem de `#btnTipsInbox` -> `openTipsDialog()` -> `tipsDialog.showModal()`. Dados usam `tips`/`tip_reads`, carregados em `fetchDashboardData()`. Permissoes e RLS foram comparadas com producao.
 
 Ficou funcionando:
-Sem alteracao de codigo nesta etapa; apenas contexto operacional atualizado para orientar a proxima sessao/task.
+Sem alteracao de codigo nesta etapa; apenas contexto operacional atualizado. Git deve conter commit documental da Sprint 1.
 
 Ficou pendente:
-Executar Sprint 1 de Mensagens. Pendencias anteriores permanecem: validar `app.js?v=20260824l`/`checkin-cache-v128`, confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Executar Sprint 2 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: validar `app.js?v=20260824l`/`checkin-cache-v128`, confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
