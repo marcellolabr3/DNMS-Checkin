@@ -13,6 +13,13 @@ const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
+const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
+const ROOM_SELECT_COLUMNS = "id,name,date,start_time,time,end_time,class_target,status,opened_at,closed_at";
+const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at";
+const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,action_type,target_type,target_id,target_name,details,metadata";
+const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
+const TIP_SELECT_COLUMNS = "id,message,recipient_id,created_at,created_by,sender_name";
+const TIP_READ_SELECT_COLUMNS = "tip_id,user_id,read_at";
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -1111,7 +1118,7 @@ async function fetchStudents() {
     const studentIds = (links || []).map((item) => item.student_id).filter(Boolean);
     const rowsById = new Map();
     if (studentIds.length) {
-      const { data, error } = await supabaseClient.from("students").select("*").in("id", studentIds);
+      const { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS).in("id", studentIds);
       if (error) {
         console.warn("Falha ao buscar alunos", error);
       } else {
@@ -1124,7 +1131,7 @@ async function fetchStudents() {
     }
     const { data: ownedRows, error: ownedError } = await supabaseClient
       .from("students")
-      .select("*")
+      .select(STUDENT_SELECT_COLUMNS)
       .eq("primary_guardian_name", state.session.name);
     if (ownedError) {
       console.warn("Falha ao buscar alunos do responsavel", ownedError);
@@ -1137,7 +1144,7 @@ async function fetchStudents() {
     }
     rows = Array.from(rowsById.values());
   } else {
-    const { data, error } = await supabaseClient.from("students").select("*");
+    const { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS);
     if (error) {
       console.warn("Falha ao buscar alunos", error);
       return;
@@ -1179,7 +1186,7 @@ async function fetchStudents() {
 }
 
 async function fetchRooms() {
-  const { data, error } = await supabaseClient.from("rooms").select("*");
+  const { data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS);
   if (error) {
     console.warn("Falha ao buscar salas", error);
     return;
@@ -1227,7 +1234,7 @@ async function fetchRooms() {
 }
 
 async function fetchCheckins() {
-  const { data, error } = await supabaseClient.from("checkins").select("*");
+  const { data, error } = await supabaseClient.from("checkins").select(CHECKIN_SELECT_COLUMNS);
   if (error) {
     console.warn("Falha ao buscar check-ins", error);
     return;
@@ -1254,7 +1261,7 @@ async function fetchAuditLogs() {
     state.auditLogs = [];
     return;
   }
-  const { data, error } = await supabaseClient.from("audit_logs").select("*");
+  const { data, error } = await supabaseClient.from("audit_logs").select(AUDIT_LOG_SELECT_COLUMNS);
   if (error) {
     console.warn("Falha ao buscar audit_logs", error);
     state.auditLogs = [];
@@ -1309,7 +1316,7 @@ async function recordAuditLog(actionType, targetType, targetId, targetName, deta
       details: entry.details,
       metadata: entry.metadata
     })
-    .select("*")
+    .select("id,created_at")
     .single();
   if (error) {
     console.warn("Falha ao gravar audit_logs", error);
@@ -1615,9 +1622,9 @@ async function fetchDashboardData() {
   const [{ data: infoRows, error: infoError }, { data: schedules, error: schedulesError }, { data: tips, error: tipsError }, { data: reads, error: readsError }] =
     await Promise.all([
       supabaseClient.from("dashboard_settings").select("info_text").eq("id", 1).limit(1),
-      supabaseClient.from("schedules").select("*"),
-      supabaseClient.from("tips").select("*"),
-      supabaseClient.from("tip_reads").select("*")
+      supabaseClient.from("schedules").select(SCHEDULE_SELECT_COLUMNS),
+      supabaseClient.from("tips").select(TIP_SELECT_COLUMNS),
+      supabaseClient.from("tip_reads").select(TIP_READ_SELECT_COLUMNS)
     ]);
 
   if (!infoError) {

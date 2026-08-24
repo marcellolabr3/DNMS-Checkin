@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 3 de protecao do servico local de impressao.
+Sprint 4 de reducao de payload Supabase.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -138,6 +138,7 @@ Estado do banco:
 - Sprint 1 de seguranca do DOM: dados de usuarios/criancas/salas/escalas/etiquetas interpolados em HTML passaram a usar escape antes de renderizar; `print.js` tambem passou a escapar dados da etiqueta/reimpressao.
 - Sprint 2 de service worker seguro: cache restrito a assets estaticos locais; Supabase, Google Sheets, CDN e servico local de impressao nao devem ser interceptados/cacheados pelo SW.
 - Sprint 3 de protecao do servico local de impressao: servico passa a escutar em `127.0.0.1` por padrao, aceita token/origens por configuracao opcional e valida payloads HTTP de `/print` e `/reprint`.
+- Sprint 4 de performance: cargas principais do Supabase em `app.js` passaram a usar colunas explicitas em vez de `select("*")`, reduzindo payload sem mudar fluxo de telas.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -146,24 +147,19 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 3 concluida: reduzir risco de chamadas indevidas ao servico local de impressao sem afetar auto-impressao/reimpressao remota via Supabase.
+Sprint 4 concluida: reduzir payload das cargas principais do Supabase com colunas explicitas, preservando RLS e fluxos atuais.
 
 Arquivos envolvidos:
 
-- `Servico de impressao/server.js`
-- `Servico de impressao/README.md`
-- `Servico de impressao/.codex-secrets.example.env`
 - `app.js`
-- `print.js`
 - `index.html`
-- `print.html`
 - `sw.js`
-- `tests/print-service.spec.js`
+- `tests/supabase-payload.spec.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check "Servico de impressao/server.js"` e `cmd /c npm test` (82 testes em desktop/mobile). Teste fisico com Brother ficou pendente porque a impressora nao esta disponivel.
+Implementado e validado localmente com `node --check app.js` e `cmd /c npm test` (84 testes em desktop/mobile). Carregamento sob demanda adicional nao foi alterado nesta sprint para evitar risco; app ja possui refresh por aba.
 
 ---
 
@@ -233,20 +229,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 4: reduzir payload inicial do Supabase com colunas especificas e carregamento sob demanda de paineis pesados, preservando RLS e fluxos atuais.
+Iniciar Sprint 5: carregar XLSX sob demanda ou vendorizar a biblioteca, reduzindo peso inicial e dependencia externa do CDN.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 3 aplicada: `Servico de impressao/server.js` passou a carregar env antes de ler configuracoes, escutar em `127.0.0.1` por padrao, aceitar `PRINT_SERVICE_TOKEN`/`PRINT_ALLOWED_ORIGINS`, validar payload HTTP de `/print` e `/reprint`, e manter auto-impressao/reimpressao remota via Supabase fora dessas validacoes. `app.js` e `print.js` enviam `X-DNMS-Print-Token` quando `localStorage["dnms_print_service_token"]` existir. Documentacao do servico e exemplo de env foram atualizados.
+Sprint 4 aplicada: `app.js` ganhou constantes de colunas para `students`, `rooms`, `checkins`, `audit_logs`, `schedules`, `tips` e `tip_reads`; as consultas principais deixaram de usar `select("*")`. Insercao de `audit_logs` passou a retornar apenas `id,created_at`. Foi criado `tests/supabase-payload.spec.js` para evitar regressao para selecao ampla.
 
 Ficou funcionando:
-Modo legado continua compativel quando `PRINT_SERVICE_TOKEN` nao esta configurado. Quando token for configurado no servico, navegador do PC da Brother precisa salvar o mesmo token em `localStorage["dnms_print_service_token"]`. Assets versionados para `app.js?v=20260824d`, `print.js?v=20260824d` e cache `checkin-cache-v119`. `node --check "Servico de impressao/server.js"` passou e `cmd /c npm test` passou com 82 testes em desktop/mobile.
+Fluxos existentes seguiram passando com colunas explicitas. PWA passa a buscar `app.js?v=20260824e` e cache `checkin-cache-v120`. `node --check app.js` passou e `cmd /c npm test` passou com 84 testes em desktop/mobile.
 
 Ficou pendente:
-Teste fisico na Brother quando a impressora estiver disponivel, especialmente check-in/reimpressao local e reimpressao remota por fila com o servico atualizado.
+Sprint 5 de XLSX sob demanda/vendor local. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
