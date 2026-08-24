@@ -165,7 +165,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Concluido em 3 sprints: `fetchStudents()` preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; Familias, permissoes e duplicidade consideram multiplos responsaveis; `assignStudentToFamily()` adiciona vinculo sem alterar `students.primary_guardian_name`; testes cobrem responsavel secundario e preservacao do responsavel principal. Validado com `node --check app.js`, `node --check sw.js`, `node --check tests/fixtures/mockSupabase.js`, testes especificos de Familias/Responsavel/Service Worker e `cmd /c npm test` (98 testes em desktop/mobile).
+Concluido em 3 sprints e ajuste posterior de auditoria: `fetchStudents()` preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; Familias, permissoes e duplicidade consideram multiplos responsaveis; `assignStudentToFamily()` adiciona vinculo sem alterar `students.primary_guardian_name` e agora grava `child_updated` no Log para aparecer em "Alteracoes de dados"; testes cobrem responsavel secundario, preservacao do responsavel principal e log do vinculo. Validar com testes focados e suite completa quando concluir.
 
 ---
 
@@ -236,7 +236,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar no app publicado o fluxo real: em Familias, buscar o segundo responsavel, vincular uma crianca existente e confirmar que ela aparece nos dois responsaveis sem trocar o responsavel principal exibido no cadastro da crianca.
+Validar no app publicado o fluxo real: em Familias, buscar o segundo responsavel, vincular uma crianca existente e confirmar que ela aparece nos dois responsaveis, nao troca o responsavel principal e aparece no Log em "Alteracoes de dados".
 
 ---
 
@@ -246,10 +246,10 @@ Foi feito:
 Correcao de multiplos responsaveis aplicada em 3 commits/sprints. O app passou a manter todos os vinculos de `student_guardians` em `guardianProfileIds`, a aba Familias passou a listar a mesma crianca em todos os responsaveis vinculados, permissoes de responsavel passaram a considerar vinculos secundarios, e o botao "Vincular crianca existente" deixou de trocar `students.primary_guardian_name`. O mock Supabase foi ajustado para simular corretamente a chave composta `(student_id, guardian_id)` em `student_guardians`.
 
 Ficou funcionando:
-Crianca pode aparecer no perfil de dois responsaveis. Vincular segundo responsavel adiciona relacao sem remover o primeiro e sem substituir o responsavel principal. Responsavel secundario consegue visualizar a crianca vinculada. PWA passou para `app.js?v=20260824j` e cache `checkin-cache-v126`. `cmd /c npm test` passou com 98 testes em desktop/mobile.
+Crianca pode aparecer no perfil de dois responsaveis. Vincular segundo responsavel adiciona relacao sem remover o primeiro e sem substituir o responsavel principal. Responsavel secundario consegue visualizar a crianca vinculada. O vinculo manual em Familias agora tambem entra em "Alteracoes de dados" no Log. PWA passou para `app.js?v=20260824k` e cache `checkin-cache-v127`.
 
 Ficou pendente:
-Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824j`/`checkin-cache-v126` e testar o fluxo real em Familias. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824k`/`checkin-cache-v127` e testar o fluxo real em Familias/Log. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

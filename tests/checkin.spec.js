@@ -418,6 +418,11 @@ test("vincular crianca existente adiciona segundo responsavel sem trocar o princ
   }));
   expect(result.primary).toBe("Responsavel Teste");
   expect(result.links).toEqual(["parent-1", "parent-2"]);
+
+  await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType", "changes");
+  await expect(page.locator("#logSummary")).toContainText("Alteracoes de dados");
+  await expect(page.locator("#logList")).toContainText("Responsavel Secundario vinculado a crianca Duas Familias");
 });
 
 test("log gera relatorio de cadastro de criancas", async ({ page }) => {

@@ -4452,6 +4452,18 @@ async function assignStudentToFamily(studentId, profile) {
       alert("Falha ao vincular crianca ao responsavel selecionado.");
       return;
     }
+    await recordAuditLog(
+      "child_updated",
+      "student",
+      student.id,
+      student.name,
+      `Responsavel ${profile.name || profile.id} vinculado a crianca ${student.name}.`,
+      {
+        linkedGuardianId: profile.id,
+        linkedGuardianName: profile.name || "",
+        primaryGuardianName: student.guardian || student.owner || ""
+      }
+    );
     await fetchStudents();
   } else {
     const index = state.students.findIndex((item) => item.id === student.id);
