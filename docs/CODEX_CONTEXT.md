@@ -210,6 +210,7 @@ Prioridade alta:
 
 Prioridade media:
 
+- [ ] Quando a Brother/PC de impressao estiver disponivel, testar reimpressao real pelo celular apos Sprint 2: solicitar reimpressao, confirmar job em `print_jobs` e confirmar impressao pelo servico local. Observacao: testes automatizados validaram que o service worker nao intercepta/cacheia Supabase/localhost, mas nao houve teste fisico por impressora indisponivel.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -235,7 +236,7 @@ Ficou funcionando:
 Supabase, Google Sheets, CDN externo e `localhost:3001` nao devem ser cacheados/interceptados pelo service worker. Cache atualizado para `checkin-cache-v118`. `cmd /c npm test` passou com 80 testes em desktop/mobile.
 
 Ficou pendente:
-Publicacao/push da Sprint 2, se aprovado, e inicio da Sprint 3 do servico local de impressao.
+Teste manual de reimpressao real na Brother quando a impressora estiver disponivel; publicacao/push desta observacao; inicio da Sprint 3 do servico local de impressao.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
