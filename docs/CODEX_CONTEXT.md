@@ -150,6 +150,7 @@ Arquivos envolvidos:
 - `app.js`
 - `index.html`
 - `styles.css`
+- `sw.js`
 - `tests/checkin.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
@@ -170,6 +171,7 @@ Implementado no app, validado com testes locais e commitado.
 - Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
 - Criacao de eventos usa checkboxes de turma para selecionar uma ou varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
 - Logo da tela "Carregando sessao" deve manter rotacao ativa tambem quando o navegador sinaliza movimento reduzido; nesse caso a animacao fica mais lenta, nao desligada.
+- Ao alterar HTML/CSS/JS do PWA, atualizar querystrings de assets em `index.html` e o `CACHE_NAME`/assets em `sw.js`. Motivo: evitar service worker servindo JS/CSS antigo com tela nova.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -224,10 +226,10 @@ Publicar e validar no app a criacao de salas com duas ou mais turmas marcadas.
 ## Ultima sessao
 
 Foi feito:
-Substituido o `select multiple` de turmas por checkboxes explicitos para Maternal, Kids, Juniors e Teens.
+Substituido o `select multiple` de turmas por checkboxes explicitos para Maternal, Kids, Juniors e Teens; atualizado versionamento de `app.js`, `styles.css` e cache do service worker.
 
 Ficou funcionando:
-Criacao de eventos em lote continua criando combinacoes de turmas marcadas e recorrencia mensal; spec de check-in passou em desktop e mobile.
+Criacao de eventos em lote continua criando combinacoes de turmas marcadas e recorrencia mensal; PWA passa a buscar `app.js?v=20260824a` e cache `checkin-cache-v115`; spec de check-in passou em desktop e mobile.
 
 Ficou pendente:
 Push/publicacao da correcao de checkboxes de turmas, se aprovado.
