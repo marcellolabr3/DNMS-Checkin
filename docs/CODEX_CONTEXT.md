@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 4 de reducao de payload Supabase.
+Sprint 5 de XLSX sob demanda.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -139,6 +139,7 @@ Estado do banco:
 - Sprint 2 de service worker seguro: cache restrito a assets estaticos locais; Supabase, Google Sheets, CDN e servico local de impressao nao devem ser interceptados/cacheados pelo SW.
 - Sprint 3 de protecao do servico local de impressao: servico passa a escutar em `127.0.0.1` por padrao, aceita token/origens por configuracao opcional e valida payloads HTTP de `/print` e `/reprint`.
 - Sprint 4 de performance: cargas principais do Supabase em `app.js` passaram a usar colunas explicitas em vez de `select("*")`, reduzindo payload sem mudar fluxo de telas.
+- Sprint 5 de performance: biblioteca XLSX removida do carregamento inicial e carregada sob demanda apenas para importacao Excel ou sincronizacao Google Sheets.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -147,19 +148,19 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 4 concluida: reduzir payload das cargas principais do Supabase com colunas explicitas, preservando RLS e fluxos atuais.
+Sprint 5 concluida: reduzir peso inicial removendo XLSX do HTML e carregando a biblioteca somente quando escalas Excel/Google Sheets precisam dela.
 
 Arquivos envolvidos:
 
 - `app.js`
 - `index.html`
 - `sw.js`
-- `tests/supabase-payload.spec.js`
+- `tests/xlsx-loading.spec.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js` e `cmd /c npm test` (84 testes em desktop/mobile). Carregamento sob demanda adicional nao foi alterado nesta sprint para evitar risco; app ja possui refresh por aba.
+Implementado e validado localmente com `node --check app.js` e `cmd /c npm test` (86 testes em desktop/mobile).
 
 ---
 
@@ -229,20 +230,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 5: carregar XLSX sob demanda ou vendorizar a biblioteca, reduzindo peso inicial e dependencia externa do CDN.
+Iniciar Sprint 6: otimizar assets visuais/PWA, especialmente `logo-loading.png` e icones reais do manifest.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 4 aplicada: `app.js` ganhou constantes de colunas para `students`, `rooms`, `checkins`, `audit_logs`, `schedules`, `tips` e `tip_reads`; as consultas principais deixaram de usar `select("*")`. Insercao de `audit_logs` passou a retornar apenas `id,created_at`. Foi criado `tests/supabase-payload.spec.js` para evitar regressao para selecao ampla.
+Sprint 5 aplicada: `index.html` deixou de carregar `xlsx.full.min.js` no boot. `app.js` ganhou `ensureXlsxLoaded()`/`loadScriptOnce()` e carrega `XLSX_SCRIPT_URL` somente antes de importar Excel ou sincronizar Google Sheets. CSV continua sem depender de XLSX. Foi criado `tests/xlsx-loading.spec.js` para evitar regressao.
 
 Ficou funcionando:
-Fluxos existentes seguiram passando com colunas explicitas. PWA passa a buscar `app.js?v=20260824e` e cache `checkin-cache-v120`. `node --check app.js` passou e `cmd /c npm test` passou com 84 testes em desktop/mobile.
+Boot inicial nao baixa mais XLSX. PWA passa a buscar `app.js?v=20260824f` e cache `checkin-cache-v121`. `node --check app.js` passou e `cmd /c npm test` passou com 86 testes em desktop/mobile.
 
 Ficou pendente:
-Sprint 5 de XLSX sob demanda/vendor local. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Sprint 6 de otimizacao de assets PWA. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

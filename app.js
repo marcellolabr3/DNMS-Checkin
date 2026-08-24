@@ -3,6 +3,7 @@ const STORAGE_BUCKET = "dnms-photos";
 const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 const SCHEDULE_SHEET_CONFIG_KEY = "checkin_schedule_sheet_config_v1";
 const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
+const XLSX_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
 const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 const RECURRENCE_WEEKS_PER_MONTH = 4;
@@ -34,7 +35,8 @@ const state = loadState();
 const scheduleSheetContext = {
   config: loadScheduleSheetConfig(),
   timerId: null,
-  inProgress: false
+  inProgress: false,
+  xlsxLoadPromise: null
 };
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
@@ -2500,6 +2502,50 @@ function stopGoogleSheetWatcher() {
   }
 }
 
+async function ensureXlsxLoaded() {
+  if (window.XLSX?.read && window.XLSX?.utils?.sheet_to_json) {
+    return window.XLSX;
+  }
+  if (!scheduleSheetContext.xlsxLoadPromise) {
+    scheduleSheetContext.xlsxLoadPromise = loadScriptOnce(XLSX_SCRIPT_URL).then(() => {
+      if (!window.XLSX?.read || !window.XLSX?.utils?.sheet_to_json) {
+        throw new Error("Biblioteca XLSX indisponivel.");
+      }
+      return window.XLSX;
+    });
+  }
+  try {
+    return await scheduleSheetContext.xlsxLoadPromise;
+  } catch (error) {
+    scheduleSheetContext.xlsxLoadPromise = null;
+    throw error;
+  }
+}
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-dnms-dynamic-script="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Falha ao carregar ${src}`)), { once: true });
+      if (existing.dataset.loaded === "true") {
+        resolve();
+      }
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.dnmsDynamicScript = src;
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve();
+    });
+    script.addEventListener("error", () => reject(new Error(`Falha ao carregar ${src}`)), { once: true });
+    document.head.appendChild(script);
+  });
+}
+
 async function syncSchedulesFromGoogleSheet(options = {}) {
   const manual = options.manual === true;
   const silentNoChanges = options.silentNoChanges === true;
@@ -2519,12 +2565,6 @@ async function syncSchedulesFromGoogleSheet(options = {}) {
     }
     return;
   }
-  if (!window.XLSX) {
-    if (manual) {
-      alert("Biblioteca XLSX indisponivel.");
-    }
-    return;
-  }
   if (scheduleSheetContext.inProgress) {
     return;
   }
@@ -2533,6 +2573,7 @@ async function syncSchedulesFromGoogleSheet(options = {}) {
     els.btnSyncScheduleSheet.disabled = true;
   }
   try {
+    await ensureXlsxLoaded();
     renderScheduleSheetSyncStatus("Verificando alteracoes da planilha...");
     const workbook = await fetchGoogleSheetWorkbook(spreadsheetId);
     const payload = extractScheduleRowsFromGridWorkbook(workbook);
@@ -2891,7 +2932,8 @@ async function parseScheduleFile(file) {
     const text = await file.text();
     return parseCsvRows(text);
   }
-  if ((name.endsWith(".xlsx") || name.endsWith(".xls")) && window.XLSX) {
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    await ensureXlsxLoaded();
     const bytes = await file.arrayBuffer();
     const workbook = window.XLSX.read(bytes, { type: "array" });
     const firstSheet = workbook.SheetNames[0];
