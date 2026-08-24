@@ -5,7 +5,7 @@ const SCHEDULE_SHEET_CONFIG_KEY = "checkin_schedule_sheet_config_v1";
 const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
 const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
-const DEFAULT_RECURRENCE_WEEKS = 4;
+const RECURRENCE_WEEKS_PER_MONTH = 4;
 const DASHBOARD_UPCOMING_SCHEDULE_LIMIT = 3;
 const PRINT_SERVICE_URL = "http://localhost:3001";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
@@ -1399,7 +1399,7 @@ async function handleBulkEditRooms() {
   const dateIso = String(els.roomDate?.value || "").trim();
   const startTime = String(els.roomStartTime?.value || "").trim();
   const endTime = String(els.roomEndTime?.value || "").trim();
-  const classTarget = String(els.roomClass?.value || "").trim();
+  const classTarget = getSelectedRoomClasses()[0] || "";
   if (!name && !dateIso && !startTime && !endTime && !classTarget) {
     alert("Preencha ao menos um campo do formulario de sala para editar em massa.");
     return;
@@ -4616,12 +4616,17 @@ async function createRooms() {
   const dateValue = els.roomDate.value;
   const startTimeValue = els.roomStartTime.value;
   const endTimeValue = els.roomEndTime.value;
-  const classTarget = els.roomClass.value;
+  const classTargets = getSelectedRoomClasses();
+  const classTarget = classTargets[0] || "";
   const recurrence = els.roomRecurrence.value;
   const isEditing = Boolean(roomFormContext.editingId);
 
-  if (!name || !dateValue || !startTimeValue || !endTimeValue || !classTarget) {
-    alert("Informe nome, data, horario de inicio, horario de termino e turma do evento.");
+  if (!name || !dateValue || !startTimeValue || !endTimeValue || !classTargets.length) {
+    alert("Informe nome, data, horario de inicio, horario de termino e ao menos uma turma do evento.");
+    return;
+  }
+  if (isEditing && classTargets.length !== 1) {
+    alert("Selecione apenas uma turma ao editar uma sala.");
     return;
   }
   if (endTimeValue <= startTimeValue) {
@@ -4678,55 +4683,57 @@ async function createRooms() {
     return;
   }
 
-  const total = recurrence === "weekly" ? DEFAULT_RECURRENCE_WEEKS : 1;
+  const total = getRoomRecurrenceWeeks(recurrence);
   let createdCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
   let lastErrorMessage = "";
   for (let i = 0; i < total; i += 1) {
-    const date = addDays(baseDate, recurrence === "weekly" ? i * 7 : 0);
+    const date = addDays(baseDate, i * 7);
     const dateLabel = formatDate(date);
     const dateIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
       date.getDate()
     ).padStart(2, "0")}`;
-    const exists = state.rooms.some(
-      (room) =>
-        room.date === dateLabel &&
-        room.name === name &&
-        room.startTime === startTimeValue &&
-        room.classTarget === classTarget
-    );
-    if (exists) {
-      skippedCount += 1;
-      continue;
-    }
-    if (supabaseClient) {
-      const { error } = await supabaseClient.from("rooms").insert({
-        name,
-        date: dateIso,
-        time: startTimeValue,
-        start_time: startTimeValue,
-        end_time: endTimeValue,
-        class_target: classTarget,
-        status: "Programada",
-        created_by: state.session?.id || null
-      });
-      if (error) {
-        console.warn("Falha ao criar sala", error);
-        failedCount += 1;
-        lastErrorMessage = error.message || "erro inesperado";
+    for (const targetClass of classTargets) {
+      const exists = state.rooms.some(
+        (room) =>
+          room.date === dateLabel &&
+          room.name === name &&
+          room.startTime === startTimeValue &&
+          room.classTarget === targetClass
+      );
+      if (exists) {
+        skippedCount += 1;
+        continue;
+      }
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from("rooms").insert({
+          name,
+          date: dateIso,
+          time: startTimeValue,
+          start_time: startTimeValue,
+          end_time: endTimeValue,
+          class_target: targetClass,
+          status: "Programada",
+          created_by: state.session?.id || null
+        });
+        if (error) {
+          console.warn("Falha ao criar sala", error);
+          failedCount += 1;
+          lastErrorMessage = error.message || "erro inesperado";
+        } else {
+          createdCount += 1;
+        }
       } else {
         createdCount += 1;
       }
-    } else {
-      createdCount += 1;
     }
   }
   if (supabaseClient) {
     await fetchRooms();
   }
   els.roomName.value = "";
-  els.roomClass.value = "";
+  setSelectedRoomClasses([]);
   if (els.roomRecurrence) {
     els.roomRecurrence.value = "none";
   }
@@ -4744,6 +4751,41 @@ async function createRooms() {
   if (createdCount) {
     alert(`${createdCount} evento(s) criado(s) com sucesso.`);
   }
+}
+
+function getSelectedRoomClasses() {
+  if (!els.roomClass) {
+    return [];
+  }
+  const selected = Array.from(els.roomClass.selectedOptions || [])
+    .map((option) => option.value)
+    .filter(Boolean);
+  if (selected.length) {
+    return selected;
+  }
+  return els.roomClass.value ? [els.roomClass.value] : [];
+}
+
+function setSelectedRoomClasses(classes = []) {
+  if (!els.roomClass) {
+    return;
+  }
+  const selected = new Set(classes.filter(Boolean));
+  Array.from(els.roomClass.options || []).forEach((option) => {
+    option.selected = selected.has(option.value);
+  });
+}
+
+function getRoomRecurrenceWeeks(value) {
+  if (!value || value === "none") {
+    return 1;
+  }
+  const match = String(value).match(/^months:(\d+)$/);
+  const months = match ? Number.parseInt(match[1], 10) : 0;
+  if (!Number.isInteger(months) || months < 1 || months > 6) {
+    return 1;
+  }
+  return months * RECURRENCE_WEEKS_PER_MONTH;
 }
 
 function openRoomDialog() {
@@ -5075,7 +5117,7 @@ function startRoomEdit(room) {
   els.roomDate.value = room.dateIso || "";
   els.roomStartTime.value = room.startTime || room.time || "";
   els.roomEndTime.value = room.endTime || "";
-  els.roomClass.value = room.classTarget || "";
+  setSelectedRoomClasses([room.classTarget || ""]);
   if (els.roomRecurrence) {
     els.roomRecurrence.value = "none";
     els.roomRecurrence.disabled = true;
@@ -5101,6 +5143,7 @@ async function handleDeleteRoomFromEdit() {
   if (els.roomRecurrence) {
     els.roomRecurrence.disabled = false;
   }
+  setSelectedRoomClasses([]);
 }
 
 function openStudentDialog(student) {

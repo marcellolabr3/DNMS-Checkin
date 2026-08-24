@@ -27,6 +27,15 @@ function todayIso() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function futureIso(daysAhead) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 test("check-in e checkout manual atualizam o estado da crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -196,6 +205,37 @@ test("trocar de aba atualiza dados sem novo login", async ({ page }) => {
 
   await expect(studentItem(page, "Ana Atualizada")).toBeVisible();
   await expect(page.locator("#authCard")).toBeHidden();
+});
+
+test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  await page.fill("#roomName", "Culto Multiplo");
+  await page.fill("#roomDate", futureIso(3));
+  await page.fill("#roomStartTime", "10:00");
+  await page.fill("#roomEndTime", "11:00");
+  await page.selectOption("#roomClass", ["Maternal", "Teens"]);
+  await page.selectOption("#roomRecurrence", "months:2");
+  await page.click("#btnCreateRoom");
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__mockDnmsDb.rooms.filter((room) => room.name === "Culto Multiplo").length)
+    )
+    .toBe(16);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(new Set(window.__mockDnmsDb.rooms
+          .filter((room) => room.name === "Culto Multiplo")
+          .map((room) => room.class_target)))
+          .sort()
+      )
+    )
+    .toEqual(["Maternal", "Teens"]);
 });
 
 test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {

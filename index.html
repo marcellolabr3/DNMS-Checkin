@@ -108,9 +108,8 @@
           <label class="field">Horario de termino
             <input id="roomEndTime" type="time" />
           </label>
-          <label class="field">Turma
-            <select id="roomClass">
-              <option value="">Selecione a turma</option>
+          <label class="field">Turmas
+            <select id="roomClass" multiple size="4">
               <option value="Maternal">Maternal</option>
               <option value="Kids">Kids</option>
               <option value="Juniors">Juniors</option>
@@ -120,7 +119,12 @@
           <label class="field">Recorrencia
             <select id="roomRecurrence">
               <option value="none">Nao recorrente</option>
-              <option value="weekly">Semanal (4 semanas)</option>
+              <option value="months:1">1 mes</option>
+              <option value="months:2">2 meses</option>
+              <option value="months:3">3 meses</option>
+              <option value="months:4">4 meses</option>
+              <option value="months:5">5 meses</option>
+              <option value="months:6">6 meses</option>
             </select>
           </label>
         </div>
