@@ -5203,7 +5203,9 @@ function setStudentSaving(isSaving) {
 function findDuplicateStudentForPayload(payload, currentStudentId = "") {
   const targetKey = buildStudentDuplicateKey({
     name: payload.name,
-    birth: payload.birth
+    birth: payload.birth,
+    guardian: payload.guardian,
+    guardianProfileId: payload.guardianProfileId
   });
   if (!targetKey) {
     return null;
@@ -5219,10 +5221,13 @@ function findDuplicateStudentForPayload(payload, currentStudentId = "") {
 function buildStudentDuplicateKey(student) {
   const name = normalizeDuplicateText(student?.name || "");
   const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
-  if (!name || !birth) {
+  const guardian = student?.guardianProfileId
+    ? `id:${student.guardianProfileId}`
+    : `name:${normalizeDuplicateText(student?.guardian || student?.primary_guardian_name || "")}`;
+  if (!name || !birth || guardian === "name:") {
     return "";
   }
-  return `${name}|${birth}`;
+  return `${name}|${birth}|${guardian}`;
 }
 
 function normalizeDuplicateText(value) {
@@ -5300,7 +5305,7 @@ async function saveStudent(event) {
     return;
   }
   if (findDuplicateStudentForPayload(payload, existing?.id || "")) {
-    alert("Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis.");
+    alert("Esta crianca ja esta cadastrada para este responsavel.");
     return;
   }
   if (!confirm("Confirma salvar as alteracoes deste cadastro?")) {
@@ -5339,7 +5344,7 @@ async function saveStudent(event) {
         error = result.error;
       }
       if (error) {
-        alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
+        alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada para este responsavel." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
         return;
       }
       if (photoFile) {

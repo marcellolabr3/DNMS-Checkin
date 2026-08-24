@@ -71,3 +71,31 @@ test("responsavel atualiza foto da propria crianca", async ({ page }) => {
   expect(photoUrl).toContain("students/student-kids/profile-");
   await expect.poll(() => page.evaluate(() => window.__mockStorageUploads[0]?.size || 0)).toBeGreaterThan(0);
 });
+
+test("responsavel cadastra outra crianca diferente", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+
+  const beforeCount = await page.evaluate(() => window.__mockDnmsDb.students.length);
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+
+  await page.fill("#studentName", "Lucas Teste");
+  await page.fill("#studentBirth", "11/02/2021");
+  await page.click("#btnSaveStudent");
+
+  await expect(page.locator("#studentDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.students.length)).toBe(beforeCount + 1);
+  await expect(page.locator("#studentList")).toContainText("Lucas Teste");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Boolean(
+          window.__mockDnmsDb.student_guardians.find(
+            (item) => item.guardian_id === "parent-1" && item.student_id !== "student-kids"
+          )
+        )
+      )
+    )
+    .toBe(true);
+});

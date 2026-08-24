@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-`5a947e8 Add Codex project instructions`
+`a1c7f12 Fix child photo upload for guardians`
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -59,7 +59,7 @@ Login via Supabase Auth. A sessao carrega perfil em `profiles`; usuario autentic
 
 Formulario em `studentDialog`, salvo por `saveStudent` em `app.js`. O app normaliza nome, valida data, calcula turma e vincula responsavel em `student_guardians`.
 
-Regra atual de seguranca: crianca e ficha unica. Novo cadastro e bloqueado quando ja existe outra ficha com mesmo nome normalizado + mesma data de nascimento, independentemente do responsavel. Responsavel comum nao ganha vinculo automatico com crianca existente; ajuste de responsaveis deve ser feito por equipe/admin.
+Regra atual de seguranca: crianca nao deve ser duplicada dentro da mesma familia/responsavel. Novo cadastro e bloqueado quando ja existe outra ficha com mesmo nome normalizado + mesma data de nascimento + mesmo responsavel principal. Responsavel comum nao ganha vinculo automatico com crianca existente; ajuste de responsaveis deve ser feito por equipe/admin.
 
 Ao salvar, a UI exibe overlay "Salvando crianca..." e desabilita campos/botoes para evitar clique duplo.
 
@@ -89,6 +89,7 @@ No PC da Brother, PWA chama `http://localhost:3001/print` ou `/reprint`. Para ch
 - `Servico de impressao/server.js` - API local de impressao e consumidores Supabase.
 - `supabase/setup_dnms_checkin.sql` - schema completo esperado.
 - `supabase/patch_prevent_duplicate_students.sql` - trigger contra duplicidade de criancas.
+- `supabase/patch_duplicate_students_scope_guardian.sql` - ajusta escopo da duplicidade para mesmo responsavel.
 - `supabase/patch_reprint_queue.sql` - fila de reimpressao remota.
 - `tests/checkin.spec.js` - testes principais de cadastro/check-in.
 
@@ -116,11 +117,12 @@ Migracoes recentes:
 
 - `patch_reprint_queue.sql` - cria `print_jobs` e RPC `claim_next_reprint_job` para reimpressao remota.
 - `patch_prevent_duplicate_students.sql` - cria normalizacao e trigger para bloquear crianca duplicada por nome + nascimento.
+- `patch_duplicate_students_scope_guardian.sql` - ajusta trigger para bloquear duplicidade por nome + nascimento + responsavel principal, evitando falso positivo entre familias diferentes.
 - `patch_checkin_active_guard.sql` - garante um check-in ativo por crianca.
 - `patch_delete_user_account.sql` - exclusao completa de usuario/perfil/vinculos conforme regras.
 
 Estado do banco:
-`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24 e o trigger `prevent_duplicate_student_for_guardian_trigger` foi confirmado em `public.students`.
+`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24. Depois, `patch_duplicate_students_scope_guardian.sql` foi aplicado em 2026-08-24 para reduzir falso positivo entre familias diferentes. O trigger `prevent_duplicate_student_for_guardian_trigger` foi confirmado em `public.students`.
 
 ---
 
@@ -128,6 +130,7 @@ Estado do banco:
 
 - Criada fila de reimpressao remota para imprimir pela Brother quando pedido vier de celular/outro dispositivo.
 - Implementado bloqueio de duplicidade de criancas no app e no banco.
+- Ajustada regra de duplicidade para permitir outra crianca/familia com mesmo nome+nascimento, mas bloquear duplicidade para o mesmo responsavel.
 - Adicionado overlay "Salvando crianca..." para evitar multiplos cliques.
 - Corrigido upload de foto de crianca para responsavel/admin: o app guarda o ultimo arquivo escolhido, limpa o input alternativo camera/galeria, valida arquivo vazio e envia Blob normalizado ao Supabase Storage.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
@@ -138,24 +141,27 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigir falha de responsaveis ao atualizar foto de crianca.
+Corrigir bloqueio indevido quando responsavel cadastra outra crianca.
 
 Arquivos envolvidos:
 
 - `app.js`
+- `supabase/setup_dnms_checkin.sql`
+- `supabase/patch_prevent_duplicate_students.sql`
+- `supabase/patch_duplicate_students_scope_guardian.sql`
+- `tests/checkin.spec.js`
 - `tests/responsavel.spec.js`
-- `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado com testes. Ainda nao commitado nesta etapa.
+Implementado, aplicado no Supabase e validado com testes. Ainda nao commitado nesta etapa.
 
 ---
 
 ## Decisoes importantes
 
 - Nao gravar secrets em arquivos versionados, mesmo quando fornecidos no chat. Motivo: reduzir risco de vazamento e preservar seguranca do projeto.
-- Crianca e ficha unica; responsaveis sao vinculos. Motivo: evitar duplicidade e acesso indevido por cadastro repetido.
+- Duplicidade automatica deve ser bloqueada por crianca + mesmo responsavel. Motivo: evitar falso positivo entre familias diferentes sem vincular automaticamente uma pessoa a crianca existente.
 - Responsavel comum nao pode se vincular automaticamente a crianca existente. Motivo: seguranca familiar e privacidade.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
@@ -177,7 +183,7 @@ CONTORNADO. Manter em `docs/CODEX_CONTEXT.local.md`, ignorado pelo git, sem expo
 ### 2. Possiveis duplicidades antigas de criancas
 
 Impacto:
-Trigger novo bloqueia novos duplicados, mas nao faz merge automatico de registros legados.
+Trigger novo bloqueia novos duplicados para o mesmo responsavel, mas nao faz merge automatico de registros legados.
 
 Status:
 ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup.
@@ -194,6 +200,7 @@ Prioridade media:
 
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
+- [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 
 Prioridade baixa:
 
@@ -210,13 +217,13 @@ Validar em producao uma tentativa de cadastro duplicado pelo app.
 ## Ultima sessao
 
 Foi feito:
-Corrigida atualizacao de foto de crianca para responsaveis, preservando camera/galeria e normalizando o arquivo antes do upload.
+Corrigido bloqueio indevido de cadastro de outra crianca: regra anti-duplicidade passou a considerar tambem o responsavel principal.
 
 Ficou funcionando:
-Responsavel consegue atualizar foto da propria crianca nos testes; suíte completa passou com 62 testes.
+Responsavel cadastra outra crianca diferente nos testes; duplicidade para o mesmo responsavel continua bloqueada; patch aplicado no banco; suite completa passou com 64 testes.
 
 Ficou pendente:
-Commit/push da correcao de foto, se aprovado.
+Commit/push da correcao de escopo da duplicidade, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

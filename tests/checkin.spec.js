@@ -119,7 +119,7 @@ test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
     .toBe("Maria Clara");
 });
 
-test("nao cadastra a mesma crianca duas vezes com outro responsavel", async ({ page }) => {
+test("nao cadastra a mesma crianca duas vezes para o mesmo responsavel", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -132,7 +132,7 @@ test("nao cadastra a mesma crianca duas vezes com outro responsavel", async ({ p
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "ana   kids");
   await page.fill("#studentBirth", `${day}/${month}/${year}`);
-  await page.fill("#studentGuardian", "Responsavel Secundario");
+  await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11988880000");
   await page.fill("#studentAddress", "Rua Familia");
   await page.click("#btnSaveStudent");
@@ -142,7 +142,7 @@ test("nao cadastra a mesma crianca duas vezes com outro responsavel", async ({ p
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.students.length))
     .toBe(beforeCount);
-  await expect.poll(() => getAlerts(page)).toContain("Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis.");
+  await expect.poll(() => getAlerts(page)).toContain("Esta crianca ja esta cadastrada para este responsavel.");
 });
 
 test("foto da crianca pode ser trocada mais de uma vez", async ({ page }) => {

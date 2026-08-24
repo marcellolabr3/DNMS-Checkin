@@ -1,24 +1,3 @@
-create or replace function public.normalize_student_duplicate_text(value text)
-returns text
-language sql
-immutable
-as $$
-  select lower(
-    regexp_replace(
-      btrim(
-        translate(
-          coalesce(value, ''),
-          'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ',
-          'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn'
-        )
-      ),
-      '\s+',
-      ' ',
-      'g'
-    )
-  );
-$$;
-
 create or replace function public.prevent_duplicate_student_for_guardian()
 returns trigger
 language plpgsql
