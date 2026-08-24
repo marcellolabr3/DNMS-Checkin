@@ -143,7 +143,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Trocar seletor de turmas da criacao de salas por checkboxes de selecao multipla.
+Agrupar lista de salas por mes e impedir salas abertas fora da data.
 
 Arquivos envolvidos:
 
@@ -170,6 +170,7 @@ Implementado no app, validado com testes locais e commitado.
 - Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
 - Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
 - Criacao de eventos usa checkboxes de turma para selecionar uma ou varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
+- Lista de salas mostra somente eventos nao fechados de hoje em diante e agrupa por mes em blocos recolhiveis. Salas abertas com data passada sao fechadas ao carregar eventos.
 - Logo da tela "Carregando sessao" deve manter rotacao ativa tambem quando o navegador sinaliza movimento reduzido; nesse caso a animacao fica mais lenta, nao desligada.
 - Ao alterar HTML/CSS/JS do PWA, atualizar querystrings de assets em `index.html` e o `CACHE_NAME`/assets em `sw.js`. Motivo: evitar service worker servindo JS/CSS antigo com tela nova.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
@@ -219,20 +220,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Publicar e validar no app a criacao de salas com duas ou mais turmas marcadas.
+Publicar e validar no app a lista agrupada por mes apos criar recorrencia de 6 meses.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Substituido o `select multiple` de turmas por checkboxes explicitos para Maternal, Kids, Juniors e Teens; atualizado versionamento de `app.js`, `styles.css` e cache do service worker.
+Lista de salas passou a agrupar eventos por mes, esconder eventos vencidos nao fechados e fechar automaticamente salas abertas de datas passadas ao carregar. Verificacao no Supabase encontrou 0 salas passadas abertas e 0 salas passadas nao fechadas antes da alteracao.
 
 Ficou funcionando:
-Criacao de eventos em lote continua criando combinacoes de turmas marcadas e recorrencia mensal; PWA passa a buscar `app.js?v=20260824a` e cache `checkin-cache-v115`; spec de check-in passou em desktop e mobile.
+Eventos futuros ficam em grupos mensais recolhiveis; sala futura nao pode ser aberta antes da data; PWA passa a buscar `app.js?v=20260824b` e cache `checkin-cache-v116`; spec de check-in passou com 34 testes em desktop e mobile.
 
 Ficou pendente:
-Push/publicacao da correcao de checkboxes de turmas, se aprovado.
+Push/publicacao da correcao de agrupamento e regra de salas vencidas, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

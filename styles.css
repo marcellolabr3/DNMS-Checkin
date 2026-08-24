@@ -491,6 +491,41 @@ body.role-theme-sadmin {
   background: var(--accent);
 }
 
+.room-month-group {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.room-month-group + .room-month-group {
+  margin-top: 10px;
+}
+
+.room-month-group summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--accent-strong);
+}
+
+.room-month-group summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.room-month-group .list-item {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  box-shadow: none;
+}
+
 .list-item strong {
   font-weight: 600;
   color: var(--ink);

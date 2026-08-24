@@ -36,6 +36,10 @@ function futureIso(daysAhead) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function pastIso(daysBack) {
+  return futureIso(-daysBack);
+}
+
 test("check-in e checkout manual atualizam o estado da crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -237,6 +241,62 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
       )
     )
     .toEqual(["Maternal", "Teens"]);
+});
+
+test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(({ past, futureA, futureB }) => {
+    window.__mockDnmsDb.rooms.push(
+      {
+        id: "room-old-open",
+        name: "Evento Vencido Aberto",
+        date: past,
+        start_time: "10:00",
+        end_time: "11:00",
+        class_target: "Kids",
+        status: "Aberta",
+        opened_at: past + "T10:00:00.000Z",
+        closed_at: null
+      },
+      {
+        id: "room-future-a",
+        name: "Evento Futuro A",
+        date: futureA,
+        start_time: "10:00",
+        end_time: "11:00",
+        class_target: "Kids",
+        status: "Programada",
+        opened_at: null,
+        closed_at: null
+      },
+      {
+        id: "room-future-b",
+        name: "Evento Futuro B",
+        date: futureB,
+        start_time: "10:00",
+        end_time: "11:00",
+        class_target: "Teens",
+        status: "Programada",
+        opened_at: null,
+        closed_at: null
+      }
+    );
+  }, { past: pastIso(2), futureA: futureIso(35), futureB: futureIso(70) });
+
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  await expect(page.locator(".room-month-group")).toHaveCount(3);
+  await expect(page.locator("#roomList")).not.toContainText("Evento Vencido Aberto");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-old-open")?.status))
+    .toBe("Fechada");
+
+  await page.locator(".room-month-group").filter({ hasText: "Evento Futuro A" }).locator("summary").click();
+  await page.locator("#roomList .list-item").filter({ hasText: "Evento Futuro A" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+  await expect(page.locator("#btnRoomDialogOpen")).toBeDisabled();
 });
 
 test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {

@@ -1183,7 +1183,28 @@ async function fetchRooms() {
     console.warn("Falha ao buscar salas", error);
     return;
   }
-  state.rooms = data.map((room) => {
+  let rows = data || [];
+  const expiredOpenIds = rows
+    .filter((room) => room?.status === "Aberta" && isIsoDateBeforeToday(room.date))
+    .map((room) => room.id)
+    .filter(Boolean);
+  if (expiredOpenIds.length) {
+    const closedAtIso = new Date().toISOString();
+    const { error: closeError } = await supabaseClient
+      .from("rooms")
+      .update({ status: "Fechada", closed_at: closedAtIso })
+      .in("id", expiredOpenIds);
+    if (closeError) {
+      console.warn("Falha ao fechar salas vencidas", closeError);
+    } else {
+      rows = rows.map((room) =>
+        expiredOpenIds.includes(room.id)
+          ? { ...room, status: "Fechada", closed_at: closedAtIso }
+          : room
+      );
+    }
+  }
+  state.rooms = rows.map((room) => {
     const dateObj = parseInputDate(room.date);
     const dateLabel = dateObj ? formatDate(dateObj) : room.date;
     const startTime = room.start_time || room.time || "";
@@ -1302,7 +1323,7 @@ async function recordAuditLog(actionType, targetType, targetId, targetName, deta
 
 function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
-  const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada");
+  const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = canManageRooms();
   const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
@@ -1332,48 +1353,83 @@ function renderRooms() {
   }
 
   els.roomList.innerHTML = "";
-  visibleRooms.forEach((room) => {
-    const item = document.createElement("div");
-    item.className = "list-item";
-    item.innerHTML = `
-      ${
-        canManageRoom
-          ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${room.id}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
-          : ""
-      }
-      <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
-      <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
-      <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
-    `;
-    item.addEventListener("click", (event) => {
-      const target = event.target;
-      if (target instanceof Element && (target.closest("input[type='checkbox']") || target.closest("label"))) {
-        return;
-      }
-      openRoomDetails(room.id);
+  groupRoomsByMonth(visibleRooms).forEach((group, index) => {
+    const details = document.createElement("details");
+    details.className = "room-month-group";
+    details.open = index === 0 || group.rooms.some((room) => room.status === "Aberta");
+    const summary = document.createElement("summary");
+    summary.innerHTML = `<strong>${group.label}</strong><span>${group.rooms.length} evento(s)</span>`;
+    details.appendChild(summary);
+    group.rooms.forEach((room) => {
+      details.appendChild(createRoomListItem(room, canManageRoom, selectedSet));
     });
-    const roomCheckbox = item.querySelector("input[data-select-room]");
-    roomCheckbox?.addEventListener("change", (event) => {
-      const input = event.target;
-      if (!(input instanceof HTMLInputElement)) {
-        return;
-      }
-      const current = new Set(state.ui.selectedRoomIds || []);
-      if (input.checked) {
-        current.add(room.id);
-      } else {
-        current.delete(room.id);
-      }
-      state.ui.selectedRoomIds = Array.from(current);
-      renderRooms();
-    });
-    els.roomList.appendChild(item);
+    els.roomList.appendChild(details);
   });
+}
+
+function createRoomListItem(room, canManageRoom, selectedSet) {
+  const item = document.createElement("div");
+  item.className = "list-item";
+  item.innerHTML = `
+    ${
+      canManageRoom
+        ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${room.id}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
+        : ""
+    }
+    <strong>${room.date} ${room.startTime || ""}${room.endTime ? ` - ${room.endTime}` : ""} - ${room.name}</strong>
+    <span class="muted">Turma: ${room.classTarget || "-"} | Status: ${room.status}</span>
+    <span class="muted">Abertura: ${room.openedAt || "-"} | Fechamento: ${room.closedAt || "-"}</span>
+  `;
+  item.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof Element && (target.closest("input[type='checkbox']") || target.closest("label"))) {
+      return;
+    }
+    openRoomDetails(room.id);
+  });
+  const roomCheckbox = item.querySelector("input[data-select-room]");
+  roomCheckbox?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const current = new Set(state.ui.selectedRoomIds || []);
+    if (input.checked) {
+      current.add(room.id);
+    } else {
+      current.delete(room.id);
+    }
+    state.ui.selectedRoomIds = Array.from(current);
+    renderRooms();
+  });
+  return item;
+}
+
+function groupRoomsByMonth(rooms) {
+  const groups = new Map();
+  rooms.forEach((room) => {
+    const dateObj = room.dateIso ? parseInputDate(room.dateIso) : parseRoomDate(room.date || "");
+    const key = dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}` : "sem-data";
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: dateObj ? formatMonthLabel(dateObj) : "Sem data",
+        rooms: []
+      });
+    }
+    groups.get(key).rooms.push(room);
+  });
+  return Array.from(groups.values());
+}
+
+function formatMonthLabel(date) {
+  const text = date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return text.charAt(0).toLocaleUpperCase("pt-BR") + text.slice(1);
 }
 
 function handleSelectAllRoomsInList(event) {
   const checked = Boolean(event?.target?.checked);
-  const visibleRooms = state.rooms.filter((room) => room.status !== "Fechada");
+  const visibleRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
   state.ui.selectedRoomIds = checked ? visibleRooms.map((room) => room.id) : [];
   renderRooms();
 }
@@ -1381,7 +1437,7 @@ function handleSelectAllRoomsInList(event) {
 function getSelectedRoomIdsInList() {
   const selected = new Set(state.ui.selectedRoomIds || []);
   return state.rooms
-    .filter((room) => room.status !== "Fechada" && selected.has(room.id))
+    .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id))
     .map((room) => room.id);
 }
 
@@ -6710,11 +6766,11 @@ function canOpenRoomNow(room) {
   if (!room) {
     return false;
   }
-  if (!isEquipe() || canManageRooms()) {
-    return true;
-  }
   if (room.date !== formatToday()) {
     return false;
+  }
+  if (!isEquipe() || canManageRooms()) {
+    return true;
   }
   const now = currentTimeValue();
   const start = room.startTime || room.time || "";
@@ -6791,11 +6847,38 @@ function formatToday() {
   return `${day}/${month}/${year}`;
 }
 
+function formatTodayIso() {
+  const date = new Date();
+  return formatDateIso(date);
+}
+
+function formatDateIso(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
 function formatDate(date) {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function isIsoDateBeforeToday(value) {
+  const date = String(value || "").slice(0, 10);
+  return Boolean(date) && date < formatTodayIso();
+}
+
+function isRoomPast(room) {
+  if (!room) {
+    return false;
+  }
+  if (room.dateIso) {
+    return isIsoDateBeforeToday(room.dateIso);
+  }
+  const dateObj = parseRoomDate(room.date || "");
+  return Boolean(dateObj) && formatDateIso(dateObj) < formatTodayIso();
 }
 
 function isValidDateParts(year, month, day) {
