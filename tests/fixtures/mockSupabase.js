@@ -368,6 +368,9 @@ function createMockSupabaseScript() {
             return {
               async upload(path, file) {
                 window.__mockStorageUploads.push({ path, name: file?.name || "", type: file?.type || "", size: file?.size || 0 });
+                if (window.__mockStorageUploadError) {
+                  return { error: { message: window.__mockStorageUploadError } };
+                }
                 return { error: null };
               },
               getPublicUrl(path) {

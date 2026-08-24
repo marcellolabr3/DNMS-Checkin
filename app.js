@@ -5355,6 +5355,18 @@ async function saveStudent(event) {
         alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada para este responsavel." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
         return;
       }
+      if (!data?.id) {
+        alert("Falha ao salvar aluno: cadastro sem identificador.");
+        return;
+      }
+      if (!existing?.id) {
+        const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
+        if (!linked) {
+          await supabaseClient.from("students").delete().eq("id", data.id);
+          alert("A crianca so pode ser cadastrada a um usuario valido.");
+          return;
+        }
+      }
       if (photoFile) {
         const upload = await uploadStudentPhoto(data.id, photoFile);
         if (!upload.ok) {
@@ -5364,14 +5376,6 @@ async function saveStudent(event) {
         const photoUpdate = await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
         if (photoUpdate.error) {
           alert(`Falha ao salvar foto do aluno: ${photoUpdate.error.message || "erro inesperado"}`);
-          return;
-        }
-      }
-      if (!existing?.id) {
-        const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
-        if (!linked) {
-          await supabaseClient.from("students").delete().eq("id", data.id);
-          alert("A crianca so pode ser cadastrada a um usuario valido.");
           return;
         }
       }

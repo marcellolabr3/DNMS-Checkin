@@ -269,6 +269,39 @@ test("log gera relatorio de cadastro de criancas", async ({ page }) => {
   await expect(page.locator("#btnExport")).toBeEnabled();
 });
 
+test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "Vinculo Admin");
+  await page.fill("#studentBirth", "14/03/2020");
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Vinculo");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  const student = await page.evaluate(() =>
+    window.__mockDnmsDb.students.find((item) => item.name === "Vinculo Admin")
+  );
+  expect(student?.id).toBeTruthy();
+  await expect
+    .poll(() =>
+      page.evaluate((studentId) =>
+        Boolean(
+          window.__mockDnmsDb.student_guardians.find(
+            (item) => item.guardian_id === "parent-1" && item.student_id === studentId
+          )
+        ),
+        student.id
+      )
+    )
+    .toBe(true);
+});
+
 test("sadmin edita qualquer usuario e crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "marvinlabre@gmail.com");

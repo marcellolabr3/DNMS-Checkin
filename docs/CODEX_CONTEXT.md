@@ -90,6 +90,7 @@ No PC da Brother, PWA chama `http://localhost:3001/print` ou `/reprint`. Para ch
 - `supabase/setup_dnms_checkin.sql` - schema completo esperado.
 - `supabase/patch_prevent_duplicate_students.sql` - trigger contra duplicidade de criancas.
 - `supabase/patch_duplicate_students_scope_guardian.sql` - ajusta escopo da duplicidade para mesmo responsavel.
+- `supabase/patch_backfill_student_guardian_links.sql` - repara vinculos ausentes entre criancas e responsaveis por nome normalizado.
 - `supabase/patch_reprint_queue.sql` - fila de reimpressao remota.
 - `tests/checkin.spec.js` - testes principais de cadastro/check-in.
 
@@ -118,11 +119,12 @@ Migracoes recentes:
 - `patch_reprint_queue.sql` - cria `print_jobs` e RPC `claim_next_reprint_job` para reimpressao remota.
 - `patch_prevent_duplicate_students.sql` - cria normalizacao e trigger para bloquear crianca duplicada por nome + nascimento.
 - `patch_duplicate_students_scope_guardian.sql` - ajusta trigger para bloquear duplicidade por nome + nascimento + responsavel principal, evitando falso positivo entre familias diferentes.
+- `patch_backfill_student_guardian_links.sql` - insere vinculos ausentes quando `students.primary_guardian_name` bate com um perfil `responsavel`.
 - `patch_checkin_active_guard.sql` - garante um check-in ativo por crianca.
 - `patch_delete_user_account.sql` - exclusao completa de usuario/perfil/vinculos conforme regras.
 
 Estado do banco:
-`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24. Depois, `patch_duplicate_students_scope_guardian.sql` foi aplicado em 2026-08-24 para reduzir falso positivo entre familias diferentes. O trigger `prevent_duplicate_student_for_guardian_trigger` foi confirmado em `public.students`.
+`patch_prevent_duplicate_students.sql` foi aplicado diretamente no Supabase em 2026-08-24. Depois, `patch_duplicate_students_scope_guardian.sql` foi aplicado em 2026-08-24 para reduzir falso positivo entre familias diferentes. Em 2026-08-24, `patch_backfill_student_guardian_links.sql` inseriu 1 vinculo ausente em `student_guardians`; verificacao posterior encontrou 0 criancas sem vinculo.
 
 ---
 
@@ -141,16 +143,19 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Garantir que responsavel veja todas as criancas cadastradas por ele na propria lista.
+Garantir que todo cadastro de crianca fique vinculado a um responsavel.
 
 Arquivos envolvidos:
 
 - `app.js`
+- `supabase/patch_backfill_student_guardian_links.sql`
+- `tests/checkin.spec.js`
 - `tests/responsavel.spec.js`
+- `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado no app, validado com testes locais e commitado.
+Implementado no app, aplicado backfill no Supabase, validado com testes locais e commitado.
 
 ---
 
@@ -160,6 +165,7 @@ Implementado no app, validado com testes locais e commitado.
 - Duplicidade automatica deve ser bloqueada por crianca + mesmo responsavel. Motivo: evitar falso positivo entre familias diferentes sem vincular automaticamente uma pessoa a crianca existente.
 - Responsavel comum nao pode se vincular automaticamente a crianca existente. Motivo: seguranca familiar e privacidade.
 - Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
+- Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -195,7 +201,6 @@ Prioridade alta:
 
 Prioridade media:
 
-- [ ] Avaliar reparo controlado de vinculos legados em `student_guardians` para criancas cujo `primary_guardian_name` bate com um perfil de responsavel.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -208,20 +213,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Publicar a correcao de lista do responsavel e validar com o caso real relatado.
+Commitar/publicar a correcao de vinculo obrigatorio e validar com cadastro real por responsavel e por admin.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Corrigida a lista do responsavel para carregar criancas por vinculo em `student_guardians` e tambem por `primary_guardian_name`, cobrindo registros legados sem vinculo.
+Corrigido o fluxo de cadastro para criar vinculo em `student_guardians` antes de upload de foto/auditoria; aplicado backfill no Supabase para reparar vinculo legado ausente.
 
 Ficou funcionando:
-Responsavel visualiza crianca vinculada e crianca legada sem vinculo nos testes; specs de responsavel e check-in passaram localmente.
+Responsavel cadastrando crianca cria vinculo mesmo se upload de foto falhar; admin cadastrando crianca cria vinculo para o responsavel selecionado; verificacao no Supabase encontrou 0 criancas sem vinculo; specs de responsavel e check-in passaram localmente.
 
 Ficou pendente:
-Push/publicacao da correcao de lista, se aprovado. Caso real encontrado: uma crianca de Paula Cristina Nery Da Silva Costa esta sem vinculo em `student_guardians`; avaliar reparo controlado do vinculo.
+Push/publicacao da correcao de vinculo obrigatorio, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

@@ -123,3 +123,40 @@ test("responsavel cadastra outra crianca diferente", async ({ page }) => {
     )
     .toBe(true);
 });
+
+test("responsavel cadastra crianca vinculada mesmo quando upload de foto falha", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+  await page.evaluate(() => {
+    window.__mockStorageUploadError = "Falha simulada no storage";
+  });
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+
+  await page.fill("#studentName", "Foto Falha Vinculo");
+  await page.fill("#studentBirth", "12/02/2021");
+  await page.setInputFiles("#studentPhoto", {
+    name: "foto-falha.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("foto-falha")
+  });
+  await page.click("#btnSaveStudent");
+
+  const student = await page.evaluate(() =>
+    window.__mockDnmsDb.students.find((item) => item.name === "Foto Falha Vinculo")
+  );
+  expect(student?.id).toBeTruthy();
+  await expect
+    .poll(() =>
+      page.evaluate((studentId) =>
+        Boolean(
+          window.__mockDnmsDb.student_guardians.find(
+            (item) => item.guardian_id === "parent-1" && item.student_id === studentId
+          )
+        ),
+        student.id
+      )
+    )
+    .toBe(true);
+});
