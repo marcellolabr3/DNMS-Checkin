@@ -165,7 +165,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Concluido em 3 sprints e ajuste posterior de auditoria: `fetchStudents()` preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; Familias, permissoes e duplicidade consideram multiplos responsaveis; `assignStudentToFamily()` adiciona vinculo sem alterar `students.primary_guardian_name` e agora grava `child_updated` no Log para aparecer em "Alteracoes de dados"; testes cobrem responsavel secundario, preservacao do responsavel principal e log do vinculo. Validar com testes focados e suite completa quando concluir.
+Concluido em 3 sprints e ajuste posterior de auditoria: `fetchStudents()` preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; Familias, permissoes e duplicidade consideram multiplos responsaveis; `assignStudentToFamily()` adiciona vinculo sem alterar `students.primary_guardian_name` e agora grava `child_updated` no Log para aparecer em "Alteracoes de dados"; testes cobrem responsavel secundario, preservacao do responsavel principal e log do vinculo. Analise das demais opcoes do Log registrada: Assiduidade usa `checkins`; Cadastro de criancas usa `child_created`; Exclusoes de usuarios usa `user_deleted`; Alteracoes de dados usa `child_updated`, `user_updated`, `room_opened`, `room_closed`; Todos os eventos mostra todo `audit_logs`.
 
 ---
 
@@ -227,6 +227,7 @@ Prioridade media:
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
+- [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 
 Prioridade baixa:
 
@@ -243,7 +244,7 @@ Validar no app publicado o fluxo real: em Familias, buscar o segundo responsavel
 ## Ultima sessao
 
 Foi feito:
-Correcao de multiplos responsaveis aplicada em 3 commits/sprints. O app passou a manter todos os vinculos de `student_guardians` em `guardianProfileIds`, a aba Familias passou a listar a mesma crianca em todos os responsaveis vinculados, permissoes de responsavel passaram a considerar vinculos secundarios, e o botao "Vincular crianca existente" deixou de trocar `students.primary_guardian_name`. O mock Supabase foi ajustado para simular corretamente a chave composta `(student_id, guardian_id)` em `student_guardians`.
+Correcao de multiplos responsaveis aplicada em 3 commits/sprints. O app passou a manter todos os vinculos de `student_guardians` em `guardianProfileIds`, a aba Familias passou a listar a mesma crianca em todos os responsaveis vinculados, permissoes de responsavel passaram a considerar vinculos secundarios, e o botao "Vincular crianca existente" deixou de trocar `students.primary_guardian_name`. O mock Supabase foi ajustado para simular corretamente a chave composta `(student_id, guardian_id)` em `student_guardians`. Analise posterior do Log confirmou o escopo atual de cada opcao e registrou ambiguidade de nomenclatura/filtros para avaliacao futura.
 
 Ficou funcionando:
 Crianca pode aparecer no perfil de dois responsaveis. Vincular segundo responsavel adiciona relacao sem remover o primeiro e sem substituir o responsavel principal. Responsavel secundario consegue visualizar a crianca vinculada. O vinculo manual em Familias agora tambem entra em "Alteracoes de dados" no Log. PWA passou para `app.js?v=20260824k` e cache `checkin-cache-v127`.
