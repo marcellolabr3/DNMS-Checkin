@@ -151,7 +151,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Correcao da exportacao do Log concluida: CSV legivel em planilhas, com acentos preservados, colunas separadas corretamente e linhas ordenadas.
+Corrigir fluxo de multiplos responsaveis por crianca em sprints com commit ao fim de cada etapa.
 
 Arquivos envolvidos:
 
@@ -163,7 +163,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, `cmd /c npx playwright test tests/checkin.spec.js`, `cmd /c npx playwright test tests/service-worker.spec.js` e `cmd /c npm test` (92 testes em desktop/mobile).
+Sprint 1 implementada: `fetchStudents()` agora preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; listagem de Familias, permissoes de responsavel e verificacao de duplicidade passam a considerar multiplos vinculos. `guardianProfileId` foi mantido como compatibilidade/representacao principal. Validado com `node --check app.js`.
 
 ---
 
@@ -176,6 +176,7 @@ Implementado e validado localmente com `node --check app.js`, `node --check sw.j
 - Duplicidade automatica deve ser bloqueada por crianca + mesmo responsavel. Motivo: evitar falso positivo entre familias diferentes sem vincular automaticamente uma pessoa a crianca existente.
 - Responsavel comum nao pode se vincular automaticamente a crianca existente. Motivo: seguranca familiar e privacidade.
 - Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
+- Criancas podem ter mais de um responsavel em `student_guardians`; a UI deve considerar todos os IDs vinculados para Familias, permissoes e duplicidade. `students.primary_guardian_name` representa apenas o responsavel principal/legado.
 - Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
 - Criacao de eventos usa checkboxes de turma para selecionar uma ou varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
 - Lista de salas mostra somente eventos nao fechados de hoje em diante e agrupa por mes em blocos recolhiveis. Salas abertas com data passada sao fechadas ao carregar eventos.
@@ -233,7 +234,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar no app publicado exportando "Cadastro de criancas" e abrindo o CSV no Excel/Google Sheets para confirmar colunas separadas e acentos corretos.
+Sprint 2: ajustar o botao "Vincular crianca existente" para adicionar vinculo em `student_guardians` sem trocar `students.primary_guardian_name`, deixando troca de responsavel principal para uma acao explicita futura.
 
 ---
 

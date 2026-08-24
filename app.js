@@ -1169,9 +1169,13 @@ async function fetchStudents() {
       console.warn("Falha ao buscar vinculos student_guardians", linksError);
     } else {
       (links || []).forEach((item) => {
-        if (item?.student_id && item?.guardian_id && !guardianLinkMap.has(item.student_id)) {
-          guardianLinkMap.set(item.student_id, item.guardian_id);
+        if (!item?.student_id || !item?.guardian_id) {
+          return;
         }
+        if (!guardianLinkMap.has(item.student_id)) {
+          guardianLinkMap.set(item.student_id, []);
+        }
+        guardianLinkMap.get(item.student_id).push(item.guardian_id);
       });
     }
   }
@@ -1186,7 +1190,8 @@ async function fetchStudents() {
     address: student.address,
     notes: student.notes || "",
     owner: student.primary_guardian_name || "",
-    guardianProfileId: guardianLinkMap.get(student.id) || "",
+    guardianProfileIds: guardianLinkMap.get(student.id) || [],
+    guardianProfileId: getPrimaryGuardianProfileId(student, guardianLinkMap.get(student.id) || []),
     isVisitor: Boolean(student.is_visitor),
     photoUrl: student.photo_url || ""
   }));
@@ -4246,14 +4251,12 @@ function renderFamiliesPanel() {
 function getFamiliesWithChildren() {
   const childrenByGuardian = new Map();
   (state.students || []).forEach((student) => {
-    const key = String(student.guardianProfileId || "").trim();
-    if (!key) {
-      return;
-    }
-    if (!childrenByGuardian.has(key)) {
-      childrenByGuardian.set(key, []);
-    }
-    childrenByGuardian.get(key).push(student);
+    getStudentGuardianProfileIds(student).forEach((key) => {
+      if (!childrenByGuardian.has(key)) {
+        childrenByGuardian.set(key, []);
+      }
+      childrenByGuardian.get(key).push(student);
+    });
   });
   const result = [];
   (state.profiles || []).forEach((profile) => {
@@ -4285,7 +4288,7 @@ function getFilteredFamiliesForCurrentSearch() {
 function getFamilyAssignableStudents(profileId, selectedChildren = []) {
   const selectedIds = new Set((selectedChildren || []).map((child) => child.id));
   return (state.students || [])
-    .filter((student) => !selectedIds.has(student.id))
+    .filter((student) => !selectedIds.has(student.id) && !getStudentGuardianProfileIds(student).includes(profileId))
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
 
@@ -4335,7 +4338,7 @@ function getPrimaryStudentIdsForProfile(profile) {
       if (guardianName && profileName && guardianName === profileName) {
         return true;
       }
-      return !guardianName && student.guardianProfileId === profile.id;
+      return !guardianName && getStudentGuardianProfileIds(student).includes(profile.id);
     })
     .map((student) => student.id)
     .filter(Boolean);
@@ -5385,20 +5388,26 @@ function findDuplicateStudentForPayload(payload, currentStudentId = "") {
     if (!student?.id || student.id === currentStudentId) {
       return false;
     }
-    return buildStudentDuplicateKey(student) === targetKey;
+    return buildStudentDuplicateKeys(student).includes(targetKey);
   }) || null;
 }
 
 function buildStudentDuplicateKey(student) {
+  return buildStudentDuplicateKeys(student)[0] || "";
+}
+
+function buildStudentDuplicateKeys(student) {
   const name = normalizeDuplicateText(student?.name || "");
   const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
-  const guardian = student?.guardianProfileId
-    ? `id:${student.guardianProfileId}`
-    : `name:${normalizeDuplicateText(student?.guardian || student?.primary_guardian_name || "")}`;
-  if (!name || !birth || guardian === "name:") {
-    return "";
+  if (!name || !birth) {
+    return [];
   }
-  return `${name}|${birth}|${guardian}`;
+  const guardianIds = getStudentGuardianProfileIds(student);
+  if (guardianIds.length) {
+    return guardianIds.map((guardianId) => `${name}|${birth}|id:${guardianId}`);
+  }
+  const guardianName = normalizeDuplicateText(student?.guardian || student?.primary_guardian_name || "");
+  return guardianName ? [`${name}|${birth}|name:${guardianName}`] : [];
 }
 
 function normalizeDuplicateText(value) {
@@ -5858,6 +5867,31 @@ function buildNationalPhoneFromParts(dddRaw, numberRaw) {
     return normalizePhoneDigits(numberDigits);
   }
   return normalizePhoneDigits(`${ddd}${numberDigits}`);
+}
+
+function getStudentGuardianProfileIds(student) {
+  const ids = Array.isArray(student?.guardianProfileIds) ? student.guardianProfileIds : [];
+  const unique = new Set(ids.map((id) => String(id || "").trim()).filter(Boolean));
+  const legacyId = String(student?.guardianProfileId || "").trim();
+  if (legacyId) {
+    unique.add(legacyId);
+  }
+  return Array.from(unique);
+}
+
+function getPrimaryGuardianProfileId(student, guardianProfileIds = []) {
+  const ids = Array.from(new Set((guardianProfileIds || []).map((id) => String(id || "").trim()).filter(Boolean)));
+  if (!ids.length) {
+    return "";
+  }
+  const primaryName = normalizeMatchText(student?.primary_guardian_name || student?.guardian || "");
+  if (primaryName) {
+    const profile = (state.profiles || []).find((item) => ids.includes(item.id) && normalizeMatchText(item.name || "") === primaryName);
+    if (profile?.id) {
+      return profile.id;
+    }
+  }
+  return ids[0];
 }
 
 function getResponsibleContactForStudent(student) {
@@ -6423,14 +6457,14 @@ function canCheckinStudent(student) {
   if (isEquipe() || isAdmin()) {
     return true;
   }
-  return student.guardian === state.session.name || student.owner === state.session.name;
+  return isStudentOwnedBySession(student);
 }
 
 function isStudentOwnedBySession(student) {
   if (!state.session || !student) {
     return false;
   }
-  if (student.guardianProfileId && student.guardianProfileId === state.session.id) {
+  if (getStudentGuardianProfileIds(student).includes(state.session.id)) {
     return true;
   }
   return student.guardian === state.session.name || student.owner === state.session.name;
