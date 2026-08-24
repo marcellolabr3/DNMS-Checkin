@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 1 de hardening de HTML/DOM.
+Sprint 2 de service worker seguro.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -136,6 +136,7 @@ Estado do banco:
 - Adicionado overlay "Salvando crianca..." para evitar multiplos cliques.
 - Corrigido upload de foto de crianca para responsavel/admin: o app guarda o ultimo arquivo escolhido, limpa o input alternativo camera/galeria, valida arquivo vazio e envia Blob normalizado ao Supabase Storage.
 - Sprint 1 de seguranca do DOM: dados de usuarios/criancas/salas/escalas/etiquetas interpolados em HTML passaram a usar escape antes de renderizar; `print.js` tambem passou a escapar dados da etiqueta/reimpressao.
+- Sprint 2 de service worker seguro: cache restrito a assets estaticos locais; Supabase, Google Sheets, CDN e servico local de impressao nao devem ser interceptados/cacheados pelo SW.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -144,20 +145,16 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 1 concluida: reduzir risco de HTML/XSS em renderizacoes com dados vindos de cadastro/banco, sem alterar regras de negocio.
+Sprint 2 concluida: restringir cache do service worker para evitar dados dinamicos antigos ou de outra sessao, mantendo fallback offline para assets estaticos.
 
 Arquivos envolvidos:
 
-- `app.js`
-- `index.html`
-- `print.html`
-- `print.js`
 - `sw.js`
-- `tests/checkin.spec.js`
+- `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `cmd /c npm test` (78 testes em desktop/mobile).
+Implementado e validado localmente com `cmd /c npm test` (80 testes em desktop/mobile).
 
 ---
 
@@ -176,6 +173,7 @@ Implementado e validado localmente com `cmd /c npm test` (78 testes em desktop/m
 - Logo da tela "Carregando sessao" deve manter rotacao ativa tambem quando o navegador sinaliza movimento reduzido; nesse caso a animacao fica mais lenta, nao desligada.
 - Ao alterar HTML/CSS/JS do PWA, atualizar querystrings de assets em `index.html` e o `CACHE_NAME`/assets em `sw.js`. Motivo: evitar service worker servindo JS/CSS antigo com tela nova.
 - Dados vindos de usuario/banco nao devem ser interpolados diretamente em `innerHTML`; usar `textContent`, `createElement` ou helpers de escape antes de montar markup. Motivo: evitar XSS/injecao visual sem depender apenas de validacao de entrada.
+- Service worker deve interceptar/cachear apenas assets estaticos locais explicitamente listados; chamadas Supabase/Google Sheets/CDN/localhost e rotas dinamicas devem seguir direto pela rede. Motivo: evitar dados obsoletos, cache entre sessoes e comportamento inconsistente em producao.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -207,7 +205,7 @@ ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup.
 
 Prioridade alta:
 
-- [ ] Sprint 2: restringir service worker para cachear apenas assets estaticos locais e nao cachear Supabase/Google Sheets/dados dinamicos.
+- [ ] Sprint 3: proteger servico local de impressao contra chamadas indevidas via `localhost:3001`, preservando check-in e reimpressao.
 - [ ] Confirmar periodicamente se credenciais administrativas ainda devem permanecer no arquivo local.
 
 Prioridade media:
@@ -224,20 +222,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 2: ajustar estrategia do service worker para evitar cache indevido de dados dinamicos, mantendo app offline para assets estaticos.
+Iniciar Sprint 3: adicionar autorizacao/validacao ao servico local de impressao sem quebrar check-in, reimpressao local e fila remota.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 1 aplicada: `app.js` e `print.js` passaram a escapar dados dinamicos antes de renderizar HTML em listas, detalhes, dashboard, familias, salas, logs, seletores e etiquetas. `index.html`, `print.html` e `sw.js` tiveram assets/cache versionados para carregar os scripts novos.
+Sprint 2 aplicada: `sw.js` passou a ignorar metodos nao-GET, usar network-first para navegacao com fallback para `index.html`, e cachear apenas requests same-origin cujo pathname esteja na lista de assets. Foi criado `tests/service-worker.spec.js` para travar essa regra.
 
 Ficou funcionando:
-Dados contendo tags como `<img>` e `<script>` aparecem como texto em lista, detalhes e etiqueta; nao viram elementos DOM executaveis. PWA passa a buscar `app.js?v=20260824c`, `print.js?v=20260824c` e cache `checkin-cache-v117`. `cmd /c npm test` passou com 78 testes em desktop/mobile.
+Supabase, Google Sheets, CDN externo e `localhost:3001` nao devem ser cacheados/interceptados pelo service worker. Cache atualizado para `checkin-cache-v118`. `cmd /c npm test` passou com 80 testes em desktop/mobile.
 
 Ficou pendente:
-Publicacao/push da Sprint 1, se aprovado, e inicio da Sprint 2 do service worker.
+Publicacao/push da Sprint 2, se aprovado, e inicio da Sprint 3 do servico local de impressao.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
