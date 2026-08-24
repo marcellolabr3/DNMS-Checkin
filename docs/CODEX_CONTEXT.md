@@ -151,7 +151,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigir fluxo de multiplos responsaveis por crianca em sprints com commit ao fim de cada etapa.
+Corrigir risco de nomes de criancas ficarem truncados durante digitacao no cadastro.
 
 Arquivos envolvidos:
 
@@ -165,7 +165,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Concluido em 3 sprints e ajuste posterior de auditoria: `fetchStudents()` preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; Familias, permissoes e duplicidade consideram multiplos responsaveis; `assignStudentToFamily()` adiciona vinculo sem alterar `students.primary_guardian_name` e agora grava `child_updated` no Log para aparecer em "Alteracoes de dados"; testes cobrem responsavel secundario, preservacao do responsavel principal e log do vinculo. Analise das demais opcoes do Log registrada: Assiduidade usa `checkins`; Cadastro de criancas usa `child_created`; Exclusoes de usuarios usa `user_deleted`; Alteracoes de dados usa `child_updated`, `user_updated`, `room_opened`, `room_closed`; Todos os eventos mostra todo `audit_logs`.
+Implementado e validado: removida formatacao em tempo real de nomes (`bindPersonNameInput`) para evitar perda/interferencia de caracteres durante digitacao/autocorrecao, especialmente em celular. Normalizacao de iniciais continua no blur e no salvar via `normalizePersonName()`. Consulta em producao encontrou nomes recentes com padrao suspeito `De An ...`; nao corrigir dados existentes sem confirmacao do nome correto. `cmd /c npm test` passou com 100 testes em desktop/mobile.
 
 ---
 
@@ -228,6 +228,7 @@ Prioridade media:
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
+- [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
 
 Prioridade baixa:
 
@@ -244,13 +245,13 @@ Validar no app publicado o fluxo real: em Familias, buscar o segundo responsavel
 ## Ultima sessao
 
 Foi feito:
-Correcao de multiplos responsaveis aplicada em 3 commits/sprints. O app passou a manter todos os vinculos de `student_guardians` em `guardianProfileIds`, a aba Familias passou a listar a mesma crianca em todos os responsaveis vinculados, permissoes de responsavel passaram a considerar vinculos secundarios, e o botao "Vincular crianca existente" deixou de trocar `students.primary_guardian_name`. O mock Supabase foi ajustado para simular corretamente a chave composta `(student_id, guardian_id)` em `student_guardians`. Analise posterior do Log confirmou o escopo atual de cada opcao e registrou ambiguidade de nomenclatura/filtros para avaliacao futura.
+Correcao preventiva para nomes truncados no cadastro: a formatacao em tempo real dos campos de nome foi removida, mantendo normalizacao no blur/salvar. Foi adicionado teste para garantir que nome longo digitado caractere a caractere nao perde caracteres.
 
 Ficou funcionando:
-Crianca pode aparecer no perfil de dois responsaveis. Vincular segundo responsavel adiciona relacao sem remover o primeiro e sem substituir o responsavel principal. Responsavel secundario consegue visualizar a crianca vinculada. O vinculo manual em Familias agora tambem entra em "Alteracoes de dados" no Log. PWA passou para `app.js?v=20260824k` e cache `checkin-cache-v127`.
+Nome de crianca continua sendo salvo com iniciais maiusculas, mas o campo nao reescreve mais o texto a cada tecla. PWA passou para `app.js?v=20260824l` e cache `checkin-cache-v128`.
 
 Ficou pendente:
-Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824k`/`checkin-cache-v127` e testar o fluxo real em Familias/Log. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Validar no app publicado se o navegador ja carregou `app.js?v=20260824l`/`checkin-cache-v128`, e confirmar nomes corretos para reparar registros existentes se necessario. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

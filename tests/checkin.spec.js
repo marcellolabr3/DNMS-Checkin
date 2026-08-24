@@ -133,6 +133,19 @@ test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
     .toBe("Maria Clara");
 });
 
+test("nome longo da crianca nao perde caracteres durante digitacao", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.locator("#studentName").click();
+  await page.keyboard.type("Samuel De Ana Magalhaes Pinheiro", { delay: 5 });
+
+  await expect(page.locator("#studentName")).toHaveValue("Samuel De Ana Magalhaes Pinheiro");
+});
+
 test("dados com HTML sao exibidos como texto nas listas, detalhes e etiqueta", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {

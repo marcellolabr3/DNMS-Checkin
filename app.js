@@ -7035,22 +7035,6 @@ function bindPersonNameInput(input) {
   input.addEventListener("blur", () => {
     input.value = normalizePersonName(input.value);
   });
-  input.addEventListener("input", () => {
-    const start = input.selectionStart ?? input.value.length;
-    const end = input.selectionEnd ?? start;
-    const formatted = formatPersonNameDraft(input.value);
-    if (formatted === input.value) {
-      return;
-    }
-    input.value = formatted;
-    input.setSelectionRange(start, end);
-  });
-}
-
-function formatPersonNameDraft(value) {
-  return String(value || "").replace(/(^|[\s'-])([^\s'-])/g, (match, prefix, letter) => {
-    return `${prefix}${letter.toLocaleUpperCase("pt-BR")}`;
-  });
 }
 
 function bindBirthDateInput(input) {
