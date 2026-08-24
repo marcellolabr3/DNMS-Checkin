@@ -143,13 +143,12 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Facilitar criacao de eventos para multiplas turmas e recorrencia mensal.
+Corrigir animacao do logo na tela "Carregando sessao" no desktop.
 
 Arquivos envolvidos:
 
-- `app.js`
-- `index.html`
-- `tests/checkin.spec.js`
+- `styles.css`
+- `tests/auth.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -165,6 +164,7 @@ Implementado no app, validado com testes locais e commitado.
 - Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
 - Cadastro novo deve criar o vinculo em `student_guardians` imediatamente apos inserir a crianca e antes de upload de foto/auditoria. Motivo: evitar crianca sem responsavel quando etapas posteriores falham.
 - Criacao de eventos pode selecionar varias turmas; recorrencia usa opcoes de 1 a 6 meses, calculadas como 4 semanas por mes. Edicao individual de sala continua exigindo apenas uma turma.
+- Logo da tela "Carregando sessao" deve manter rotacao ativa tambem quando o navegador sinaliza movimento reduzido; nesse caso a animacao fica mais lenta, nao desligada.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -212,20 +212,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Commitar/publicar a correcao de criacao de eventos em lote e validar no app com duas turmas selecionadas.
+Commitar/publicar a correcao da animacao do logo e validar no desktop real.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Formulario de eventos passou a aceitar varias turmas; recorrencia semanal fixa de 4 semanas foi substituida por opcoes de 1 a 6 meses.
+Corrigida a animacao do logo na tela "Carregando sessao": `prefers-reduced-motion` agora reduz a velocidade em vez de desligar a rotacao.
 
 Ficou funcionando:
-Criacao com 2 turmas e 2 meses gera 16 eventos nos testes; edicao de sala continua com uma turma; specs de check-in e responsavel passaram localmente.
+Teste de restauracao lenta confirma `app-loading-spin` no logo; teste com movimento reduzido tambem confirma animacao ativa; spec de auth passou em desktop e mobile.
 
 Ficou pendente:
-Push/publicacao da correcao de eventos em lote, se aprovado.
+Push/publicacao da correcao da animacao, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

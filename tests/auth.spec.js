@@ -37,9 +37,19 @@ test("restauracao lenta mostra carregamento sem piscar login", async ({ page }) 
   await openApp(page, { path: "/index.html?scenario=slow-restore-session", waitForAuth: false });
 
   await expect(page.locator("#bootCard")).toBeVisible({ timeout: 200 });
+  await expect(page.locator(".app-loading-logo")).toHaveCSS("animation-name", "app-loading-spin");
   await expect(page.locator("#authCard")).toBeHidden();
   await expect(page.locator("#dashboardCard")).toBeVisible();
   await expect(page.locator("#sessionRole")).toContainText("Admin");
+});
+
+test("logo de carregamento gira mesmo com movimento reduzido", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openApp(page, { path: "/index.html?scenario=slow-restore-session", waitForAuth: false });
+
+  await expect(page.locator("#bootCard")).toBeVisible({ timeout: 200 });
+  await expect(page.locator(".app-loading-logo")).toHaveCSS("animation-name", "app-loading-spin");
+  await expect(page.locator(".app-loading-logo")).not.toHaveCSS("animation-duration", "0s");
 });
 
 test("sessao sem perfil faz logout e nao recria usuario excluido", async ({ page }) => {
