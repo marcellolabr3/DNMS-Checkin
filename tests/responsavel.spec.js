@@ -16,6 +16,15 @@ test("responsavel visualiza apenas suas criancas e abre detalhes", async ({ page
   await expect(page.locator("#studentDetailsInfo")).toContainText("Responsavel Teste");
 });
 
+test("responsavel secundario visualiza crianca vinculada a ele", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "secundario@dnms.test");
+
+  await expect(page.locator("#studentCard")).toBeVisible();
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+  await expect(page.locator("#studentList")).not.toContainText("Bia Juniors");
+});
+
 test("responsavel visualiza crianca cadastrada por ele mesmo sem vinculo legado", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {

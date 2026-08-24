@@ -286,8 +286,12 @@ function createMockSupabaseScript() {
       if (this.action === "upsert") {
         const entries = Array.isArray(this.payload) ? this.payload : [this.payload];
         const saved = entries.map((entry) => {
-          const key = entry.id ? "id" : this.table === "student_guardians" ? "student_id" : "id";
-          let row = rows.find((item) => item[key] === entry[key]);
+          let row = null;
+          if (this.table === "student_guardians") {
+            row = rows.find((item) => item.student_id === entry.student_id && item.guardian_id === entry.guardian_id);
+          } else {
+            row = rows.find((item) => item.id === entry.id);
+          }
           if (row) {
             Object.assign(row, entry);
           } else {

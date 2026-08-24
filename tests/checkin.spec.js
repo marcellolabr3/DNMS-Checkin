@@ -372,6 +372,54 @@ test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ p
   await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
 });
 
+test("familias mostra crianca vinculada a responsavel secundario", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Secundario");
+
+  await expect(page.locator("#familyList")).toContainText("Responsavel Secundario");
+  await expect(page.locator("#familyList")).toContainText("Filhos: 1");
+  await expect(page.locator("#familyEditor")).toContainText("Ana Kids");
+});
+
+test("vincular crianca existente adiciona segundo responsavel sem trocar o principal", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-shared",
+      name: "Duas Familias",
+      birth_date: "2019-08-15",
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Teste",
+      phone: "11988880000",
+      address: "Rua Familia",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.student_guardians.push({ student_id: "student-shared", guardian_id: "parent-1" });
+  });
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Secundario");
+  await page.selectOption("#familyAssignStudentId", "student-shared");
+  await page.click("#btnFamilyAssignStudent");
+
+  await expect(page.locator("#familyEditor")).toContainText("Duas Familias");
+  const result = await page.evaluate(() => ({
+    primary: window.__mockDnmsDb.students.find((item) => item.id === "student-shared")?.primary_guardian_name,
+    links: window.__mockDnmsDb.student_guardians
+      .filter((item) => item.student_id === "student-shared")
+      .map((item) => item.guardian_id)
+      .sort()
+  }));
+  expect(result.primary).toBe("Responsavel Teste");
+  expect(result.links).toEqual(["parent-1", "parent-2"]);
+});
+
 test("log gera relatorio de cadastro de criancas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
