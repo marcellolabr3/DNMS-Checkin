@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-`a1c7f12 Fix child photo upload for guardians`
+`Show parent-owned legacy children`
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -141,20 +141,16 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigir bloqueio indevido quando responsavel cadastra outra crianca.
+Garantir que responsavel veja todas as criancas cadastradas por ele na propria lista.
 
 Arquivos envolvidos:
 
 - `app.js`
-- `supabase/setup_dnms_checkin.sql`
-- `supabase/patch_prevent_duplicate_students.sql`
-- `supabase/patch_duplicate_students_scope_guardian.sql`
-- `tests/checkin.spec.js`
 - `tests/responsavel.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado, aplicado no Supabase e validado com testes. Ainda nao commitado nesta etapa.
+Implementado no app, validado com testes locais e commitado.
 
 ---
 
@@ -163,6 +159,7 @@ Implementado, aplicado no Supabase e validado com testes. Ainda nao commitado ne
 - Nao gravar secrets em arquivos versionados, mesmo quando fornecidos no chat. Motivo: reduzir risco de vazamento e preservar seguranca do projeto.
 - Duplicidade automatica deve ser bloqueada por crianca + mesmo responsavel. Motivo: evitar falso positivo entre familias diferentes sem vincular automaticamente uma pessoa a crianca existente.
 - Responsavel comum nao pode se vincular automaticamente a crianca existente. Motivo: seguranca familiar e privacidade.
+- Lista do responsavel deve unir criancas vinculadas em `student_guardians` e criancas cujo `primary_guardian_name` seja o nome da sessao. Motivo: preservar visibilidade de registros legados com vinculo ausente.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -198,6 +195,7 @@ Prioridade alta:
 
 Prioridade media:
 
+- [ ] Avaliar reparo controlado de vinculos legados em `student_guardians` para criancas cujo `primary_guardian_name` bate com um perfil de responsavel.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -210,20 +208,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar em producao uma tentativa de cadastro duplicado pelo app.
+Publicar a correcao de lista do responsavel e validar com o caso real relatado.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Corrigido bloqueio indevido de cadastro de outra crianca: regra anti-duplicidade passou a considerar tambem o responsavel principal.
+Corrigida a lista do responsavel para carregar criancas por vinculo em `student_guardians` e tambem por `primary_guardian_name`, cobrindo registros legados sem vinculo.
 
 Ficou funcionando:
-Responsavel cadastra outra crianca diferente nos testes; duplicidade para o mesmo responsavel continua bloqueada; patch aplicado no banco; suite completa passou com 64 testes.
+Responsavel visualiza crianca vinculada e crianca legada sem vinculo nos testes; specs de responsavel e check-in passaram localmente.
 
 Ficou pendente:
-Commit/push da correcao de escopo da duplicidade, se aprovado.
+Push/publicacao da correcao de lista, se aprovado. Caso real encontrado: uma crianca de Paula Cristina Nery Da Silva Costa esta sem vinculo em `student_guardians`; avaliar reparo controlado do vinculo.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

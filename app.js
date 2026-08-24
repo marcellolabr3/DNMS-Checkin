@@ -1108,25 +1108,33 @@ async function fetchStudents() {
       console.warn("Falha ao buscar vinculos de responsavel", linkError);
     }
     const studentIds = (links || []).map((item) => item.student_id).filter(Boolean);
+    const rowsById = new Map();
     if (studentIds.length) {
       const { data, error } = await supabaseClient.from("students").select("*").in("id", studentIds);
       if (error) {
         console.warn("Falha ao buscar alunos", error);
-        return;
-      }
-      rows = data || [];
-    } else {
-      const { data, error } = await supabaseClient
-        .from("students")
-        .select("*")
-        .eq("primary_guardian_name", state.session.name);
-      if (error) {
-        console.warn("Falha ao buscar alunos do responsavel", error);
-        rows = [];
       } else {
-        rows = data || [];
+        (data || []).forEach((student) => {
+          if (student?.id) {
+            rowsById.set(student.id, student);
+          }
+        });
       }
     }
+    const { data: ownedRows, error: ownedError } = await supabaseClient
+      .from("students")
+      .select("*")
+      .eq("primary_guardian_name", state.session.name);
+    if (ownedError) {
+      console.warn("Falha ao buscar alunos do responsavel", ownedError);
+    } else {
+      (ownedRows || []).forEach((student) => {
+        if (student?.id && !rowsById.has(student.id)) {
+          rowsById.set(student.id, student);
+        }
+      });
+    }
+    rows = Array.from(rowsById.values());
   } else {
     const { data, error } = await supabaseClient.from("students").select("*");
     if (error) {

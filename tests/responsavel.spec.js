@@ -16,6 +16,30 @@ test("responsavel visualiza apenas suas criancas e abre detalhes", async ({ page
   await expect(page.locator("#studentDetailsInfo")).toContainText("Responsavel Teste");
 });
 
+test("responsavel visualiza crianca cadastrada por ele mesmo sem vinculo legado", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-orphan-owner",
+      name: "Sophia Sem Vinculo",
+      birth_date: "2018-06-12",
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Teste",
+      phone: "11988880000",
+      address: "Rua Familia",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+  });
+
+  await loginAs(page, "responsavel@dnms.test");
+
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+  await expect(page.locator("#studentList")).toContainText("Sophia Sem Vinculo");
+  await expect(page.locator("#studentList")).not.toContainText("Bia Juniors");
+});
+
 test("responsavel exclui a propria crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "responsavel@dnms.test");
