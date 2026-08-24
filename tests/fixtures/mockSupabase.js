@@ -113,6 +113,17 @@ function createMockSupabaseScript() {
     );
   }
 
+  if (new URLSearchParams(window.location.search).get("scenario") === "messages-long-text") {
+    db.tips.push({
+      id: "tip-long-1",
+      message: "Mensagem com texto muito longo " + "palavramuitolonga".repeat(24),
+      recipient_id: null,
+      created_by: "admin-1",
+      sender_name: "Admin DNMS",
+      created_at: todayIso + "T10:00:00.000Z"
+    });
+  }
+
   let currentUser = null;
   if (["restore-session", "slow-restore-session"].includes(new URLSearchParams(window.location.search).get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };
@@ -281,6 +292,14 @@ function createMockSupabaseScript() {
     execute() {
       const rows = db[this.table] || [];
       const matches = (row) => this.filters.every((filter) => filter(row));
+      if (
+        this.action === "select" &&
+        this.table === "tips" &&
+        new URLSearchParams(window.location.search).get("scenario") === "messages-error" &&
+        !window.__mockTipsErrorCleared
+      ) {
+        return { data: null, error: { message: "Erro simulado ao buscar mensagens." } };
+      }
 
       if (this.action === "insert") {
         const entries = Array.isArray(this.payload) ? this.payload : [this.payload];

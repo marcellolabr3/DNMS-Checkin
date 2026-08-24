@@ -145,6 +145,7 @@ Estado do banco:
 - Correcao de exportacao CSV: arquivos de Log/Familias agora usam BOM UTF-8, separador `;`, CRLF, limpeza de caracteres de controle/quebras dentro das celulas e ordenacao mais previsivel para planilhas em pt-BR.
 - Sprint 2 de Mensagens/Avisos: popup removido e substituido por painel navegavel `#tipsCard`, com badge de nao lidas, envio/leitura/exclusao preservados e testes Playwright adicionados.
 - Sprint 3 de Mensagens/Avisos: Dashboard recebeu bloco `#dashboardTips` com ate 5 mensagens recentes e atalho para o painel completo.
+- Sprint 4 de Mensagens/Avisos: estados de vazio/carregando/erro, retry, texto longo sem overflow e ajustes mobile/acessibilidade.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -153,7 +154,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 3 da refatoracao de Mensagens/Avisos concluida: integrar mensagens recentes ao Dashboard.
+Sprint 4 da refatoracao de Mensagens/Avisos concluida: refinamento de UX mobile/estados.
 
 Arquivos envolvidos:
 
@@ -167,10 +168,10 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 3 concluida. Dashboard agora mostra bloco `#dashboardTips` com ate 5 mensagens recentes visiveis para o usuario, usando `getVisibleTipsForCurrentUser()` e respeitando leituras/permissoes ja existentes. O bloco tem atalho "Ver todas" para `setActivePanel("tips")`; clicar em uma mensagem recente abre o painel Mensagens com a mensagem colocada em `state.ui.expandedTips`. Nao houve mudanca de schema. `app.js` passou para `v=20260824n`, `styles.css` para `v=20260824d` e service worker para `checkin-cache-v130`.
+Sprint 4 concluida. Mensagens agora possui estado leve `tipsStatus` para carregando/erro, exibido no painel `#tipsCard` e no bloco `#dashboardTips`. Estados vazios foram padronizados, erro mostra botao "Atualizar mensagens", textos longos usam quebra segura sem rolagem horizontal, cards receberam melhorias de acessibilidade (`aria-expanded`/`aria-label`) e botoes do composer/acoes empilham melhor no mobile. Nao houve mudanca de schema. `app.js` passou para `v=20260824o`, `styles.css` para `v=20260824e` e service worker para `checkin-cache-v131`.
 
 Validacao:
-`npm.cmd test` passou com 108 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel de mensagens, mensagens recentes no Dashboard e `tests/service-worker.spec.js` para cache.
+`npm.cmd test` passou com 114 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel, Dashboard, estados vazios, erro/retry e texto longo sem overflow.
 
 Achados de banco/RLS: `tips` guarda `message`, `recipient_id`, `created_by`, `created_at`, e producao tambem tem `sender_name`. `tip_reads` guarda leitura por `(tip_id, user_id)`. Producao tem policies DELETE para `tips` e `tip_reads` por admin/SADMIN; `supabase/setup_dnms_checkin.sql` ainda nao reflete `tips.sender_name` nem essas policies DELETE, embora o app use `sender_name` e botoes de apagar. `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros.
 
@@ -179,11 +180,11 @@ Sprints sugeridos:
 1. Concluido: mapear fluxo atual.
 2. Concluido: criar painel "Mensagens" navegavel.
 3. Concluido: integrar Dashboard com bloco "Mensagens recentes" e atalho "Ver todas".
-4. Refinar UX mobile/estados: vazio, carregando, erro, texto longo sem overflow.
-5. Testes e contexto: ampliar Playwright se Sprint 4 adicionar novos estados de UX; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
+4. Concluido: refinar UX mobile/estados, vazio, carregando, erro, texto longo e acessibilidade.
+5. Testes e contexto: concluido para as telas alteradas nesta refatoracao; manter cobertura se novos estados forem adicionados.
 
 Proxima sprint:
-Sprint 4 deve refinar UX de Mensagens em mobile/estados: vazio, carregando/atualizando, erro, texto longo sem overflow e acessibilidade dos cards/botoes. Manter schema atual.
+Proximo passo recomendado para Mensagens: sincronizar `supabase/setup_dnms_checkin.sql` com producao adicionando `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN, sem alterar dados existentes. Alternativamente, validar a UX publicada antes de nova mudanca.
 
 ---
 
@@ -247,7 +248,7 @@ Prioridade media:
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
-- [ ] Refatorar Mensagens/Avisos em sprints: refinar UX mobile/estados, sincronizar schema SQL de mensagens e cobrir novas telas com testes quando necessario.
+- [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 - [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 
 Prioridade baixa:
@@ -258,20 +259,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 4 de Mensagens: refinar UX mobile/estados do painel e do bloco de Dashboard (vazio, atualizando, erro, texto longo e acessibilidade), mantendo schema atual.
+Sincronizar `supabase/setup_dnms_checkin.sql` com o schema/policies de Mensagens em producao (`tips.sender_name` e DELETE de `tips`/`tip_reads`) sem alterar dados existentes. Se preferir, validar primeiro a UX publicada de Mensagens.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 3 de Mensagens concluida: Dashboard agora mostra `#dashboardTips` com ate 5 mensagens recentes visiveis e atalho "Ver todas" para o painel `tips`. Clicar em uma mensagem recente abre o painel com essa mensagem em `state.ui.expandedTips`.
+Sprint 4 de Mensagens concluida: painel e Dashboard agora mostram estados de vazio/carregando/erro com retry; texto longo quebra sem rolagem horizontal; mobile empilha melhor botoes; cards receberam `aria-expanded`/`aria-label`.
 
 Ficou funcionando:
-Painel navegavel de Mensagens permanece funcionando em desktop/mobile e o Dashboard mostra mensagens recentes para usuarios com acesso ao Dashboard. `npm.cmd test` passou com 108 testes.
+Painel navegavel de Mensagens, bloco de Dashboard, estados vazios/erro/retry e texto longo em desktop/mobile. `npm.cmd test` passou com 114 testes.
 
 Ficou pendente:
-Executar Sprint 4 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

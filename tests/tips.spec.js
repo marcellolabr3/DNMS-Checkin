@@ -61,3 +61,39 @@ test("mensagem recente do dashboard abre expandida no painel", async ({ page }) 
   await expect(page.locator("#tipsCard")).toBeVisible();
   await expect(page.locator("#tipsList [data-tip-id='tip-all-1']")).toHaveText("Aviso geral para todas as familias.");
 });
+
+test("mensagens exibe estados vazios no dashboard e no painel", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#dashboardTips")).toContainText("Nenhuma mensagem recente.");
+
+  await page.click("#btnTipsInbox");
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#tipsList")).toContainText("Nenhuma mensagem disponivel.");
+});
+
+test("mensagens mostra erro e permite tentar atualizar novamente", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-error" });
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#dashboardTips")).toContainText("Falha ao carregar mensagens.");
+  await expect(page.locator("#dashboardTips")).toContainText("Erro simulado ao buscar mensagens.");
+
+  await page.evaluate(() => {
+    window.__mockTipsErrorCleared = true;
+  });
+  await page.locator("#dashboardTips [data-retry-tips]").click();
+  await expect(page.locator("#dashboardTips")).toContainText("Nenhuma mensagem recente.");
+});
+
+test("texto longo de mensagem nao cria rolagem horizontal", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-long-text" });
+  await loginAs(page, "admin@dnms.test");
+
+  await page.click("#btnTipsInbox");
+  await page.locator("#tipsList .tip-message-preview").first().click();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(hasHorizontalOverflow).toBe(false);
+});

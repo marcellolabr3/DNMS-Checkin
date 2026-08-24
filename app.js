@@ -755,6 +755,42 @@ function renderTipsDialog() {
   renderTipsPanel();
 }
 
+function renderTipsSurfaces() {
+  renderTipsPanel();
+  renderDashboardTips();
+}
+
+function getTipsStatusHtml() {
+  const status = state.tipsStatus || {};
+  if (status.error) {
+    return `
+      <div class="summary tips-status tips-status-error" role="status">
+        <strong>Falha ao carregar mensagens.</strong><br />
+        ${escapeHtml(status.error)}
+        <div class="actions">
+          <button type="button" class="ghost" data-retry-tips>Atualizar mensagens</button>
+        </div>
+      </div>
+    `;
+  }
+  if (status.loading) {
+    return `<div class="summary tips-status" role="status">Atualizando mensagens...</div>`;
+  }
+  return "";
+}
+
+function bindTipsRetryButtons(root = document) {
+  root.querySelectorAll("[data-retry-tips]").forEach((button) => {
+    button.addEventListener("click", retryTipsRefresh);
+  });
+}
+
+async function retryTipsRefresh() {
+  await fetchDashboardData();
+  updateTipsUnreadBadge();
+  render();
+}
+
 function renderTipsPanel() {
   if (!els.tipsList) {
     return;
@@ -762,12 +798,17 @@ function renderTipsPanel() {
   renderTipsComposerControls();
   const tips = getVisibleTipsForCurrentUser();
   const canDeleteTips = canAccessManagementPanel();
+  const statusHtml = getTipsStatusHtml();
+  els.tipsList.innerHTML = statusHtml;
+  bindTipsRetryButtons(els.tipsList);
+  if (state.tipsStatus?.error && !tips.length) {
+    return;
+  }
   if (!tips.length) {
-    els.tipsList.innerHTML = `<div class="summary">Nenhuma mensagem disponivel.</div>`;
+    els.tipsList.insertAdjacentHTML("beforeend", `<div class="summary tips-empty">Nenhuma mensagem disponivel.</div>`);
     return;
   }
   const expandedTips = new Set(state.ui?.expandedTips || []);
-  els.tipsList.innerHTML = "";
   tips.forEach((tip) => {
     const read = isTipReadByCurrentUser(tip.id);
     const dateText = formatDateTimeFromIso(tip.createdAt);
@@ -789,6 +830,8 @@ function renderTipsPanel() {
     preview.className = "tip-message-preview";
     preview.setAttribute("data-tip-id", tip.id);
     const expanded = expandedTips.has(tip.id);
+    preview.setAttribute("aria-expanded", expanded ? "true" : "false");
+    preview.setAttribute("aria-label", expanded ? "Recolher mensagem" : "Expandir mensagem");
     preview.textContent = expanded ? message : truncateTipMessage(message, 90);
     wrapper.appendChild(preview);
 
@@ -884,11 +927,19 @@ function renderDashboardTips() {
     return;
   }
   const tips = getVisibleTipsForCurrentUser().slice(0, 5);
+  const statusHtml = getTipsStatusHtml();
+  if (state.tipsStatus?.error && !tips.length) {
+    els.dashboardTips.innerHTML = statusHtml;
+    bindTipsRetryButtons(els.dashboardTips);
+    return;
+  }
   if (!tips.length) {
-    els.dashboardTips.innerHTML = `<div class="summary">Nenhuma mensagem recente.</div>`;
+    els.dashboardTips.innerHTML = `${statusHtml}<div class="summary tips-empty">Nenhuma mensagem recente.</div>`;
+    bindTipsRetryButtons(els.dashboardTips);
     return;
   }
   els.dashboardTips.innerHTML = `
+    ${statusHtml}
     <div class="dashboard-tips-header">
       <span>${escapeHtml(tips.length)} recente(s)</span>
       <button id="btnDashboardOpenTips" type="button" class="link-button">Ver todas</button>
@@ -898,7 +949,7 @@ function renderDashboardTips() {
         .map((tip) => {
           const read = isTipReadByCurrentUser(tip.id);
           return `
-            <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}">
+            <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}" aria-label="Abrir mensagem de ${escapeAttribute(resolveTipRecipientLabel(tip))}">
               <strong>${escapeHtml(resolveTipRecipientLabel(tip))}</strong>
               <span class="muted">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
               <span>${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
@@ -908,6 +959,7 @@ function renderDashboardTips() {
         .join("")}
     </div>
   `;
+  bindTipsRetryButtons(els.dashboardTips);
   document.getElementById("btnDashboardOpenTips")?.addEventListener("click", () => setActivePanel("tips"));
   els.dashboardTips.querySelectorAll("[data-dashboard-tip-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1693,6 +1745,8 @@ async function fetchDashboardData() {
   if (!supabaseClient || !state.session) {
     return;
   }
+  state.tipsStatus = { loading: true, error: "" };
+  renderTipsSurfaces();
   const [{ data: infoRows, error: infoError }, { data: schedules, error: schedulesError }, { data: tips, error: tipsError }, { data: reads, error: readsError }] =
     await Promise.all([
       supabaseClient.from("dashboard_settings").select("info_text").eq("id", 1).limit(1),
@@ -1731,9 +1785,11 @@ async function fetchDashboardData() {
       createdBy: tip.created_by || "",
       senderName: tip.sender_name || ""
     }));
+    state.tipsStatus.error = "";
   } else {
     console.warn("Falha ao buscar tips", tipsError);
     state.tips = [];
+    state.tipsStatus.error = tipsError.message || "Falha ao carregar mensagens.";
   }
 
   if (!readsError) {
@@ -1746,6 +1802,8 @@ async function fetchDashboardData() {
     console.warn("Falha ao buscar tip_reads", readsError);
     state.tipReads = [];
   }
+  state.tipsStatus.loading = false;
+  renderTipsSurfaces();
 }
 
 function renderStudents() {
@@ -8696,7 +8754,8 @@ function loadState() {
           schedules: [],
           tips: [],
           tipReads: [],
-          dashboardInfo: "",
+  dashboardInfo: "",
+  tipsStatus: { loading: false, error: "" },
           ...parsed,
           rooms,
           ui
@@ -8720,6 +8779,7 @@ function loadState() {
     tips: [],
     tipReads: [],
     dashboardInfo: "",
+    tipsStatus: { loading: false, error: "" },
     visitors: [],
     ui: {
       activePanel: "dashboard",
