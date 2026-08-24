@@ -32,6 +32,7 @@ const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "" };
+const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyContext = { selectedProfileId: "" };
@@ -187,6 +188,7 @@ const els = {
   studentNotes: document.getElementById("studentNotes"),
   studentVisitorField: document.getElementById("studentVisitorField"),
   studentIsVisitor: document.getElementById("studentIsVisitor"),
+  studentSavingOverlay: document.getElementById("studentSavingOverlay"),
   btnDeleteStudent: document.getElementById("btnDeleteStudent"),
   btnSaveStudent: document.getElementById("btnSaveStudent"),
   studentDetailsDialog: document.getElementById("studentDetailsDialog"),
@@ -5150,6 +5152,7 @@ function openStudentDialog(student) {
 
 function resetStudentDialogDraft() {
   studentDialogContext.guardianProfileId = "";
+  setStudentSaving(false);
   if (els.studentId) els.studentId.value = "";
   if (els.studentName) els.studentName.value = "";
   if (els.studentBirth) els.studentBirth.value = "";
@@ -5167,8 +5170,69 @@ function resetStudentDialogDraft() {
   }
 }
 
+function setStudentSaving(isSaving) {
+  studentSaveContext.inProgress = Boolean(isSaving);
+  if (els.studentSavingOverlay) {
+    els.studentSavingOverlay.classList.toggle("is-visible", Boolean(isSaving));
+    els.studentSavingOverlay.setAttribute("aria-hidden", isSaving ? "false" : "true");
+  }
+  if (els.btnSaveStudent) {
+    els.btnSaveStudent.disabled = Boolean(isSaving);
+    els.btnSaveStudent.textContent = isSaving ? "Salvando..." : "Salvar";
+  }
+  const controls = els.studentDialog?.querySelectorAll("input, textarea, select, button") || [];
+  controls.forEach((control) => {
+    if (control === els.btnSaveStudent) {
+      return;
+    }
+    control.disabled = Boolean(isSaving);
+  });
+}
+
+function findDuplicateStudentForPayload(payload, currentStudentId = "") {
+  const targetKey = buildStudentDuplicateKey({
+    name: payload.name,
+    birth: payload.birth
+  });
+  if (!targetKey) {
+    return null;
+  }
+  return (state.students || []).find((student) => {
+    if (!student?.id || student.id === currentStudentId) {
+      return false;
+    }
+    return buildStudentDuplicateKey(student) === targetKey;
+  }) || null;
+}
+
+function buildStudentDuplicateKey(student) {
+  const name = normalizeDuplicateText(student?.name || "");
+  const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
+  if (!name || !birth) {
+    return "";
+  }
+  return `${name}|${birth}`;
+}
+
+function normalizeDuplicateText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR");
+}
+
+function isDuplicateStudentError(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "23505" || message.includes("duplicate_student") || message.includes("Esta crianca ja esta cadastrada");
+}
+
 async function saveStudent(event) {
   event.preventDefault();
+  if (studentSaveContext.inProgress) {
+    return;
+  }
   const isResponsavel = state.session?.role === "responsavel" && !isAdmin() && !isEquipe();
   const guardianResolution = isResponsavel
     ? { ok: true, profile: { id: state.session?.id || "", name: state.session?.name || "", phone: "" }, message: "" }
@@ -5224,102 +5288,111 @@ async function saveStudent(event) {
     alert("Preencha todos os campos obrigatorios.");
     return;
   }
+  if (findDuplicateStudentForPayload(payload, existing?.id || "")) {
+    alert("Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis.");
+    return;
+  }
   if (!confirm("Confirma salvar as alteracoes deste cadastro?")) {
     return;
   }
 
-  if (supabaseClient) {
-    if (existing?.id) {
-      const linkedBeforeUpdate = await linkGuardianToStudent(existing.id, payload.guardian, guardianProfileId);
-      if (!linkedBeforeUpdate) {
-        alert("A crianca so pode ser vinculada a um usuario valido.");
+  setStudentSaving(true);
+  try {
+    if (supabaseClient) {
+      if (existing?.id) {
+        const linkedBeforeUpdate = await linkGuardianToStudent(existing.id, payload.guardian, guardianProfileId);
+        if (!linkedBeforeUpdate) {
+          alert("A crianca so pode ser vinculada a um usuario valido.");
+          return;
+        }
+      }
+      const dbPayload = {
+        name: payload.name,
+        birth_date: payload.birth,
+        class_name: payload.className,
+        primary_guardian_name: payload.guardian,
+        phone: payload.phone,
+        address: payload.address,
+        notes: payload.notes,
+        is_visitor: payload.isVisitor
+      };
+      let data = null;
+      let error = null;
+      if (existing?.id) {
+        const result = await supabaseClient.from("students").update(dbPayload).eq("id", existing.id).select().single();
+        data = result.data;
+        error = result.error;
+      } else {
+        const result = await supabaseClient.from("students").insert(dbPayload).select().single();
+        data = result.data;
+        error = result.error;
+      }
+      if (error) {
+        alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
         return;
       }
-    }
-    const dbPayload = {
-      name: payload.name,
-      birth_date: payload.birth,
-      class_name: payload.className,
-      primary_guardian_name: payload.guardian,
-      phone: payload.phone,
-      address: payload.address,
-      notes: payload.notes,
-      is_visitor: payload.isVisitor
-    };
-    let data = null;
-    let error = null;
-    if (existing?.id) {
-      const result = await supabaseClient.from("students").update(dbPayload).eq("id", existing.id).select().single();
-      data = result.data;
-      error = result.error;
+      if (photoFile) {
+        const upload = await uploadStudentPhoto(data.id, photoFile);
+        if (!upload.ok) {
+          alert(`Falha ao atualizar foto do aluno: ${upload.error || "erro inesperado"}`);
+          return;
+        }
+        const photoUpdate = await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
+        if (photoUpdate.error) {
+          alert(`Falha ao salvar foto do aluno: ${photoUpdate.error.message || "erro inesperado"}`);
+          return;
+        }
+      }
+      if (!existing?.id) {
+        const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
+        if (!linked) {
+          await supabaseClient.from("students").delete().eq("id", data.id);
+          alert("A crianca so pode ser cadastrada a um usuario valido.");
+          return;
+        }
+      }
+      await recordAuditLog(
+        existing?.id ? "child_updated" : "child_created",
+        "student",
+        data.id,
+        payload.name,
+        existing?.id ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
+        {
+          className: payload.className,
+          guardianName: payload.guardian,
+          guardianProfileId,
+          isVisitor: payload.isVisitor
+        }
+      );
+      await fetchStudents();
     } else {
-      const result = await supabaseClient.from("students").insert(dbPayload).select().single();
-      data = result.data;
-      error = result.error;
-    }
-    if (error) {
-      alert(`Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
-      return;
-    }
-    if (photoFile) {
-      const upload = await uploadStudentPhoto(data.id, photoFile);
-      if (!upload.ok) {
-        alert(`Falha ao atualizar foto do aluno: ${upload.error || "erro inesperado"}`);
-        return;
+      const index = state.students.findIndex((student) => student.id === payload.id);
+      if (index >= 0) {
+        if (!canEditStudent(state.students[index])) {
+          alert("Voce nao pode editar este aluno.");
+          return;
+        }
+        const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : state.students[index].photoUrl || "";
+        state.students[index] = { ...state.students[index], ...payload, photoUrl };
+      } else {
+        const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : "";
+        state.students.push({ ...payload, photoUrl });
       }
-      const photoUpdate = await supabaseClient.from("students").update({ photo_url: upload.url }).eq("id", data.id);
-      if (photoUpdate.error) {
-        alert(`Falha ao salvar foto do aluno: ${photoUpdate.error.message || "erro inesperado"}`);
-        return;
-      }
+      await recordAuditLog(
+        index >= 0 ? "child_updated" : "child_created",
+        "student",
+        payload.id,
+        payload.name,
+        index >= 0 ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
+        { className: payload.className, guardianName: payload.guardian, guardianProfileId, isVisitor: payload.isVisitor }
+      );
     }
-    if (!existing?.id) {
-      const linked = await linkGuardianToStudent(data.id, payload.guardian, guardianProfileId);
-      if (!linked) {
-        await supabaseClient.from("students").delete().eq("id", data.id);
-        alert("A crianca so pode ser cadastrada a um usuario valido.");
-        return;
-      }
-    }
-    await recordAuditLog(
-      existing?.id ? "child_updated" : "child_created",
-      "student",
-      data.id,
-      payload.name,
-      existing?.id ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
-      {
-        className: payload.className,
-        guardianName: payload.guardian,
-        guardianProfileId,
-        isVisitor: payload.isVisitor
-      }
-    );
-    await fetchStudents();
-  } else {
-    const index = state.students.findIndex((student) => student.id === payload.id);
-    if (index >= 0) {
-      if (!canEditStudent(state.students[index])) {
-        alert("Voce nao pode editar este aluno.");
-        return;
-      }
-      const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : state.students[index].photoUrl || "";
-      state.students[index] = { ...state.students[index], ...payload, photoUrl };
-    } else {
-      const photoUrl = photoFile ? await readFileAsDataUrl(photoFile) : "";
-      state.students.push({ ...payload, photoUrl });
-    }
-    await recordAuditLog(
-      index >= 0 ? "child_updated" : "child_created",
-      "student",
-      payload.id,
-      payload.name,
-      index >= 0 ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
-      { className: payload.className, guardianName: payload.guardian, guardianProfileId, isVisitor: payload.isVisitor }
-    );
-  }
 
-  els.studentDialog.close();
-  render();
+    els.studentDialog.close();
+    render();
+  } finally {
+    setStudentSaving(false);
+  }
 }
 
 async function deleteStudentFromDialog(event) {

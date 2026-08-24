@@ -1240,6 +1240,46 @@ button:disabled,
   padding-top: 4px;
 }
 
+.saving-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.saving-overlay.is-visible {
+  display: flex;
+}
+
+.saving-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: min(260px, 100%);
+  padding: 16px 18px;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+  color: var(--accent-strong);
+}
+
+.saving-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--stroke);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: app-loading-spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+
 .room-danger-actions {
   justify-content: flex-start;
   padding-top: 6px;

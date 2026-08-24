@@ -45,6 +45,7 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_audit_logs.sql`
 - `supabase/patch_responsavel_delete_own_student.sql`
 - `supabase/patch_delete_user_account.sql`
+- `supabase/patch_prevent_duplicate_students.sql`
 
 ### Exclusao completa de usuario (atual)
 - A exclusao feita por `SADMIN`/`Admin` deve chamar a RPC `delete_user_account`.
@@ -57,6 +58,16 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
   - fecha check-ins legados ativos em salas fechadas ou inexistentes;
   - fecha duplicidades antigas, preservando o check-in ativo mais recente por criança;
   - cria índice único parcial `checkins_one_active_per_student`.
+
+### Protecao contra cadastro duplicado de crianca (atual)
+- Regra: uma crianca nao deve ser cadastrada novamente quando ja existir outra ficha com mesmo nome normalizado e mesma data de nascimento.
+- A regra nao depende do responsavel informado. Isso evita que um responsavel secundario crie outra ficha da mesma crianca e ganhe acesso indevido por cadastro duplicado.
+- Se a crianca ja existir, o app orienta procurar a equipe para ajustar responsaveis.
+- O patch `patch_prevent_duplicate_students.sql`:
+  - normaliza nome para comparacao sem diferenca de maiusculas, acentos e espacos extras;
+  - usa trigger antes de `INSERT/UPDATE` em `students`;
+  - usa advisory lock transacional para bloquear tentativas simultaneas;
+  - nao vincula automaticamente outro responsavel a uma crianca existente.
 
 ### Padronização de telefone (atual)
 - Formato único no banco: `+55 (DD) 9XXXX-XXXX`
@@ -98,6 +109,7 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 ## Checklist de verificação rápida
 
 - Cadastro de responsável exige telefone.
+- Cadastro duplicado de crianca por nome + nascimento e bloqueado.
 - Perfil é criado corretamente após signup.
 - Responsável só vê e opera as próprias crianças.
 - Gestão visível apenas para `SADMIN` e `Admin`.

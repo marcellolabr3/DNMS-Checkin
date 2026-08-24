@@ -119,6 +119,32 @@ test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
     .toBe("Maria Clara");
 });
 
+test("nao cadastra a mesma crianca duas vezes com outro responsavel", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  const existingBirth = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.birth_date);
+  const [year, month, day] = existingBirth.split("-");
+  const beforeCount = await page.evaluate(() => window.__mockDnmsDb.students.length);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "ana   kids");
+  await page.fill("#studentBirth", `${day}/${month}/${year}`);
+  await page.fill("#studentGuardian", "Responsavel Secundario");
+  await page.fill("#studentPhone", "11988880000");
+  await page.fill("#studentAddress", "Rua Familia");
+  await page.click("#btnSaveStudent");
+
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await expect(page.locator("#studentSavingOverlay")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.students.length))
+    .toBe(beforeCount);
+  await expect.poll(() => getAlerts(page)).toContain("Esta crianca ja esta cadastrada. Procure a equipe para ajustar os responsaveis.");
+});
+
 test("foto da crianca pode ser trocada mais de uma vez", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

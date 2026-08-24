@@ -359,6 +359,12 @@
         <span>Visitante</span>
         <input id="studentIsVisitor" type="checkbox" />
       </label>
+      <div id="studentSavingOverlay" class="saving-overlay" aria-live="polite" aria-hidden="true">
+        <div class="saving-box">
+          <span class="saving-spinner" aria-hidden="true"></span>
+          <strong>Salvando crianca...</strong>
+        </div>
+      </div>
       <div class="dialog-actions">
         <button id="btnDeleteStudent" type="button" class="danger" style="display:none">Excluir crianca</button>
         <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
