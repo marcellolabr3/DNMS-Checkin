@@ -1,4 +1,4 @@
-const CACHE_NAME = "checkin-cache-v121";
+const CACHE_NAME = "checkin-cache-v122";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,13 +7,14 @@ const ASSETS = [
   "./app.js",
   "./app.js?v=20260824f",
   "./manifest.json",
-  "./manifest.json?v=20260821a",
+  "./manifest.json?v=20260824b",
   "./print.html",
   "./print.js",
   "./print.js?v=20260824d",
   "./vendor/supabase-js.js",
   "./vendor/supabase-js.js?v=20260330h",
-  "./logo-loading.png"
+  "./icon-192.png",
+  "./icon-512.png"
 ];
 const ASSET_PATHS = new Set(
   ASSETS.map((asset) => new URL(asset, self.location.href).pathname)

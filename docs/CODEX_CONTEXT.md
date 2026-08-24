@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 5 de XLSX sob demanda.
+Sprint 6 de assets PWA.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -140,6 +140,7 @@ Estado do banco:
 - Sprint 3 de protecao do servico local de impressao: servico passa a escutar em `127.0.0.1` por padrao, aceita token/origens por configuracao opcional e valida payloads HTTP de `/print` e `/reprint`.
 - Sprint 4 de performance: cargas principais do Supabase em `app.js` passaram a usar colunas explicitas em vez de `select("*")`, reduzindo payload sem mudar fluxo de telas.
 - Sprint 5 de performance: biblioteca XLSX removida do carregamento inicial e carregada sob demanda apenas para importacao Excel ou sincronizacao Google Sheets.
+- Sprint 6 de assets PWA: `logo-loading.png` foi substituido por icones reais 192x192 e 512x512 no HTML, manifest e service worker; cache atualizado para `checkin-cache-v122`.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -148,19 +149,22 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 5 concluida: reduzir peso inicial removendo XLSX do HTML e carregando a biblioteca somente quando escalas Excel/Google Sheets precisam dela.
+Sprint 6 concluida: otimizar assets visuais/PWA substituindo o logo pesado usado como icone por PNGs reais 192x192 e 512x512.
 
 Arquivos envolvidos:
 
-- `app.js`
+- `.gitignore`
 - `index.html`
+- `manifest.json`
 - `sw.js`
-- `tests/xlsx-loading.spec.js`
+- `icon-192.png`
+- `icon-512.png`
+- `tests/pwa-assets.spec.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js` e `cmd /c npm test` (86 testes em desktop/mobile).
+Implementado e validado localmente com `node --check app.js`, `node --check sw.js` e `cmd /c npm test` (88 testes em desktop/mobile).
 
 ---
 
@@ -230,20 +234,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 6: otimizar assets visuais/PWA, especialmente `logo-loading.png` e icones reais do manifest.
+Revisar e publicar a Sprint 6: conferir diff final, commitar e enviar para `origin/main`.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 5 aplicada: `index.html` deixou de carregar `xlsx.full.min.js` no boot. `app.js` ganhou `ensureXlsxLoaded()`/`loadScriptOnce()` e carrega `XLSX_SCRIPT_URL` somente antes de importar Excel ou sincronizar Google Sheets. CSV continua sem depender de XLSX. Foi criado `tests/xlsx-loading.spec.js` para evitar regressao.
+Sprint 6 aplicada: `logo-loading.png` foi removido do PWA e substituido por `icon-192.png` e `icon-512.png`. `index.html`, `manifest.json` e `sw.js` foram atualizados para usar os novos assets; `CACHE_NAME` passou para `checkin-cache-v122`. Foi criado `tests/pwa-assets.spec.js` para garantir dimensoes dos PNGs e impedir retorno do logo antigo no boot/cache.
 
 Ficou funcionando:
-Boot inicial nao baixa mais XLSX. PWA passa a buscar `app.js?v=20260824f` e cache `checkin-cache-v121`. `node --check app.js` passou e `cmd /c npm test` passou com 86 testes em desktop/mobile.
+PWA passa a usar icones reais 192x192 e 512x512. `node --check app.js`, `node --check sw.js` e `cmd /c npm test` passaram com 88 testes em desktop/mobile.
 
 Ficou pendente:
-Sprint 6 de otimizacao de assets PWA. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Commit/push da Sprint 6. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
