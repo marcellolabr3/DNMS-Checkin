@@ -151,7 +151,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigir risco de nomes de criancas ficarem truncados durante digitacao no cadastro.
+Planejar refatoracao do painel de Mensagens/Avisos para deixar de funcionar como popup.
 
 Arquivos envolvidos:
 
@@ -165,7 +165,15 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado: removida formatacao em tempo real de nomes (`bindPersonNameInput`) para evitar perda/interferencia de caracteres durante digitacao/autocorrecao, especialmente em celular. Normalizacao de iniciais continua no blur e no salvar via `normalizePersonName()`. Consulta em producao encontrou nomes recentes com padrao suspeito `De An ...`; nao corrigir dados existentes sem confirmacao do nome correto. `cmd /c npm test` passou com 100 testes em desktop/mobile.
+Planejamento registrado: popup de mensagens foi considerado estranho/desfuncional. Direcao recomendada e transformar Mensagens em painel proprio da navegacao, com resumo no Dashboard. Antes de implementar, mapear fluxo atual de `tips`/`tip_reads`, permissoes de envio/leitura e impacto mobile.
+
+Sprints sugeridos:
+
+1. Mapear fluxo atual: onde popup abre/renderiza, tabelas envolvidas, quem pode enviar/ler, estados mobile/dashboard.
+2. Criar painel "Mensagens": mover listagem do popup para painel proprio, manter contador de nao lidas, expandir mensagem no proprio painel.
+3. Integrar Dashboard: bloco "Mensagens recentes" com ultimas 3-5 mensagens e atalho "Ver todas".
+4. Refinar UX mobile/estados: vazio, carregando, erro, texto longo sem overflow.
+5. Testes e contexto: Playwright para abrir painel, ver nao lidas, marcar como lida, dashboard recentes e visibilidade por perfil; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
 
 ---
 
@@ -229,6 +237,7 @@ Prioridade media:
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
+- [ ] Refatorar Mensagens/Avisos em sprints: trocar popup por painel proprio, adicionar resumo no Dashboard e cobrir fluxo com testes.
 
 Prioridade baixa:
 
@@ -238,20 +247,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar no app publicado o fluxo real: em Familias, buscar o segundo responsavel, vincular uma crianca existente e confirmar que ela aparece nos dois responsaveis, nao troca o responsavel principal e aparece no Log em "Alteracoes de dados".
+Iniciar Sprint 1 de Mensagens: mapear implementacao atual do popup, tabelas `tips`/`tip_reads`, permissoes por perfil e pontos de entrada no Dashboard/navegacao.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Correcao preventiva para nomes truncados no cadastro: a formatacao em tempo real dos campos de nome foi removida, mantendo normalizacao no blur/salvar. Foi adicionado teste para garantir que nome longo digitado caractere a caractere nao perde caracteres.
+Planejamento da refatoracao de Mensagens registrado. Decisao: evitar popup e migrar para painel proprio, com resumo no Dashboard e testes por perfil.
 
 Ficou funcionando:
-Nome de crianca continua sendo salvo com iniciais maiusculas, mas o campo nao reescreve mais o texto a cada tecla. PWA passou para `app.js?v=20260824l` e cache `checkin-cache-v128`.
+Sem alteracao de codigo nesta etapa; apenas contexto operacional atualizado para orientar a proxima sessao/task.
 
 Ficou pendente:
-Validar no app publicado se o navegador ja carregou `app.js?v=20260824l`/`checkin-cache-v128`, e confirmar nomes corretos para reparar registros existentes se necessario. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Executar Sprint 1 de Mensagens. Pendencias anteriores permanecem: validar `app.js?v=20260824l`/`checkin-cache-v128`, confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
