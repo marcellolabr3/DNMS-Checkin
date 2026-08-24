@@ -1056,6 +1056,21 @@ button:disabled,
   font-weight: 700;
 }
 
+#tipsCard {
+  gap: 14px;
+}
+
+#tipsCard #tipsComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, #fff, var(--surface));
+}
+
+.tips-panel-actions {
+  justify-content: flex-end;
+}
+
 .tip-message-preview {
   border: none;
   background: transparent;

@@ -1,0 +1,39 @@
+const { test, expect } = require("@playwright/test");
+const { openApp, loginAs, getAlerts } = require("./helpers/app");
+
+test("responsavel abre painel de mensagens e marca aviso como lido ao expandir", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-panel" });
+  await loginAs(page, "responsavel@dnms.test");
+
+  await expect(page.locator("#btnTipsInbox")).toContainText("2");
+  await page.click("#btnTipsInbox");
+
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#studentCard")).toBeHidden();
+  await expect(page.locator("#tipsComposer")).toBeHidden();
+  await expect(page.locator("#tipsList")).toContainText("Aviso geral para todas as familias.");
+  await expect(page.locator("#tipsList")).toContainText("Mensagem direcionada ao responsavel.");
+  await expect(page.locator("#tipsList")).not.toContainText("Mensagem de outra familia.");
+
+  await page.locator("#tipsList .tip-message-preview").first().click();
+  await expect(page.locator("#btnTipsInbox")).toContainText("1");
+});
+
+test("admin envia mensagem pelo painel navegavel", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-panel" });
+  await loginAs(page, "admin@dnms.test");
+
+  await page.click("#btnTipsInbox");
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#tipsComposer")).toBeVisible();
+
+  await page.selectOption("#tipsRecipientSelect", "parent-1");
+  await page.fill("#tipsMessageInput", "Nova mensagem pelo painel.");
+  await page.click("#btnSendTip");
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__mockDnmsDb.tips.some((tip) => tip.message === "Nova mensagem pelo painel."));
+  }).toBe(true);
+  await expect(page.locator("#tipsList")).toContainText("Nova mensagem pelo painel.");
+  await expect(await getAlerts(page)).toContain("Mensagem enviada.");
+});

@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260824b" />
+  <link rel="stylesheet" href="styles.css?v=20260824c" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -87,6 +87,32 @@
         </label>
         <button id="btnSaveDashboardInfo" class="primary">Salvar informacoes</button>
       </section>
+    </section>
+
+    <section class="card" id="tipsCard" style="display:none">
+      <div class="card-header">
+        <h2>Mensagens</h2>
+        <span class="pill">Avisos</span>
+      </div>
+      <div id="tipsComposer" class="summary">
+        <label class="field">Enviar para
+          <select id="tipsRecipientSelect">
+            <option value="all">Todos os usuarios</option>
+          </select>
+        </label>
+        <label class="field">Mensagem
+          <textarea id="tipsMessageInput" placeholder="Digite a mensagem"></textarea>
+        </label>
+        <div class="actions">
+          <button id="btnSendTip" class="primary" type="button">Enviar mensagem</button>
+          <button id="btnClearTipMessage" type="button" class="ghost">Limpar mensagem</button>
+        </div>
+      </div>
+      <div class="actions tips-panel-actions">
+        <button id="btnDeleteAllTips" type="button" class="danger">Apagar todas</button>
+        <button id="btnMarkAllTipsRead" type="button" class="ghost">Marcar todas como lidas</button>
+      </div>
+      <div id="tipsList" class="list"></div>
     </section>
 
     <section class="card" id="roomCard" style="display:none">
@@ -439,32 +465,6 @@
     </div>
   </dialog>
 
-  <dialog id="tipsDialog" class="dialog">
-    <form method="dialog" class="dialog-body">
-      <h3>Mensagens</h3>
-      <div id="tipsComposer" class="summary">
-        <label class="field">Enviar para
-          <select id="tipsRecipientSelect">
-            <option value="all">Todos os usuarios</option>
-          </select>
-        </label>
-        <label class="field">Mensagem
-          <textarea id="tipsMessageInput" placeholder="Digite a mensagem"></textarea>
-        </label>
-        <div class="actions">
-          <button id="btnSendTip" class="primary" type="button">Enviar mensagem</button>
-          <button id="btnClearTipMessage" type="button" class="ghost">Limpar mensagem</button>
-        </div>
-      </div>
-      <div id="tipsList" class="list"></div>
-      <div class="dialog-actions">
-        <button id="btnDeleteAllTips" type="button" class="danger">Apagar todas</button>
-        <button id="btnMarkAllTipsRead" type="button" class="ghost">Marcar todas como lidas</button>
-        <button value="cancel" class="ghost" formnovalidate>Fechar</button>
-      </div>
-    </form>
-  </dialog>
-
   <dialog id="logStudentsDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h3>Selecionar crianças no log</h3>
@@ -604,6 +604,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260824l"></script>
+  <script src="app.js?v=20260824m"></script>
 </body>
 </html>

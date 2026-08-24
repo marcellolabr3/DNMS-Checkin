@@ -143,6 +143,7 @@ Estado do banco:
 - Sprint 6 de assets PWA: `logo-loading.png` foi substituido por icones reais 192x192 e 512x512 no HTML, manifest e service worker; cache atualizado para `checkin-cache-v122`.
 - Correcao do Log: ao abrir o painel de Log, periodo inicial passa a ser hoje quando `De`/`Ate` estao vazios; `setup_dnms_checkin.sql` agora inclui `audit_logs`, indices e policies do patch de auditoria para novos ambientes.
 - Correcao de exportacao CSV: arquivos de Log/Familias agora usam BOM UTF-8, separador `;`, CRLF, limpeza de caracteres de controle/quebras dentro das celulas e ordenacao mais previsivel para planilhas em pt-BR.
+- Sprint 2 de Mensagens/Avisos: popup removido e substituido por painel navegavel `#tipsCard`, com badge de nao lidas, envio/leitura/exclusao preservados e testes Playwright adicionados.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -151,34 +152,37 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 1 da refatoracao de Mensagens/Avisos: mapear fluxo atual antes de trocar popup por painel.
+Sprint 2 da refatoracao de Mensagens/Avisos concluida: trocar popup por painel navegavel.
 
 Arquivos envolvidos:
 
 - `app.js`
 - `index.html`
+- `styles.css`
 - `sw.js`
-- `tests/checkin.spec.js`
-- `tests/responsavel.spec.js`
+- `tests/tips.spec.js`
 - `tests/service-worker.spec.js`
 - `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 1 concluida como mapeamento, sem alteracao de comportamento. Fluxo atual: botao `#btnTipsInbox` no header abre `openTipsDialog()`, que chama `tipsDialog.showModal()`; HTML do popup fica em `index.html` (`#tipsDialog`, `#tipsComposer`, `#tipsList`). Dados carregam em `fetchDashboardData()` junto com dashboard/schedules, usando `tips` e `tip_reads`; badge de nao lidas usa `getUnreadTipsForCurrentUser()`. Todos os usuarios logados veem o botao Mensagens. SADMIN/Admin (`canAccessManagementPanel`) podem compor/apagar mensagens e ver mensagens de terceiros; responsavel/equipe veem mensagens gerais ou direcionadas a si pelo filtro do app. Ao clicar na previa da mensagem, ela expande/recolhe e marca como lida em `tip_reads`; "Marcar todas como lidas" usa upsert em `tip_reads`. Dashboard ainda nao mostra resumo de mensagens; so carrega os dados para badge/popup.
+Sprint 2 concluida. O popup `#tipsDialog` foi removido do HTML e Mensagens agora usa o painel `#tipsCard`, aberto pelo botao `#btnTipsInbox` via `setActivePanel("tips")`. O painel reaproveita `getVisibleTipsForCurrentUser()`, `renderTipsComposerControls()`, `sendTipMessage()`, `markTipAsRead()`, `markAllTipsAsRead()`, `deleteTipMessage()` e `deleteAllVisibleTips()`. O contador de nao lidas foi mantido; clicar na previa expande/recolhe e marca como lida. SADMIN/Admin continuam vendo composer e botoes de apagar; responsavel ve apenas mensagens gerais ou destinadas a ele. `app.js` passou para `v=20260824m`, `styles.css` para `v=20260824c` e service worker para `checkin-cache-v129`.
+
+Validacao:
+`npm.cmd test` passou com 104 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel de mensagens e `tests/service-worker.spec.js` para cache.
 
 Achados de banco/RLS: `tips` guarda `message`, `recipient_id`, `created_by`, `created_at`, e producao tambem tem `sender_name`. `tip_reads` guarda leitura por `(tip_id, user_id)`. Producao tem policies DELETE para `tips` e `tip_reads` por admin/SADMIN; `supabase/setup_dnms_checkin.sql` ainda nao reflete `tips.sender_name` nem essas policies DELETE, embora o app use `sender_name` e botoes de apagar. `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros.
 
 Sprints sugeridos:
 
-1. Mapear fluxo atual: onde popup abre/renderiza, tabelas envolvidas, quem pode enviar/ler, estados mobile/dashboard.
-2. Criar painel "Mensagens": mover listagem do popup para painel proprio, manter contador de nao lidas, expandir mensagem no proprio painel.
+1. Concluido: mapear fluxo atual.
+2. Concluido: criar painel "Mensagens" navegavel.
 3. Integrar Dashboard: bloco "Mensagens recentes" com ultimas 3-5 mensagens e atalho "Ver todas".
 4. Refinar UX mobile/estados: vazio, carregando, erro, texto longo sem overflow.
-5. Testes e contexto: Playwright para abrir painel, ver nao lidas, marcar como lida, dashboard recentes e visibilidade por perfil; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
+5. Testes e contexto: ampliar Playwright quando Sprint 3 adicionar dashboard recentes; atualizar `CODEX_CONTEXT.md`; rodar `npm test`.
 
 Proxima sprint:
-Sprint 2 deve criar o painel "Mensagens" mantendo as funcoes existentes como base, sem mudar schema. Reaproveitar `getVisibleTipsForCurrentUser()`, `renderTipsComposerControls()`, `sendTipMessage()`, `markTipAsRead()`, `markAllTipsAsRead()`, `deleteTipMessage()` e `deleteAllVisibleTips()`, mas trocar `showModal()`/`#tipsDialog` por secao navegavel. Tambem atualizar querystring/cache do PWA se `index.html`, `app.js` ou `sw.js` mudarem.
+Sprint 3 deve integrar Mensagens ao Dashboard com bloco "Mensagens recentes" (3-5 itens) e atalho "Ver todas", sem mudar schema. Manter badge no header e reaproveitar o painel `tips`.
 
 ---
 
@@ -242,7 +246,7 @@ Prioridade media:
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
-- [ ] Refatorar Mensagens/Avisos em sprints: trocar popup por painel proprio, adicionar resumo no Dashboard e cobrir fluxo com testes.
+- [ ] Refatorar Mensagens/Avisos em sprints: adicionar resumo no Dashboard, refinar UX mobile/estados e cobrir novas telas com testes.
 - [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 
 Prioridade baixa:
@@ -253,20 +257,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 2 de Mensagens: criar painel proprio "Mensagens" na navegacao reaproveitando a logica atual, mantendo badge de nao lidas e composer para SADMIN/Admin.
+Iniciar Sprint 3 de Mensagens: adicionar ao Dashboard um bloco "Mensagens recentes" com ultimas 3-5 mensagens visiveis e atalho para o painel `tips`.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 1 de Mensagens concluida: fluxo atual mapeado. O popup atual vem de `#btnTipsInbox` -> `openTipsDialog()` -> `tipsDialog.showModal()`. Dados usam `tips`/`tip_reads`, carregados em `fetchDashboardData()`. Permissoes e RLS foram comparadas com producao.
+Sprint 2 de Mensagens concluida: o popup `#tipsDialog` foi removido e Mensagens agora abre o painel `#tipsCard` via `#btnTipsInbox`/`setActivePanel("tips")`. Funcoes de envio, leitura, exclusao e badge foram preservadas.
 
 Ficou funcionando:
-Sem alteracao de codigo nesta etapa; apenas contexto operacional atualizado. Git deve conter commit documental da Sprint 1.
+Painel navegavel de Mensagens em desktop/mobile para responsavel e admin. Responsavel ve mensagens gerais/direcionadas e marca como lida ao expandir; admin ve composer e envia mensagem pelo painel. `npm.cmd test` passou com 104 testes.
 
 Ficou pendente:
-Executar Sprint 2 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: validar `app.js?v=20260824l`/`checkin-cache-v128`, confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Executar Sprint 3 de Mensagens e sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

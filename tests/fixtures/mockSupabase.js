@@ -84,6 +84,35 @@ function createMockSupabaseScript() {
     db.students[1].birth_date = (yyyy - 8) + "-01-12";
   }
 
+  if (new URLSearchParams(window.location.search).get("scenario") === "messages-panel") {
+    db.tips.push(
+      {
+        id: "tip-all-1",
+        message: "Aviso geral para todas as familias.",
+        recipient_id: null,
+        created_by: "admin-1",
+        sender_name: "Admin DNMS",
+        created_at: todayIso + "T10:00:00.000Z"
+      },
+      {
+        id: "tip-parent-1",
+        message: "Mensagem direcionada ao responsavel.",
+        recipient_id: "parent-1",
+        created_by: "admin-1",
+        sender_name: "Admin DNMS",
+        created_at: todayIso + "T11:00:00.000Z"
+      },
+      {
+        id: "tip-parent-2",
+        message: "Mensagem de outra familia.",
+        recipient_id: "parent-2",
+        created_by: "admin-1",
+        sender_name: "Admin DNMS",
+        created_at: todayIso + "T12:00:00.000Z"
+      }
+    );
+  }
+
   let currentUser = null;
   if (["restore-session", "slow-restore-session"].includes(new URLSearchParams(window.location.search).get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };

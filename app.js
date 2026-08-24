@@ -78,6 +78,7 @@ const els = {
   dashboardAdminTools: document.getElementById("dashboardAdminTools"),
   dashboardInfoText: document.getElementById("dashboardInfoText"),
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
+  tipsCard: document.getElementById("tipsCard"),
   scheduleFileInput: document.getElementById("scheduleFileInput"),
   btnImportScheduleFile: document.getElementById("btnImportScheduleFile"),
   scheduleSheetUrl: document.getElementById("scheduleSheetUrl"),
@@ -126,7 +127,6 @@ const els = {
   checkoutSummary: document.getElementById("checkoutSummary"),
   checkoutCheckinId: document.getElementById("checkoutCheckinId"),
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
-  tipsDialog: document.getElementById("tipsDialog"),
   tipsComposer: document.getElementById("tipsComposer"),
   tipsList: document.getElementById("tipsList"),
   btnDeleteAllTips: document.getElementById("btnDeleteAllTips"),
@@ -299,7 +299,7 @@ function bindEvents() {
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
   els.btnFamiliesPanel?.addEventListener("click", () => setActivePanel("families"));
-  els.btnTipsInbox?.addEventListener("click", openTipsDialog);
+  els.btnTipsInbox?.addEventListener("click", () => setActivePanel("tips"));
   els.btnLogPanel?.addEventListener("click", toggleLogPanel);
   els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
   els.btnLogout.addEventListener("click", handleLogout);
@@ -420,6 +420,7 @@ function render() {
   renderSession();
   renderRoleVisibility();
   renderDashboard();
+  renderTipsPanel();
   renderRooms();
   renderStudents();
   renderFamiliesPanel();
@@ -636,6 +637,10 @@ async function refreshPanelData(panel) {
     await Promise.all([fetchProfilesIfAllowed(), fetchStudents()]);
     return;
   }
+  if (panel === "tips") {
+    await Promise.all([fetchDashboardData(), fetchProfilesIfAllowed()]);
+    return;
+  }
   if (panel === "log") {
     await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs()]);
     return;
@@ -649,13 +654,13 @@ function ensureDefaultActivePanel() {
   if (!state.session) {
     return;
   }
-  if (state.session.role === "responsavel") {
+  if (state.session.role === "responsavel" && state.ui.activePanel !== "tips") {
     state.ui.activePanel = "students";
     state.ui.showLogPanel = false;
     state.ui.showInvitePanel = false;
     return;
   }
-  const allowed = new Set(["dashboard", "rooms", "students", "families", "log", "invite"]);
+  const allowed = new Set(["dashboard", "rooms", "students", "families", "tips", "log", "invite"]);
   if (!allowed.has(state.ui.activePanel || "")) {
     state.ui.activePanel = "dashboard";
   }
@@ -686,6 +691,9 @@ function updateHeaderPanelButtons() {
   }
   if (els.btnFamiliesPanel) {
     els.btnFamiliesPanel.className = active === "families" ? "primary" : "ghost";
+  }
+  if (els.btnTipsInbox) {
+    els.btnTipsInbox.className = active === "tips" ? "primary message-btn" : "ghost message-btn";
   }
 }
 
@@ -732,14 +740,21 @@ function isTipReadByCurrentUser(tipId) {
 }
 
 function openTipsDialog() {
+  openTipsPanel();
+}
+
+function openTipsPanel() {
   if (!state.session) {
     return;
   }
-  renderTipsDialog();
-  els.tipsDialog?.showModal();
+  setActivePanel("tips");
 }
 
 function renderTipsDialog() {
+  renderTipsPanel();
+}
+
+function renderTipsPanel() {
   if (!els.tipsList) {
     return;
   }
@@ -812,7 +827,7 @@ function renderTipsDialog() {
       if (!read) {
         await markTipAsRead(tip.id);
       }
-      renderTipsDialog();
+      renderTipsPanel();
     });
 
     els.tipsList.appendChild(wrapper);
@@ -822,7 +837,10 @@ function renderTipsDialog() {
 function renderTipsComposerControls() {
   const canSend = canAccessManagementPanel();
   if (els.tipsComposer) {
-    els.tipsComposer.style.display = canSend ? "block" : "none";
+    els.tipsComposer.style.display = canSend ? "flex" : "none";
+  }
+  if (els.btnDeleteAllTips) {
+    els.btnDeleteAllTips.style.display = canSend ? "inline-flex" : "none";
   }
   if (!canSend || !els.tipsRecipientSelect) {
     return;
@@ -899,7 +917,7 @@ async function deleteTipMessage(tipId) {
   }
   state.ui.expandedTips = (state.ui.expandedTips || []).filter((id) => id !== tipId);
   updateTipsUnreadBadge();
-  renderTipsDialog();
+  renderTipsPanel();
   render();
 }
 
@@ -948,7 +966,7 @@ async function deleteAllVisibleTips() {
   }
   state.ui.expandedTips = [];
   updateTipsUnreadBadge();
-  renderTipsDialog();
+  renderTipsPanel();
   render();
 }
 
@@ -999,7 +1017,7 @@ async function markAllTipsAsRead() {
     });
   }
   updateTipsUnreadBadge();
-  renderTipsDialog();
+  renderTipsPanel();
   render();
 }
 
@@ -2090,6 +2108,7 @@ function renderRoleVisibility() {
   const roomCard = document.getElementById("roomCard");
   const studentCard = document.getElementById("studentCard");
   const familiesCard = document.getElementById("familiesCard");
+  const tipsCard = els.tipsCard || document.getElementById("tipsCard");
   const logCard = document.getElementById("logCard");
   const inviteCard = document.getElementById("inviteCard");
   const authCard = document.getElementById("authCard");
@@ -2113,6 +2132,9 @@ function renderRoleVisibility() {
     if (familiesCard) {
       familiesCard.style.display = "none";
     }
+    if (tipsCard) {
+      tipsCard.style.display = "none";
+    }
     logCard.style.display = "none";
     if (inviteCard) {
       inviteCard.style.display = "none";
@@ -2132,7 +2154,10 @@ function renderRoleVisibility() {
     if (inviteCard) {
       inviteCard.style.display = "none";
     }
-    studentCard.style.display = "flex";
+    if (tipsCard) {
+      tipsCard.style.display = getActivePanel() === "tips" ? "flex" : "none";
+    }
+    studentCard.style.display = getActivePanel() === "tips" ? "none" : "flex";
     return;
   }
 
@@ -2145,6 +2170,9 @@ function renderRoleVisibility() {
     studentCard.style.display = "none";
     if (familiesCard) {
       familiesCard.style.display = "none";
+    }
+    if (tipsCard) {
+      tipsCard.style.display = "none";
     }
     logCard.style.display = "flex";
     if (inviteCard) {
@@ -2161,6 +2189,9 @@ function renderRoleVisibility() {
     if (familiesCard) {
       familiesCard.style.display = "none";
     }
+    if (tipsCard) {
+      tipsCard.style.display = "none";
+    }
     logCard.style.display = "none";
     if (inviteCard) {
       inviteCard.style.display = "flex";
@@ -2176,6 +2207,9 @@ function renderRoleVisibility() {
     if (familiesCard) {
       familiesCard.style.display = "flex";
     }
+    if (tipsCard) {
+      tipsCard.style.display = "none";
+    }
     logCard.style.display = "none";
     if (inviteCard) {
       inviteCard.style.display = "none";
@@ -2189,6 +2223,9 @@ function renderRoleVisibility() {
   studentCard.style.display = activePanel === "students" ? "flex" : "none";
   if (familiesCard) {
     familiesCard.style.display = "none";
+  }
+  if (tipsCard) {
+    tipsCard.style.display = activePanel === "tips" ? "flex" : "none";
   }
   logCard.style.display = "none";
   if (inviteCard) {
