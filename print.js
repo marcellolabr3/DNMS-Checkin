@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const PRINT_SERVICE_URL = "http://localhost:3001";
+const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const els = {
@@ -295,7 +296,7 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
   try {
     const response = await fetch(`${PRINT_SERVICE_URL}${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getPrintServiceHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal
     });
@@ -335,6 +336,17 @@ async function requestRemoteReprint(checkinId) {
     }
   }
   return true;
+}
+
+function getPrintServiceHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const token = localStorage.getItem(PRINT_SERVICE_TOKEN_KEY);
+    if (token) {
+      headers["X-DNMS-Print-Token"] = token;
+    }
+  } catch (_error) {}
+  return headers;
 }
 
 function buildLabelDocumentHtml(labelBodyHtml) {

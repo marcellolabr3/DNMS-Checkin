@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 2 de service worker seguro.
+Sprint 3 de protecao do servico local de impressao.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -137,6 +137,7 @@ Estado do banco:
 - Corrigido upload de foto de crianca para responsavel/admin: o app guarda o ultimo arquivo escolhido, limpa o input alternativo camera/galeria, valida arquivo vazio e envia Blob normalizado ao Supabase Storage.
 - Sprint 1 de seguranca do DOM: dados de usuarios/criancas/salas/escalas/etiquetas interpolados em HTML passaram a usar escape antes de renderizar; `print.js` tambem passou a escapar dados da etiqueta/reimpressao.
 - Sprint 2 de service worker seguro: cache restrito a assets estaticos locais; Supabase, Google Sheets, CDN e servico local de impressao nao devem ser interceptados/cacheados pelo SW.
+- Sprint 3 de protecao do servico local de impressao: servico passa a escutar em `127.0.0.1` por padrao, aceita token/origens por configuracao opcional e valida payloads HTTP de `/print` e `/reprint`.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -145,16 +146,24 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 2 concluida: restringir cache do service worker para evitar dados dinamicos antigos ou de outra sessao, mantendo fallback offline para assets estaticos.
+Sprint 3 concluida: reduzir risco de chamadas indevidas ao servico local de impressao sem afetar auto-impressao/reimpressao remota via Supabase.
 
 Arquivos envolvidos:
 
+- `Servico de impressao/server.js`
+- `Servico de impressao/README.md`
+- `Servico de impressao/.codex-secrets.example.env`
+- `app.js`
+- `print.js`
+- `index.html`
+- `print.html`
 - `sw.js`
+- `tests/print-service.spec.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `cmd /c npm test` (80 testes em desktop/mobile).
+Implementado e validado localmente com `node --check "Servico de impressao/server.js"` e `cmd /c npm test` (82 testes em desktop/mobile). Teste fisico com Brother ficou pendente porque a impressora nao esta disponivel.
 
 ---
 
@@ -174,6 +183,7 @@ Implementado e validado localmente com `cmd /c npm test` (80 testes em desktop/m
 - Ao alterar HTML/CSS/JS do PWA, atualizar querystrings de assets em `index.html` e o `CACHE_NAME`/assets em `sw.js`. Motivo: evitar service worker servindo JS/CSS antigo com tela nova.
 - Dados vindos de usuario/banco nao devem ser interpolados diretamente em `innerHTML`; usar `textContent`, `createElement` ou helpers de escape antes de montar markup. Motivo: evitar XSS/injecao visual sem depender apenas de validacao de entrada.
 - Service worker deve interceptar/cachear apenas assets estaticos locais explicitamente listados; chamadas Supabase/Google Sheets/CDN/localhost e rotas dinamicas devem seguir direto pela rede. Motivo: evitar dados obsoletos, cache entre sessoes e comportamento inconsistente em producao.
+- Servico local de impressao deve escutar apenas em localhost por padrao e pode exigir `PRINT_SERVICE_TOKEN` + `PRINT_ALLOWED_ORIGINS`; o token local do navegador fica em `localStorage["dnms_print_service_token"]`, nunca em arquivo versionado. Motivo: reduzir abuso de `localhost:3001` por paginas externas sem quebrar modo legado.
 - Regras sensiveis precisam existir no banco e no frontend. Motivo: evitar bypass por concorrencia, clique duplo ou outro cliente.
 - Preservar fluxos de check-in/impressao existentes. Motivo: sistema esta operacional em producao.
 
@@ -205,11 +215,11 @@ ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup.
 
 Prioridade alta:
 
-- [ ] Sprint 3: proteger servico local de impressao contra chamadas indevidas via `localhost:3001`, preservando check-in e reimpressao.
 - [ ] Confirmar periodicamente se credenciais administrativas ainda devem permanecer no arquivo local.
 
 Prioridade media:
 
+- [ ] Quando a Brother/PC de impressao estiver disponivel, testar Sprint 3 fisicamente: health em `http://localhost:3001/health`, check-in no proprio PC, reimpressao local, reimpressao via celular/fila, e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
 - [ ] Quando a Brother/PC de impressao estiver disponivel, testar reimpressao real pelo celular apos Sprint 2: solicitar reimpressao, confirmar job em `print_jobs` e confirmar impressao pelo servico local. Observacao: testes automatizados validaram que o service worker nao intercepta/cacheia Supabase/localhost, mas nao houve teste fisico por impressora indisponivel.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
@@ -223,20 +233,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Iniciar Sprint 3: adicionar autorizacao/validacao ao servico local de impressao sem quebrar check-in, reimpressao local e fila remota.
+Iniciar Sprint 4: reduzir payload inicial do Supabase com colunas especificas e carregamento sob demanda de paineis pesados, preservando RLS e fluxos atuais.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 2 aplicada: `sw.js` passou a ignorar metodos nao-GET, usar network-first para navegacao com fallback para `index.html`, e cachear apenas requests same-origin cujo pathname esteja na lista de assets. Foi criado `tests/service-worker.spec.js` para travar essa regra.
+Sprint 3 aplicada: `Servico de impressao/server.js` passou a carregar env antes de ler configuracoes, escutar em `127.0.0.1` por padrao, aceitar `PRINT_SERVICE_TOKEN`/`PRINT_ALLOWED_ORIGINS`, validar payload HTTP de `/print` e `/reprint`, e manter auto-impressao/reimpressao remota via Supabase fora dessas validacoes. `app.js` e `print.js` enviam `X-DNMS-Print-Token` quando `localStorage["dnms_print_service_token"]` existir. Documentacao do servico e exemplo de env foram atualizados.
 
 Ficou funcionando:
-Supabase, Google Sheets, CDN externo e `localhost:3001` nao devem ser cacheados/interceptados pelo service worker. Cache atualizado para `checkin-cache-v118`. `cmd /c npm test` passou com 80 testes em desktop/mobile.
+Modo legado continua compativel quando `PRINT_SERVICE_TOKEN` nao esta configurado. Quando token for configurado no servico, navegador do PC da Brother precisa salvar o mesmo token em `localStorage["dnms_print_service_token"]`. Assets versionados para `app.js?v=20260824d`, `print.js?v=20260824d` e cache `checkin-cache-v119`. `node --check "Servico de impressao/server.js"` passou e `cmd /c npm test` passou com 82 testes em desktop/mobile.
 
 Ficou pendente:
-Teste manual de reimpressao real na Brother quando a impressora estiver disponivel; publicacao/push desta observacao; inicio da Sprint 3 do servico local de impressao.
+Teste fisico na Brother quando a impressora estiver disponivel, especialmente check-in/reimpressao local e reimpressao remota por fila com o servico atualizado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

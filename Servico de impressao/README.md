@@ -15,6 +15,25 @@ Quando o check-in e feito em outro dispositivo, como celular ou outro computador
 - `POST http://localhost:3001/reprint`
 - `GET http://localhost:3001/health`
 
+Por seguranca, o servico escuta somente em `127.0.0.1` por padrao. Assim ele atende o navegador do proprio computador da Brother, mas nao fica exposto para outros dispositivos da rede.
+
+### Protecao HTTP opcional
+
+Para endurecer as chamadas diretas do navegador para `/print` e `/reprint`, configure em `.codex-secrets.env`:
+
+```env
+PRINT_SERVICE_TOKEN=crie_um_token_local_longo
+PRINT_ALLOWED_ORIGINS=https://url-publica-do-app
+```
+
+Quando `PRINT_SERVICE_TOKEN` estiver configurado, o PWA/painel de impressao precisa ter o mesmo valor salvo no navegador do PC da Brother:
+
+```js
+localStorage.setItem("dnms_print_service_token", "crie_um_token_local_longo")
+```
+
+`PRINT_ALLOWED_ORIGINS` e uma lista separada por virgula. Se ficar vazia, o servico roda em modo compatibilidade e nao bloqueia por origem. O token e a lista de origens protegem apenas os endpoints HTTP locais; auto-impressao e reimpressao remota por fila continuam sendo processadas diretamente pelo servico via Supabase.
+
 ## Impressora utilizada
 
 O servico foi configurado para usar somente a impressora com nome contendo:
@@ -64,7 +83,10 @@ A tabela impede mais de uma reimpressao aberta para o mesmo check-in (`pending` 
 ```js
 fetch("http://localhost:3001/print", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "X-DNMS-Print-Token": "token_local_quando_configurado"
+  },
   body: JSON.stringify({
     checkin_id: "123",
     conteudo: htmlDaEtiqueta,

@@ -8,6 +8,7 @@ const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const RECURRENCE_WEEKS_PER_MONTH = 4;
 const DASHBOARD_UPCOMING_SCHEDULE_LIMIT = 3;
 const PRINT_SERVICE_URL = "http://localhost:3001";
+const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
@@ -6058,7 +6059,7 @@ async function printCurrentLabel(options = {}) {
   try {
     const response = await fetch(`${PRINT_SERVICE_URL}${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getPrintServiceHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal
     });
@@ -6087,6 +6088,17 @@ async function printCurrentLabel(options = {}) {
 
 function shouldUseLocalPrintService() {
   return !isMobileDevice();
+}
+
+function getPrintServiceHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const token = localStorage.getItem(PRINT_SERVICE_TOKEN_KEY);
+    if (token) {
+      headers["X-DNMS-Print-Token"] = token;
+    }
+  } catch (_error) {}
+  return headers;
 }
 
 async function requestRemoteReprint(checkinId, options = {}) {

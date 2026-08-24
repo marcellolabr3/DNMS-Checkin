@@ -7,14 +7,17 @@ const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
 const { createClient } = require("@supabase/supabase-js");
 
-const PORT = 3001;
+loadEnvFromFiles();
+const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
+const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
 const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
 const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 4000);
 const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY_DEFAULT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 
-loadEnvFromFiles();
+const PRINT_SERVICE_TOKEN = process.env.PRINT_SERVICE_TOKEN || "";
+const PRINT_ALLOWED_ORIGINS = parseAllowedOrigins(process.env.PRINT_ALLOWED_ORIGINS || "");
 const SUPABASE_URL = process.env.SUPABASE_URL || SUPABASE_URL_DEFAULT;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
@@ -36,10 +39,15 @@ let reprintJobPollTimer = null;
 const app = express();
 
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  const origin = req.headers.origin || "";
+  if (origin && PRINT_ALLOWED_ORIGINS.size && !PRINT_ALLOWED_ORIGINS.has(origin)) {
+    res.status(403).json({ ok: false, error: "Origem nao autorizada para impressao local." });
+    return;
+  }
+  res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-DNMS-Print-Token");
   res.setHeader("Access-Control-Allow-Private-Network", "true");
   if (req.method === "OPTIONS") {
     res.status(204).end();
@@ -69,10 +77,16 @@ app.get("/health", async (_req, res) => {
 });
 
 app.post("/print", async (req, res) => {
+  if (!authorizePrintRequest(req, res)) {
+    return;
+  }
   await handlePrintRequest(req, res, "print");
 });
 
 app.post("/reprint", async (req, res) => {
+  if (!authorizePrintRequest(req, res)) {
+    return;
+  }
   await handlePrintRequest(req, res, "reprint");
 });
 
@@ -107,6 +121,31 @@ async function handlePrintRequest(req, res, routeType) {
       details: "Tipo invalido. Use print ou reprint."
     });
     res.status(400).json({ ok: false, error: "Campo tipo invalido. Use print ou reprint." });
+    return;
+  }
+
+  if (tipo !== routeType) {
+    logPrint({
+      checkinId,
+      tipo,
+      date: startedAt,
+      status: "erro",
+      details: `Tipo divergente para endpoint ${routeType}.`
+    });
+    res.status(400).json({ ok: false, error: "Tipo divergente do endpoint solicitado." });
+    return;
+  }
+
+  const validation = validatePrintPayload({ checkinId, conteudo });
+  if (!validation.ok) {
+    logPrint({
+      checkinId,
+      tipo,
+      date: startedAt,
+      status: "erro",
+      details: validation.error
+    });
+    res.status(400).json({ ok: false, error: validation.error });
     return;
   }
 
@@ -620,6 +659,43 @@ function loadEnvFromFiles() {
   });
 }
 
+function parseAllowedOrigins(value) {
+  return new Set(
+    String(value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+}
+
+function authorizePrintRequest(req, res) {
+  if (!PRINT_SERVICE_TOKEN) {
+    return true;
+  }
+  const token = String(req.headers["x-dnms-print-token"] || "");
+  if (token && token === PRINT_SERVICE_TOKEN) {
+    return true;
+  }
+  res.status(401).json({ ok: false, error: "Token de impressao local invalido ou ausente." });
+  return false;
+}
+
+function validatePrintPayload({ checkinId, conteudo }) {
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(checkinId)) {
+    return { ok: false, error: "checkin_id invalido para impressao local." };
+  }
+  if (conteudo.length > 200000) {
+    return { ok: false, error: "Conteudo de impressao excede o limite permitido." };
+  }
+  if (!/<!doctype html>/i.test(conteudo) || !/<div\s+class=["']label["']/i.test(conteudo)) {
+    return { ok: false, error: "Conteudo de impressao fora do formato esperado." };
+  }
+  if (/<script\b/i.test(conteudo) || /<iframe\b/i.test(conteudo) || /<object\b/i.test(conteudo) || /<embed\b/i.test(conteudo)) {
+    return { ok: false, error: "Conteudo de impressao contem elementos nao permitidos." };
+  }
+  return { ok: true };
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -656,10 +732,15 @@ function formatDate(date) {
   )}:${pad(d.getSeconds())}`;
 }
 
-app.listen(PORT, () => {
-  console.log(`[Servico de impressao] online em http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
   console.log(
     `[Servico de impressao] Supabase auth: ${SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "anon"}`
+  );
+  console.log(
+    `[Servico de impressao] Protecao HTTP: ${PRINT_SERVICE_TOKEN ? "token ativo" : "token nao configurado"}; origens permitidas: ${
+      PRINT_ALLOWED_ORIGINS.size ? Array.from(PRINT_ALLOWED_ORIGINS).join(", ") : "modo compatibilidade"
+    }`
   );
   startAutoPrintPolling();
   startReprintJobPolling();
