@@ -129,6 +129,7 @@ Estado do banco:
 - Criada fila de reimpressao remota para imprimir pela Brother quando pedido vier de celular/outro dispositivo.
 - Implementado bloqueio de duplicidade de criancas no app e no banco.
 - Adicionado overlay "Salvando crianca..." para evitar multiplos cliques.
+- Corrigido upload de foto de crianca para responsavel/admin: o app guarda o ultimo arquivo escolhido, limpa o input alternativo camera/galeria, valida arquivo vazio e envia Blob normalizado ao Supabase Storage.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -137,15 +138,17 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Manter contexto operacional seguro e atualizado para proximas sessoes.
+Corrigir falha de responsaveis ao atualizar foto de crianca.
 
 Arquivos envolvidos:
 
-- `AGENTS.md`
+- `app.js`
+- `tests/responsavel.spec.js`
+- `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Contexto sendo atualizado. Nao ha mudanca funcional de codigo nesta etapa.
+Implementado e validado com testes. Ainda nao commitado nesta etapa.
 
 ---
 
@@ -207,13 +210,13 @@ Validar em producao uma tentativa de cadastro duplicado pelo app.
 ## Ultima sessao
 
 Foi feito:
-Criada e aplicada protecao contra cadastro duplicado de criancas, adicionada UI de salvamento, testes, documentacao e instrucoes persistentes.
+Corrigida atualizacao de foto de crianca para responsaveis, preservando camera/galeria e normalizando o arquivo antes do upload.
 
 Ficou funcionando:
-App bloqueia cadastro duplicado por nome + nascimento; banco possui trigger confirmado; GitHub recebeu os commits `a4962aa` e `5a947e8`.
+Responsavel consegue atualizar foto da propria crianca nos testes; suíte completa passou com 62 testes.
 
 Ficou pendente:
-Validar duplicidade em producao pelo app.
+Commit/push da correcao de foto, se aprovado.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

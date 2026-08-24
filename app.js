@@ -31,7 +31,7 @@ const scheduleSheetContext = {
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
-const studentDialogContext = { guardianProfileId: "" };
+const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
@@ -351,12 +351,12 @@ function bindEvents() {
 
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
-      updatePhotoPreview(els.studentPhoto, els.studentPhotoPreview);
+      handleStudentPhotoInputChange(els.studentPhoto, els.studentPhotoCamera);
     });
   }
   if (els.studentPhotoCamera) {
     els.studentPhotoCamera.addEventListener("change", () => {
-      updatePhotoPreview(els.studentPhotoCamera, els.studentPhotoPreview);
+      handleStudentPhotoInputChange(els.studentPhotoCamera, els.studentPhoto);
     });
   }
   if (els.signupPhoto) {
@@ -5108,6 +5108,7 @@ function openStudentDialog(student) {
   els.studentDialogTitle.textContent = student ? (isResponsavel ? "Editar crianca" : "Editar aluno") : (isResponsavel ? "Cadastrar crianca" : "Novo aluno");
   const id = student?.id || (supabaseClient ? "" : uid());
   studentDialogContext.guardianProfileId = student?.guardianProfileId || "";
+  studentDialogContext.photoFile = null;
   els.studentId.value = id;
   els.studentName.value = student?.name || "";
   els.studentBirth.value = formatBirthDateForInput(student?.birth || "");
@@ -5152,6 +5153,7 @@ function openStudentDialog(student) {
 
 function resetStudentDialogDraft() {
   studentDialogContext.guardianProfileId = "";
+  studentDialogContext.photoFile = null;
   setStudentSaving(false);
   if (els.studentId) els.studentId.value = "";
   if (els.studentName) els.studentName.value = "";
@@ -5168,6 +5170,15 @@ function resetStudentDialogDraft() {
   if (els.studentGuardianHint) {
     els.studentGuardianHint.textContent = "";
   }
+}
+
+function handleStudentPhotoInputChange(sourceInput, otherInput) {
+  const file = sourceInput?.files?.[0] || null;
+  studentDialogContext.photoFile = file;
+  if (file && otherInput) {
+    otherInput.value = "";
+  }
+  updatePhotoPreview(sourceInput, els.studentPhotoPreview);
 }
 
 function setStudentSaving(isSaving) {
@@ -5280,7 +5291,7 @@ async function saveStudent(event) {
   if (!isResponsavel && !payload.phone && guardianResolution.profile.phone) {
     payload.phone = formatPhoneForStorage(guardianResolution.profile.phone);
   }
-  const photoFile = els.studentPhotoCamera?.files?.[0] || els.studentPhoto?.files?.[0] || null;
+  const photoFile = getSelectedStudentPhotoFile();
 
   const missingCommon = !payload.name || !payload.birth || !payload.className;
   const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
@@ -6574,14 +6585,54 @@ async function uploadFileToStorage(path, file) {
   if (!supabaseClient || !file) {
     return { ok: false, error: "Supabase nao configurado." };
   }
+  const content = await prepareStorageUploadContent(file);
+  if (!content.ok) {
+    return { ok: false, error: content.error };
+  }
   const bucket = supabaseClient.storage.from(STORAGE_BUCKET);
-  const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
+  const { error } = await bucket.upload(path, content.body, { upsert: true, contentType: content.contentType });
   if (error) {
     console.warn("Falha no upload", error);
     return { ok: false, error: error.message };
   }
   const { data } = bucket.getPublicUrl(path);
   return { ok: true, url: data?.publicUrl || "", path };
+}
+
+function getSelectedStudentPhotoFile() {
+  const selected = studentDialogContext.photoFile;
+  if (selected instanceof File && selected.size > 0) {
+    return selected;
+  }
+  const camera = els.studentPhotoCamera?.files?.[0] || null;
+  const gallery = els.studentPhoto?.files?.[0] || null;
+  if (camera instanceof File && camera.size > 0) {
+    return camera;
+  }
+  if (gallery instanceof File && gallery.size > 0) {
+    return gallery;
+  }
+  return null;
+}
+
+async function prepareStorageUploadContent(file) {
+  if (!(file instanceof Blob)) {
+    return { ok: false, error: "Arquivo de foto invalido." };
+  }
+  if (!Number.isFinite(file.size) || file.size <= 0) {
+    return { ok: false, error: "Arquivo de foto vazio. Selecione ou tire a foto novamente." };
+  }
+  const contentType = file.type || "image/jpeg";
+  try {
+    const buffer = await file.arrayBuffer();
+    if (!buffer?.byteLength) {
+      return { ok: false, error: "Arquivo de foto vazio. Selecione ou tire a foto novamente." };
+    }
+    return { ok: true, body: new Blob([buffer], { type: contentType }), contentType };
+  } catch (error) {
+    console.warn("Falha ao preparar arquivo para upload", error);
+    return { ok: false, error: "Nao foi possivel ler a foto selecionada." };
+  }
 }
 
 async function uploadStudentPhoto(studentId, file) {

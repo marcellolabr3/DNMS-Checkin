@@ -49,3 +49,25 @@ test("responsavel exclui a propria crianca", async ({ page }) => {
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-kids"))))
     .toBe(false);
 });
+
+test("responsavel atualiza foto da propria crianca", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+
+  const ana = page.locator("#studentList .list-item").filter({ hasText: "Ana Kids" });
+  await expect(ana).toBeVisible();
+  await ana.getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+
+  await page.setInputFiles("#studentPhoto", {
+    name: "foto-responsavel.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("foto-responsavel")
+  });
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  const photoUrl = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.photo_url);
+  expect(photoUrl).toContain("students/student-kids/profile-");
+  await expect.poll(() => page.evaluate(() => window.__mockStorageUploads[0]?.size || 0)).toBeGreaterThan(0);
+});
