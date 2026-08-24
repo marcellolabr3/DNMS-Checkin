@@ -163,7 +163,7 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 1 implementada: `fetchStudents()` agora preserva todos os vinculos de `student_guardians` em `guardianProfileIds`; listagem de Familias, permissoes de responsavel e verificacao de duplicidade passam a considerar multiplos vinculos. `guardianProfileId` foi mantido como compatibilidade/representacao principal. Validado com `node --check app.js`.
+Sprint 2 implementada: `assignStudentToFamily()` agora adiciona vinculo em `student_guardians` sem alterar `students.primary_guardian_name`; Sprint 1 ja havia feito `fetchStudents()` preservar todos os vinculos em `guardianProfileIds` e usar multiplos responsaveis em Familias/permissoes/duplicidade. Validado com `node --check app.js` e `node --check sw.js`.
 
 ---
 
@@ -234,7 +234,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Sprint 2: ajustar o botao "Vincular crianca existente" para adicionar vinculo em `student_guardians` sem trocar `students.primary_guardian_name`, deixando troca de responsavel principal para uma acao explicita futura.
+Sprint 3: ajustar testes/mocks para garantir que vincular segundo responsavel nao substitui o primeiro, que a crianca aparece nos dois perfis e que o responsavel secundario visualiza a crianca.
 
 ---
 

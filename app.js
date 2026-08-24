@@ -4447,14 +4447,6 @@ async function assignStudentToFamily(studentId, profile) {
   }
 
   if (supabaseClient) {
-    const updatePayload = {
-      primary_guardian_name: profile.name || student.guardian || ""
-    };
-    const { error: updateError } = await supabaseClient.from("students").update(updatePayload).eq("id", student.id);
-    if (updateError) {
-      alert(`Falha ao atualizar crianca: ${updateError.message || "erro inesperado"}`);
-      return;
-    }
     const linked = await linkGuardianToStudent(student.id, profile.name || "", profile.id);
     if (!linked) {
       alert("Falha ao vincular crianca ao responsavel selecionado.");
@@ -4464,10 +4456,14 @@ async function assignStudentToFamily(studentId, profile) {
   } else {
     const index = state.students.findIndex((item) => item.id === student.id);
     if (index >= 0) {
+      const guardianProfileIds = getStudentGuardianProfileIds(state.students[index]);
+      if (!guardianProfileIds.includes(profile.id)) {
+        guardianProfileIds.push(profile.id);
+      }
       state.students[index] = {
         ...state.students[index],
-        guardian: profile.name || state.students[index].guardian,
-        guardianProfileId: profile.id
+        guardianProfileIds,
+        guardianProfileId: state.students[index].guardianProfileId || getPrimaryGuardianProfileId(state.students[index], guardianProfileIds)
       };
     }
   }
