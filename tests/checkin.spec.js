@@ -389,12 +389,26 @@ test("log gera relatorio de cadastro de criancas", async ({ page }) => {
   await page.click("#btnLogPanel");
   await expect(page.locator("#logCard")).toBeVisible();
   await page.selectOption("#logReportType", "child_created");
-  await page.fill("#logStart", todayIso());
-  await page.fill("#logEnd", todayIso());
 
   await expect(page.locator("#logSummary")).toContainText("Cadastro de criancas");
   await expect(page.locator("#logList")).toContainText("Relatorio Teste");
   await expect(page.locator("#logList")).toContainText("Crianca cadastrada");
+  await expect(page.locator("#btnExport")).toBeEnabled();
+});
+
+test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await page.click("#btnLogPanel");
+
+  await expect(page.locator("#logCard")).toBeVisible();
+  await expect(page.locator("#logStart")).toHaveValue(todayIso());
+  await expect(page.locator("#logEnd")).toHaveValue(todayIso());
+  await expect(page.locator("#logSummary")).toContainText("Frequencia do periodo");
+  await expect(page.locator("#logList")).toContainText("Ana Kids");
   await expect(page.locator("#btnExport")).toBeEnabled();
 });
 

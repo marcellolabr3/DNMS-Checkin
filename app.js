@@ -574,6 +574,9 @@ function setActivePanel(panel) {
   if (panel === "invite" && !canAccessManagementPanel()) {
     panel = "dashboard";
   }
+  if (panel === "log") {
+    ensureLogPeriodDefaults();
+  }
   state.ui.activePanel = panel;
   state.ui.showLogPanel = panel === "log";
   state.ui.showInvitePanel = panel === "invite";
@@ -2326,6 +2329,16 @@ function toggleLogPanel() {
     return;
   }
   setActivePanel(getActivePanel() === "log" ? "dashboard" : "log");
+}
+
+function ensureLogPeriodDefaults() {
+  const today = formatTodayIso();
+  if (els.logStart && !els.logStart.value) {
+    els.logStart.value = today;
+  }
+  if (els.logEnd && !els.logEnd.value) {
+    els.logEnd.value = today;
+  }
 }
 
 function toggleInvitePanel() {

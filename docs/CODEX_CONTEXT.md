@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Sprint 6 de assets PWA.
+Correcao do painel de Log apos Sprint 6.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -141,6 +141,7 @@ Estado do banco:
 - Sprint 4 de performance: cargas principais do Supabase em `app.js` passaram a usar colunas explicitas em vez de `select("*")`, reduzindo payload sem mudar fluxo de telas.
 - Sprint 5 de performance: biblioteca XLSX removida do carregamento inicial e carregada sob demanda apenas para importacao Excel ou sincronizacao Google Sheets.
 - Sprint 6 de assets PWA: `logo-loading.png` foi substituido por icones reais 192x192 e 512x512 no HTML, manifest e service worker; cache atualizado para `checkin-cache-v122`.
+- Correcao do Log: ao abrir o painel de Log, periodo inicial passa a ser hoje quando `De`/`Ate` estao vazios; `setup_dnms_checkin.sql` agora inclui `audit_logs`, indices e policies do patch de auditoria para novos ambientes.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -149,22 +150,20 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 6 concluida: otimizar assets visuais/PWA substituindo o logo pesado usado como icone por PNGs reais 192x192 e 512x512.
+Correcao do painel de Log concluida: abrir Log sem escolher periodo agora mostra o dia atual por padrao e permite assiduidade/exportacao quando ha registros.
 
 Arquivos envolvidos:
 
-- `.gitignore`
+- `app.js`
 - `index.html`
-- `manifest.json`
 - `sw.js`
-- `icon-192.png`
-- `icon-512.png`
-- `tests/pwa-assets.spec.js`
+- `tests/checkin.spec.js`
 - `tests/service-worker.spec.js`
+- `supabase/setup_dnms_checkin.sql`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js`, `node --check sw.js` e `cmd /c npm test` (88 testes em desktop/mobile).
+Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, testes focados de log/service worker/payload e `cmd /c npm test` (90 testes em desktop/mobile). Verificacao direta do banco local/producao nao foi feita porque `psql` nao esta instalado nesta maquina.
 
 ---
 
@@ -234,20 +233,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Revisar e publicar a Sprint 6: conferir diff final, commitar e enviar para `origin/main`.
+Commitar e enviar a correcao do Log para `origin/main`; depois validar no app publicado abrindo Log como admin/equipe sem preencher datas.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 6 aplicada: `logo-loading.png` foi removido do PWA e substituido por `icon-192.png` e `icon-512.png`. `index.html`, `manifest.json` e `sw.js` foram atualizados para usar os novos assets; `CACHE_NAME` passou para `checkin-cache-v122`. Foi criado `tests/pwa-assets.spec.js` para garantir dimensoes dos PNGs e impedir retorno do logo antigo no boot/cache.
+Correcao do Log aplicada: `setActivePanel("log")` preenche `logStart`/`logEnd` com a data de hoje quando os campos estao vazios. `setup_dnms_checkin.sql` recebeu a criacao de `audit_logs`, indices e policies equivalentes ao patch de auditoria. O PWA passou para `app.js?v=20260824g` e cache `checkin-cache-v123`. Foi adicionado teste para abrir o Log e ver assiduidade do dia sem preencher periodo manualmente.
 
 Ficou funcionando:
-PWA passa a usar icones reais 192x192 e 512x512. `node --check app.js`, `node --check sw.js` e `cmd /c npm test` passaram com 88 testes em desktop/mobile.
+Log abre com periodo de hoje e mostra assiduidade quando ha check-ins do dia. Relatorio de cadastro de criancas continua funcionando sem exigir preenchimento manual das datas. `cmd /c npm test` passou com 90 testes em desktop/mobile.
 
 Ficou pendente:
-Commit/push da Sprint 6. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Commit/push da correcao do Log. Validar em producao se `audit_logs` existe/policies estao aplicadas; nesta maquina `psql` nao esta instalado para checagem direta. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
