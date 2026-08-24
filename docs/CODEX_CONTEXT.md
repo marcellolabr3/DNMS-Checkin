@@ -154,7 +154,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sprint 4 da refatoracao de Mensagens/Avisos concluida: refinamento de UX mobile/estados.
+Sincronizacao do setup SQL de Mensagens concluida.
 
 Arquivos envolvidos:
 
@@ -162,18 +162,20 @@ Arquivos envolvidos:
 - `index.html`
 - `styles.css`
 - `sw.js`
+- `supabase/setup_dnms_checkin.sql`
+- `tests/supabase-payload.spec.js`
 - `tests/tips.spec.js`
 - `tests/service-worker.spec.js`
 - `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 4 concluida. Mensagens agora possui estado leve `tipsStatus` para carregando/erro, exibido no painel `#tipsCard` e no bloco `#dashboardTips`. Estados vazios foram padronizados, erro mostra botao "Atualizar mensagens", textos longos usam quebra segura sem rolagem horizontal, cards receberam melhorias de acessibilidade (`aria-expanded`/`aria-label`) e botoes do composer/acoes empilham melhor no mobile. Nao houve mudanca de schema. `app.js` passou para `v=20260824o`, `styles.css` para `v=20260824e` e service worker para `checkin-cache-v131`.
+`supabase/setup_dnms_checkin.sql` foi sincronizado com o schema/policies reais de Mensagens em producao: tabela `tips` agora inclui `sender_name text null` no `create table` e `alter table ... add column if not exists`; policies DELETE `tips_delete_admin` e `tip_reads_delete_admin` foram adicionadas para admin ou SADMIN (`marvinlabre@gmail.com`). A alteracao e idempotente e nao altera dados existentes. Producao foi consultada apenas para metadados de `tips`/`tip_reads`; nenhuma DDL/DML foi aplicada no banco.
 
 Validacao:
-`npm.cmd test` passou com 114 testes em desktop/mobile, incluindo `tests/tips.spec.js` para painel, Dashboard, estados vazios, erro/retry e texto longo sem overflow.
+`npm.cmd test` passou com 116 testes em desktop/mobile. `tests/supabase-payload.spec.js` agora cobre `sender_name` e policies DELETE de Mensagens no setup SQL.
 
-Achados de banco/RLS: `tips` guarda `message`, `recipient_id`, `created_by`, `created_at`, e producao tambem tem `sender_name`. `tip_reads` guarda leitura por `(tip_id, user_id)`. Producao tem policies DELETE para `tips` e `tip_reads` por admin/SADMIN; `supabase/setup_dnms_checkin.sql` ainda nao reflete `tips.sender_name` nem essas policies DELETE, embora o app use `sender_name` e botoes de apagar. `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros.
+Achados de banco/RLS: `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros. Nao alterar sem analisar impacto de privacidade.
 
 Sprints sugeridos:
 
@@ -184,7 +186,7 @@ Sprints sugeridos:
 5. Testes e contexto: concluido para as telas alteradas nesta refatoracao; manter cobertura se novos estados forem adicionados.
 
 Proxima sprint:
-Proximo passo recomendado para Mensagens: sincronizar `supabase/setup_dnms_checkin.sql` com producao adicionando `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN, sem alterar dados existentes. Alternativamente, validar a UX publicada antes de nova mudanca.
+Refatoracao de Mensagens/Avisos esta concluida nas sprints 1-4 e setup SQL foi sincronizado. Proximo passo recomendado: validar a UX publicada em producao; se continuar, escolher uma nova frente pequena antes de editar.
 
 ---
 
@@ -248,8 +250,6 @@ Prioridade media:
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
-- [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
-- [ ] Sincronizar `supabase/setup_dnms_checkin.sql` com producao para Mensagens: adicionar `tips.sender_name` e policies DELETE de `tips`/`tip_reads` para admin/SADMIN.
 
 Prioridade baixa:
 
@@ -259,20 +259,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Sincronizar `supabase/setup_dnms_checkin.sql` com o schema/policies de Mensagens em producao (`tips.sender_name` e DELETE de `tips`/`tip_reads`) sem alterar dados existentes. Se preferir, validar primeiro a UX publicada de Mensagens.
+Validar a UX publicada de Mensagens em producao. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 4 de Mensagens concluida: painel e Dashboard agora mostram estados de vazio/carregando/erro com retry; texto longo quebra sem rolagem horizontal; mobile empilha melhor botoes; cards receberam `aria-expanded`/`aria-label`.
+Setup SQL de Mensagens sincronizado com producao: `tips.sender_name` e policies DELETE `tips_delete_admin`/`tip_reads_delete_admin` para admin/SADMIN foram adicionadas em `supabase/setup_dnms_checkin.sql`.
 
 Ficou funcionando:
-Painel navegavel de Mensagens, bloco de Dashboard, estados vazios/erro/retry e texto longo em desktop/mobile. `npm.cmd test` passou com 114 testes.
+Refatoracao de Mensagens/Avisos completa nas sprints 1-4 e setup SQL alinhado. `npm.cmd test` passou com 116 testes.
 
 Ficou pendente:
-Sincronizar `setup_dnms_checkin.sql` com schema/policies de Mensagens em producao. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Validar a UX publicada de Mensagens. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

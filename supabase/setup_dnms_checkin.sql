@@ -121,8 +121,12 @@ create table if not exists public.tips (
   message text not null,
   recipient_id uuid null references public.profiles (id) on delete set null,
   created_by uuid null references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  sender_name text null
 );
+
+alter table public.tips
+  add column if not exists sender_name text null;
 
 create table if not exists public.tip_reads (
   tip_id uuid not null references public.tips (id) on delete cascade,
@@ -891,6 +895,20 @@ with check (
   )
 );
 
+drop policy if exists tips_delete_admin on public.tips;
+create policy tips_delete_admin on public.tips
+for delete to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and (
+        p.role = 'admin'
+        or lower(coalesce(p.email, '')) = 'marvinlabre@gmail.com'
+      )
+  )
+);
+
 drop policy if exists tip_reads_select_own on public.tip_reads;
 create policy tip_reads_select_own on public.tip_reads
 for select to authenticated
@@ -912,6 +930,20 @@ create policy tip_reads_upsert_own on public.tip_reads
 for update to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
+
+drop policy if exists tip_reads_delete_admin on public.tip_reads;
+create policy tip_reads_delete_admin on public.tip_reads
+for delete to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and (
+        p.role = 'admin'
+        or lower(coalesce(p.email, '')) = 'marvinlabre@gmail.com'
+      )
+  )
+);
 
 create or replace function public.ensure_profile_for_new_user()
 returns trigger

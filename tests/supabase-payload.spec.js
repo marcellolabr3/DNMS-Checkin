@@ -15,3 +15,15 @@ test("cargas principais do Supabase usam colunas explicitas", async () => {
   expect(app).toContain("TIP_READ_SELECT_COLUMNS");
   expect(app).toContain('.select("id,created_at")');
 });
+
+test("setup do Supabase inclui schema e policies atuais de mensagens", async () => {
+  const setup = fs.readFileSync(path.join(__dirname, "..", "supabase", "setup_dnms_checkin.sql"), "utf8");
+
+  expect(setup).toContain("sender_name text null");
+  expect(setup).toContain("add column if not exists sender_name text null");
+  expect(setup).toContain("drop policy if exists tips_delete_admin on public.tips");
+  expect(setup).toContain("create policy tips_delete_admin on public.tips");
+  expect(setup).toContain("drop policy if exists tip_reads_delete_admin on public.tip_reads");
+  expect(setup).toContain("create policy tip_reads_delete_admin on public.tip_reads");
+  expect(setup).toContain("lower(coalesce(p.email, '')) = 'marvinlabre@gmail.com'");
+});
