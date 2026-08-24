@@ -4,3 +4,4 @@ test-results/
 .env
 .env.*
 .codex-secrets.env
+docs/CODEX_CONTEXT.local.md

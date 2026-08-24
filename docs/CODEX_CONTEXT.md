@@ -41,7 +41,7 @@ Servicos externos:
 Supabase Auth/Postgres/Storage, Brother QL-810W via servico local, SumatraPDF, Puppeteer, Google Sheets para escalas quando configurado.
 
 Credenciais:
-Nao armazenar no repositorio. Quando precisar aplicar SQL direto, usar credencial fornecida pelo usuario somente em variavel temporaria de ambiente ou input seguro. A connection string foi compartilhada no chat desta sessao; recomenda-se rotacionar a senha depois das alteracoes.
+Nao armazenar no repositorio. Se existir, novas sessoes devem ler `docs/CODEX_CONTEXT.local.md` para credenciais locais. Esse arquivo e ignorado pelo git e nunca deve ser commitado. Ao usar credenciais, carregar em variavel temporaria de ambiente e nao imprimir valores.
 
 ---
 
@@ -81,6 +81,7 @@ No PC da Brother, PWA chama `http://localhost:3001/print` ou `/reprint`. Para ch
 
 - `AGENTS.md` - instrucoes persistentes obrigatorias para Codex.
 - `docs/CODEX_CONTEXT.md` - memoria operacional curta entre sessoes.
+- `docs/CODEX_CONTEXT.local.md` - credenciais/notas locais, ignorado pelo git, nao commitado.
 - `app.js` - logica principal do PWA, autenticacao, cadastro, check-in, permissoes e UI.
 - `index.html` - estrutura dos dialogs/formularios.
 - `styles.css` - estilos do app, incluindo overlay de salvamento.
@@ -162,13 +163,13 @@ Nao reverter estas decisoes sem antes analisar impacto.
 
 ## Problemas conhecidos
 
-### 1. Connection string foi compartilhada no chat
+### 1. Credenciais administrativas locais
 
 Impacto:
-Segredo sensivel ficou no historico da conversa.
+Credenciais permitem alteracoes diretas no banco quando usadas corretamente.
 
 Status:
-ABERTO. Recomenda-se rotacionar a senha do banco no Supabase.
+CONTORNADO. Manter em `docs/CODEX_CONTEXT.local.md`, ignorado pelo git, sem expor valores em respostas.
 
 ### 2. Possiveis duplicidades antigas de criancas
 
@@ -184,7 +185,7 @@ ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup.
 
 Prioridade alta:
 
-- [ ] Rotacionar a senha do banco compartilhada nesta sessao.
+- [ ] Confirmar periodicamente se credenciais administrativas ainda devem permanecer no arquivo local.
 
 Prioridade media:
 
@@ -199,7 +200,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Rotacionar a senha do banco no Supabase e validar que o app continua funcionando com as credenciais atualizadas.
+Validar em producao uma tentativa de cadastro duplicado pelo app.
 
 ---
 
@@ -212,7 +213,7 @@ Ficou funcionando:
 App bloqueia cadastro duplicado por nome + nascimento; banco possui trigger confirmado; GitHub recebeu os commits `a4962aa` e `5a947e8`.
 
 Ficou pendente:
-Rotacionar senha do banco compartilhada no chat e validar duplicidade em producao pelo app.
+Validar duplicidade em producao pelo app.
 
 Para continuar em uma nova sessao, comecar por:
-Ler `AGENTS.md`, ler este arquivo, rodar `git status --short` e confirmar se a senha do banco ja foi rotacionada.
+Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

@@ -8,9 +8,10 @@ Antes de iniciar uma tarefa:
 
 1. Leia este arquivo completamente.
 2. Leia `docs/CODEX_CONTEXT.md`.
-3. Consulte o codigo atual antes de assumir como alguma funcionalidade funciona.
-4. Nao substitua funcionalidades existentes sem verificar impacto.
-5. Preserve compatibilidade com producao sempre que possivel.
+3. Se existir, leia `docs/CODEX_CONTEXT.local.md` para credenciais e notas locais. Esse arquivo e local/ignorado pelo git e nunca deve ser commitado.
+4. Consulte o codigo atual antes de assumir como alguma funcionalidade funciona.
+5. Nao substitua funcionalidades existentes sem verificar impacto.
+6. Preserve compatibilidade com producao sempre que possivel.
 
 ## Projeto
 
@@ -49,6 +50,8 @@ Depois da implementacao:
 O arquivo `docs/CODEX_CONTEXT.md` contem o estado operacional do projeto.
 
 Leia esse arquivo no inicio de cada nova sessao.
+
+Se existir, leia tambem `docs/CODEX_CONTEXT.local.md`. Ele pode conter credenciais locais fornecidas pelo usuario para operacoes administrativas. Nunca exponha seu conteudo em respostas, logs, commits ou diffs.
 
 Ao concluir uma etapa importante, atualize `docs/CODEX_CONTEXT.md` com:
 
