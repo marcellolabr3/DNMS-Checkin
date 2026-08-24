@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const fs = require("fs");
 const { openApp, loginAs, getAlerts } = require("./helpers/app");
 
 async function openStudentsPanel(page) {
@@ -394,6 +395,38 @@ test("log gera relatorio de cadastro de criancas", async ({ page }) => {
   await expect(page.locator("#logList")).toContainText("Relatorio Teste");
   await expect(page.locator("#logList")).toContainText("Crianca cadastrada");
   await expect(page.locator("#btnExport")).toBeEnabled();
+});
+
+test("exportacao do log usa formato legivel para planilhas", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "josé exportação");
+  await page.fill("#studentBirth", "10/01/2020");
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Exportacao");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await page.click("#btnLogPanel");
+  await expect(page.locator("#logCard")).toBeVisible();
+  await page.selectOption("#logReportType", "child_created");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.click("#btnExport");
+  const download = await downloadPromise;
+  const filePath = await download.path();
+  const buffer = fs.readFileSync(filePath);
+  const csv = buffer.toString("utf8");
+
+  expect(Array.from(buffer.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+  expect(csv).toContain("Data;Relatorio;Acao;Alvo;Autor;Perfil;Detalhes");
+  expect(csv).toContain("José Exportação");
+  expect(csv).not.toContain("Data,Relatorio,Acao");
 });
 
 test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {

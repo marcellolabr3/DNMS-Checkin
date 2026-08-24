@@ -21,6 +21,8 @@ const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,a
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
 const TIP_SELECT_COLUMNS = "id,message,recipient_id,created_at,created_by,sender_name";
 const TIP_READ_SELECT_COLUMNS = "tip_id,user_id,read_at";
+const CSV_DELIMITER = ";";
+const CSV_BOM = "\uFEFF";
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -6306,16 +6308,7 @@ function exportCsv() {
   const periodStart = els.logStart?.value || "";
   const periodEnd = els.logEnd?.value || "";
   const periodLabel = periodStart && periodEnd ? `${periodStart}_${periodEnd}` : "periodo";
-  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `frequencia_${periodLabel}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadCsv(`frequencia_${periodLabel}.csv`, [header, ...csvRows]);
   render();
 }
 
@@ -6326,7 +6319,7 @@ function exportAuditCsv(reportType) {
     return;
   }
   const header = ["Data", "Relatorio", "Acao", "Alvo", "Autor", "Perfil", "Detalhes"];
-  const csvRows = rows.map((row) => [
+  const csvRows = rows.slice().sort(compareAuditRowsForExport).map((row) => [
     formatDateTimeFromIso(row.createdAt),
     formatReportType(reportType),
     formatAuditAction(row.actionType),
@@ -6337,16 +6330,7 @@ function exportAuditCsv(reportType) {
   ]);
   const startValue = els.logStart?.value || "inicio";
   const endValue = els.logEnd?.value || "fim";
-  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${reportType}_${startValue}_${endValue}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadCsv(`${reportType}_${startValue}_${endValue}.csv`, [header, ...csvRows]);
   render();
 }
 
@@ -6371,16 +6355,7 @@ function exportFamiliesCsv() {
   ]);
   const searchRaw = String(els.familySearch?.value || "").trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
   const fileSuffix = searchRaw || "busca";
-  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `familias_${fileSuffix}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadCsv(`familias_${fileSuffix}.csv`, [header, ...csvRows]);
 }
 
 function shareLogWhatsapp() {
@@ -7235,7 +7210,26 @@ function buildLogFrequencyRows(checkins) {
         timesLabel: orderedTimes.join(" | ")
       };
     })
-    .sort((a, b) => a.studentName.localeCompare(b.studentName));
+    .sort(compareFrequencyRowsForExport);
+}
+
+function compareFrequencyRowsForExport(a, b) {
+  const classCompare = String(a.className || "").localeCompare(String(b.className || ""), "pt-BR");
+  if (classCompare) {
+    return classCompare;
+  }
+  return String(a.studentName || "").localeCompare(String(b.studentName || ""), "pt-BR");
+}
+
+function compareAuditRowsForExport(a, b) {
+  const dateA = new Date(a.createdAt);
+  const dateB = new Date(b.createdAt);
+  const timeA = Number.isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+  const timeB = Number.isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+  if (timeA !== timeB) {
+    return timeA - timeB;
+  }
+  return String(a.targetName || "").localeCompare(String(b.targetName || ""), "pt-BR");
 }
 
 function getLogReportType() {
@@ -7642,9 +7636,33 @@ function compareRooms(a, b) {
   return (a.name || "").localeCompare(b.name || "");
 }
 
+function buildCsv(rows) {
+  return CSV_BOM + rows.map((row) => row.map(escapeCsv).join(CSV_DELIMITER)).join("\r\n");
+}
+
+function downloadCsv(filename, rows) {
+  const csv = buildCsv(rows);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function escapeCsv(value) {
-  const safe = String(value ?? "");
-  if (safe.includes(",") || safe.includes("\n") || safe.includes("\"")) {
+  let safe = String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\r?\n|\r/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (/^[=+\-@]/.test(safe)) {
+    safe = `'${safe}`;
+  }
+  if (safe.includes(CSV_DELIMITER) || safe.includes("\"")) {
     return `"${safe.replace(/"/g, '""')}"`;
   }
   return safe;

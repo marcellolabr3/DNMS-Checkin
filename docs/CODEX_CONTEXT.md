@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Correcao do painel de Log apos Sprint 6.
+Correcao da exportacao CSV do Log.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -142,6 +142,7 @@ Estado do banco:
 - Sprint 5 de performance: biblioteca XLSX removida do carregamento inicial e carregada sob demanda apenas para importacao Excel ou sincronizacao Google Sheets.
 - Sprint 6 de assets PWA: `logo-loading.png` foi substituido por icones reais 192x192 e 512x512 no HTML, manifest e service worker; cache atualizado para `checkin-cache-v122`.
 - Correcao do Log: ao abrir o painel de Log, periodo inicial passa a ser hoje quando `De`/`Ate` estao vazios; `setup_dnms_checkin.sql` agora inclui `audit_logs`, indices e policies do patch de auditoria para novos ambientes.
+- Correcao de exportacao CSV: arquivos de Log/Familias agora usam BOM UTF-8, separador `;`, CRLF, limpeza de caracteres de controle/quebras dentro das celulas e ordenacao mais previsivel para planilhas em pt-BR.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -150,7 +151,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Correcao do painel de Log concluida: abrir Log sem escolher periodo agora mostra o dia atual por padrao e permite assiduidade/exportacao quando ha registros.
+Correcao da exportacao do Log concluida: CSV legivel em planilhas, com acentos preservados, colunas separadas corretamente e linhas ordenadas.
 
 Arquivos envolvidos:
 
@@ -159,11 +160,10 @@ Arquivos envolvidos:
 - `sw.js`
 - `tests/checkin.spec.js`
 - `tests/service-worker.spec.js`
-- `supabase/setup_dnms_checkin.sql`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, testes focados de log/service worker/payload e `cmd /c npm test` (90 testes em desktop/mobile). Verificacao direta do banco foi feita via Node `pg`: `public.audit_logs` nao existia, `patch_audit_logs.sql` foi aplicado, policies ficaram ativas e 2 eventos `child_created` de hoje foram recuperados.
+Implementado e validado localmente com `node --check app.js`, `node --check sw.js`, `cmd /c npx playwright test tests/checkin.spec.js`, `cmd /c npx playwright test tests/service-worker.spec.js` e `cmd /c npm test` (92 testes em desktop/mobile).
 
 ---
 
@@ -233,20 +233,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar no app publicado abrindo Log como admin/equipe, selecionar "Cadastro de criancas" e confirmar que os 2 cadastros recuperados de hoje aparecem.
+Validar no app publicado exportando "Cadastro de criancas" e abrindo o CSV no Excel/Google Sheets para confirmar colunas separadas e acentos corretos.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Correcao do Log aplicada: `setActivePanel("log")` preenche `logStart`/`logEnd` com a data de hoje quando os campos estao vazios. `setup_dnms_checkin.sql` recebeu a criacao de `audit_logs`, indices e policies equivalentes ao patch de auditoria. O PWA passou para `app.js?v=20260824g` e cache `checkin-cache-v123`. Foi adicionado teste para abrir o Log e ver assiduidade do dia sem preencher periodo manualmente.
+Correcao da exportacao aplicada: `exportCsv`, `exportAuditCsv` e `exportFamiliesCsv` passaram a usar `downloadCsv()`/`buildCsv()` centralizados com BOM UTF-8, separador `;`, CRLF e limpeza de celulas. Linhas de assiduidade passaram a ordenar por turma e nome; eventos de auditoria exportam em ordem cronologica. O PWA passou para `app.js?v=20260824h` e cache `checkin-cache-v124`. Foi adicionado teste que baixa o CSV do Log e valida BOM, separador `;` e acentos.
 
 Ficou funcionando:
-Log abre com periodo de hoje e mostra assiduidade quando ha check-ins do dia. Relatorio de cadastro de criancas continua funcionando sem exigir preenchimento manual das datas. Em producao, `public.audit_logs` foi criada/aplicada e 2 cadastros de criancas feitos hoje foram recuperados no log. `cmd /c npm test` passou com 90 testes em desktop/mobile.
+CSV do Log abre em formato mais legivel para planilhas em pt-BR: colunas separadas por `;`, acentos preservados por BOM UTF-8 e sem quebras de linha/caracteres de controle dentro das celulas. `cmd /c npm test` passou com 92 testes em desktop/mobile.
 
 Ficou pendente:
-Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824g`/`checkin-cache-v123` e se "Cadastro de criancas" mostra os eventos recuperados. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
+Validar visualmente no app publicado se o navegador ja carregou `app.js?v=20260824h`/`checkin-cache-v124` e abrir o CSV exportado no Excel/Google Sheets. Teste fisico na Brother permanece pendente quando a impressora estiver disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
