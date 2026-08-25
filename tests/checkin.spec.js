@@ -341,6 +341,77 @@ test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", asyn
   await expect(page.locator("#btnRoomDialogOpen")).toBeDisabled();
 });
 
+test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(({ today, future }) => {
+    window.__mockDnmsDb.rooms.push(
+      {
+        id: "room-bulk-kids",
+        name: "Culto Bulk Kids",
+        date: today,
+        start_time: "00:00",
+        end_time: "23:59",
+        class_target: "Kids",
+        status: "Programada",
+        opened_at: null,
+        closed_at: null
+      },
+      {
+        id: "room-bulk-juniors",
+        name: "Culto Bulk Juniors",
+        date: today,
+        start_time: "00:00",
+        end_time: "23:59",
+        class_target: "Juniors",
+        status: "Programada",
+        opened_at: null,
+        closed_at: null
+      },
+      {
+        id: "room-bulk-future",
+        name: "Culto Bulk Futuro",
+        date: future,
+        start_time: "00:00",
+        end_time: "23:59",
+        class_target: "Kids",
+        status: "Programada",
+        opened_at: null,
+        closed_at: null
+      }
+    );
+  }, { today: todayIso(), future: futureIso(1) });
+
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await expect(page.locator("#btnBulkOpenAllRooms")).toHaveCount(0);
+  await expect(page.locator("#btnBulkEditRooms")).toHaveText("Abrir selecionadas");
+  await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
+
+  await page.locator("#selectAllRooms").check();
+  await expect(page.locator('input[data-select-room="room-bulk-kids"]')).toBeChecked();
+  await expect(page.locator('input[data-select-room="room-bulk-juniors"]')).toBeChecked();
+  await expect(page.locator('input[data-select-room="room-bulk-future"]')).not.toBeChecked();
+  await expect(page.locator('input[data-select-room="room-bulk-future"]')).toBeDisabled();
+  await expect(page.locator("#btnBulkEditRooms")).toBeEnabled();
+
+  await page.locator("#btnBulkEditRooms").click();
+
+  await expect
+    .poll(() => page.evaluate(() => window.confirmMessages || []))
+    .toContain("Abrir 2 sala(s) selecionada(s)?");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-bulk-kids")?.status))
+    .toBe("Aberta");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-bulk-juniors")?.status))
+    .toBe("Aberta");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-bulk-future")?.status))
+    .toBe("Programada");
+  await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
+});
+
 test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

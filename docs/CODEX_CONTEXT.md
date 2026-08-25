@@ -154,39 +154,33 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Sincronizacao do setup SQL de Mensagens concluida.
+Task Salas: melhorar abertura de salas em massa e reduzir risco operacional na abertura/fechamento.
 
 Arquivos envolvidos:
 
 - `app.js`
 - `index.html`
-- `styles.css`
 - `sw.js`
-- `supabase/setup_dnms_checkin.sql`
-- `tests/supabase-payload.spec.js`
-- `tests/tips.spec.js`
+- `tests/checkin.spec.js`
 - `tests/service-worker.spec.js`
-- `tests/fixtures/mockSupabase.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-`supabase/setup_dnms_checkin.sql` foi sincronizado com o schema/policies reais de Mensagens em producao: tabela `tips` agora inclui `sender_name text null` no `create table` e `alter table ... add column if not exists`; policies DELETE `tips_delete_admin` e `tip_reads_delete_admin` foram adicionadas para admin ou SADMIN (`marvinlabre@gmail.com`). A alteracao e idempotente e nao altera dados existentes. Producao foi consultada apenas para metadados de `tips`/`tip_reads`; nenhuma DDL/DML foi aplicada no banco.
+Sprint 1 de Salas concluida no codigo local: o botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN.
+
+Versionamento PWA atualizado para `app.js?v=20260824p` e `checkin-cache-v132`.
 
 Validacao:
-`npm.cmd test` passou com 116 testes em desktop/mobile. `tests/supabase-payload.spec.js` agora cobre `sender_name` e policies DELETE de Mensagens no setup SQL.
+`npm.cmd test` passou com 118 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje.
 
-Achados de banco/RLS: `tips_select_scope` no banco permite equipe selecionar todas as mensagens, mas o app filtra equipe para nao exibir mensagens de terceiros. Nao alterar sem analisar impacto de privacidade.
+Plano de sprints de Salas:
 
-Sprints sugeridos:
-
-1. Concluido: mapear fluxo atual.
-2. Concluido: criar painel "Mensagens" navegavel.
-3. Concluido: integrar Dashboard com bloco "Mensagens recentes" e atalho "Ver todas".
-4. Concluido: refinar UX mobile/estados, vazio, carregando, erro, texto longo e acessibilidade.
-5. Testes e contexto: concluido para as telas alteradas nesta refatoracao; manter cobertura se novos estados forem adicionados.
+1. Concluido: ajustar acoes em massa da aba Salas para abrir selecionadas e selecionar apenas salas aptas.
+2. Pendente: ajustar dialog de detalhes da sala para fechar automaticamente apos clicar em "Abrir".
+3. Parcial: versionamento PWA, testes e contexto foram atualizados para Sprint 1; repetir validacao/commit/push ao final de cada sprint.
 
 Proxima sprint:
-Refatoracao de Mensagens/Avisos esta concluida nas sprints 1-4 e setup SQL foi sincronizado. Proximo passo recomendado: validar a UX publicada em producao; se continuar, escolher uma nova frente pequena antes de editar.
+Sprint 2 de Salas: no dialog de detalhes da sala, ao clicar em "Abrir", abrir a sala e fechar a janela automaticamente para reduzir risco de clicar em "Fechar sala" por engano.
 
 ---
 
@@ -259,20 +253,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar a UX publicada de Mensagens em producao. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
+Concluir Sprint 2 de Salas: fechar automaticamente o dialog de detalhes apos abrir uma sala pelo botao "Abrir".
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Setup SQL de Mensagens sincronizado com producao: `tips.sender_name` e policies DELETE `tips_delete_admin`/`tip_reads_delete_admin` para admin/SADMIN foram adicionadas em `supabase/setup_dnms_checkin.sql`.
+Sprint 1 de Salas implementada: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; versionamento PWA atualizado para `checkin-cache-v132`.
 
 Ficou funcionando:
-Refatoracao de Mensagens/Avisos completa nas sprints 1-4 e setup SQL alinhado. `npm.cmd test` passou com 116 testes.
+Teste automatizado cobre abertura em massa apenas de salas aptas. `npm.cmd test` passou com 118 testes.
 
 Ficou pendente:
-Validar a UX publicada de Mensagens. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Sprint 2 de Salas: fechar automaticamente o dialog de detalhes apos abrir uma sala. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

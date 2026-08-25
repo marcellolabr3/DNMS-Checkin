@@ -308,7 +308,7 @@ function bindEvents() {
   els.btnCreateRoom.addEventListener("click", createRooms);
   els.btnDeleteRoomFromEdit?.addEventListener("click", handleDeleteRoomFromEdit);
   els.selectAllRooms?.addEventListener("change", handleSelectAllRoomsInList);
-  els.btnBulkEditRooms?.addEventListener("click", handleBulkEditRooms);
+  els.btnBulkEditRooms?.addEventListener("click", handleBulkOpenSelectedRooms);
   els.btnBulkDeleteRooms?.addEventListener("click", handleBulkDeleteRooms);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
   els.btnParentCheckin?.addEventListener("click", openQrDialog);
@@ -1460,17 +1460,21 @@ function renderRooms() {
   const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = canManageRooms();
+  const canOperateRoom = canOperateRooms();
+  const openableRooms = visibleRooms.filter((room) => isRoomOpenableFromList(room));
+  const openableRoomIds = new Set(openableRooms.map((room) => room.id));
   const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
   state.ui.selectedRoomIds = (state.ui.selectedRoomIds || []).filter((id) => visibleRoomIds.has(id));
   const selectedSet = new Set(state.ui.selectedRoomIds || []);
+  const selectedOpenableCount = (state.ui.selectedRoomIds || []).filter((id) => openableRoomIds.has(id)).length;
 
   els.btnCreateRoom.disabled = !canManageRoom;
   if (els.selectAllRooms) {
-    els.selectAllRooms.checked = Boolean(visibleRooms.length) && visibleRooms.every((room) => selectedSet.has(room.id));
-    els.selectAllRooms.disabled = !canManageRoom || !visibleRooms.length;
+    els.selectAllRooms.checked = Boolean(openableRooms.length) && openableRooms.every((room) => selectedSet.has(room.id));
+    els.selectAllRooms.disabled = !canOperateRoom || !openableRooms.length;
   }
   if (els.btnBulkEditRooms) {
-    els.btnBulkEditRooms.disabled = !canManageRoom || !selectedSet.size;
+    els.btnBulkEditRooms.disabled = !canOperateRoom || !selectedOpenableCount;
   }
   if (els.btnBulkDeleteRooms) {
     els.btnBulkDeleteRooms.disabled = !canManageRoom || !selectedSet.size;
@@ -1502,12 +1506,13 @@ function renderRooms() {
 }
 
 function createRoomListItem(room, canManageRoom, selectedSet) {
+  const canSelectRoom = canOperateRooms() && isRoomOpenableFromList(room);
   const item = document.createElement("div");
   item.className = "list-item";
   item.innerHTML = `
     ${
-      canManageRoom
-        ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} /></label>`
+      canManageRoom || canOperateRooms()
+        ? `<label class="field checkbox-field"><span>Selecionar para abrir</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} ${canSelectRoom ? "" : "disabled"} /></label>`
         : ""
     }
     <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}</strong>
@@ -1563,21 +1568,25 @@ function formatMonthLabel(date) {
 
 function handleSelectAllRoomsInList(event) {
   const checked = Boolean(event?.target?.checked);
-  const visibleRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
-  state.ui.selectedRoomIds = checked ? visibleRooms.map((room) => room.id) : [];
+  const openableRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room) && isRoomOpenableFromList(room));
+  state.ui.selectedRoomIds = checked ? openableRooms.map((room) => room.id) : [];
   renderRooms();
 }
 
 function getSelectedRoomIdsInList() {
   const selected = new Set(state.ui.selectedRoomIds || []);
   return state.rooms
-    .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id))
+    .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id) && isRoomOpenableFromList(room))
     .map((room) => room.id);
 }
 
-async function handleBulkEditRooms() {
-  if (!canManageRooms()) {
-    alert("Somente administradores podem editar salas.");
+function isRoomOpenableFromList(room) {
+  return Boolean(room && room.status !== "Aberta" && canOpenRoomNow(room));
+}
+
+async function handleBulkOpenSelectedRooms() {
+  if (!canOperateRooms()) {
+    alert("Somente administradores e equipe podem abrir salas.");
     return;
   }
   const ids = getSelectedRoomIdsInList();
@@ -1585,95 +1594,34 @@ async function handleBulkEditRooms() {
     alert("Selecione ao menos uma sala.");
     return;
   }
-  const name = String(els.roomName?.value || "").trim();
-  const dateIso = String(els.roomDate?.value || "").trim();
-  const startTime = String(els.roomStartTime?.value || "").trim();
-  const endTime = String(els.roomEndTime?.value || "").trim();
-  const classTarget = getSelectedRoomClasses()[0] || "";
-  if (!name && !dateIso && !startTime && !endTime && !classTarget) {
-    alert("Preencha ao menos um campo do formulario de sala para editar em massa.");
+  if (!confirm(`Abrir ${ids.length} sala(s) selecionada(s)?`)) {
     return;
   }
-  if (startTime && endTime && endTime <= startTime) {
-    alert("Horario de termino deve ser maior que o horario de inicio.");
-    return;
-  }
-  if (!confirm(`Aplicar alteracoes em ${ids.length} sala(s) selecionada(s)?`)) {
-    return;
-  }
+  await openRoomsFromList(ids);
+}
 
-  if (supabaseClient) {
-    for (const roomId of ids) {
-      const current = state.rooms.find((item) => item.id === roomId);
-      if (!current) {
-        continue;
-      }
-      const currentDateIso =
-        current.dateIso ||
-        (() => {
-          const parsed = parseRoomDate(current.date);
-          if (!parsed) return "";
-          return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
-        })();
-      const nextStart = startTime || current.startTime || current.time || "";
-      const nextEnd = endTime || current.endTime || "";
-      if (nextStart && nextEnd && nextEnd <= nextStart) {
-        continue;
-      }
-      const updatePayload = {};
-      if (name) updatePayload.name = name;
-      if (dateIso) updatePayload.date = dateIso;
-      if (startTime) {
-        updatePayload.time = startTime;
-        updatePayload.start_time = startTime;
-      }
-      if (endTime) updatePayload.end_time = endTime;
-      if (classTarget) updatePayload.class_target = classTarget;
-      if (!Object.keys(updatePayload).length) {
-        continue;
-      }
-      const { error } = await supabaseClient.from("rooms").update(updatePayload).eq("id", roomId);
-      if (error) {
-        alert(`Falha ao editar sala em massa: ${error.message || "erro inesperado"}`);
-        return;
-      }
-      if (!dateIso && !updatePayload.date && currentDateIso) {
-        updatePayload.date = currentDateIso;
-      }
+async function openRoomsFromList(ids) {
+  let openedCount = 0;
+  for (const id of ids) {
+    const room = state.rooms.find((item) => item.id === id);
+    if (!isRoomOpenableFromList(room)) {
+      continue;
     }
-    await fetchRooms();
-  } else {
-    ids.forEach((roomId) => {
-      const room = state.rooms.find((item) => item.id === roomId);
-      if (!room) {
-        return;
-      }
-      if (name) room.name = name;
-      if (dateIso) {
-        room.dateIso = dateIso;
-        const parsed = parseInputDate(dateIso);
-        if (parsed) {
-          room.date = formatDate(parsed);
-        }
-      }
-      if (startTime) {
-        room.time = startTime;
-        room.startTime = startTime;
-      }
-      if (endTime) {
-        room.endTime = endTime;
-      }
-      if (classTarget) {
-        room.classTarget = classTarget;
-      }
-    });
+    const beforeOpen = room.status === "Aberta";
+    await openRoom(id);
+    const current = state.rooms.find((item) => item.id === id);
+    if (!beforeOpen && current?.status === "Aberta") {
+      openedCount += 1;
+    }
   }
   state.ui.selectedRoomIds = [];
   if (els.selectAllRooms) {
     els.selectAllRooms.checked = false;
   }
   render();
-  alert("Edicao em massa concluida.");
+  if (openedCount) {
+    alert(`${openedCount} sala(s) aberta(s).`);
+  }
 }
 
 async function handleBulkDeleteRooms() {
