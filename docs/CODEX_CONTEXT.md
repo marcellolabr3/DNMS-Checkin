@@ -166,21 +166,21 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprints 1 e 2 de Salas concluidas. O botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN. No dialog de detalhes, clicar em "Abrir" abre a sala e fecha a janela automaticamente para evitar clique acidental em "Fechar sala".
+Task Salas concluida nas sprints 1-3. O botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN. No dialog de detalhes, clicar em "Abrir" abre a sala e fecha a janela automaticamente para evitar clique acidental em "Fechar sala".
 
 Versionamento PWA atualizado para `app.js?v=20260824q` e `checkin-cache-v133`.
 
 Validacao:
-`npm.cmd test` passou com 120 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje e fechamento automatico do dialog apos abrir sala.
+`npm.cmd test` passou com 120 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje e fechamento automatico do dialog apos abrir sala. Producao em `https://dnms-checkin.pages.dev/` foi validada com mock Supabase, sem usar credenciais reais nem gravar dados reais: HTML referencia `app.js?v=20260824q`, `sw.js` contem `checkin-cache-v133`, abertura em massa funciona e o dialog fecha apos abrir sala.
 
 Plano de sprints de Salas:
 
 1. Concluido: ajustar acoes em massa da aba Salas para abrir selecionadas e selecionar apenas salas aptas.
 2. Concluido: ajustar dialog de detalhes da sala para fechar automaticamente apos clicar em "Abrir".
-3. Em andamento: versionamento PWA, testes e contexto foram atualizados para Sprints 1 e 2; commitar e dar push ao final da Sprint 2.
+3. Concluido: versionamento PWA, testes, contexto, commits/push e validacao publicada.
 
 Proxima sprint:
-Sprint 3 de Salas: commit/push da Sprint 2 e validacao final do estado publicado.
+Task Salas concluida. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
 
 ---
 
@@ -253,20 +253,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Concluir Sprint 3 de Salas: commitar e dar push da Sprint 2; validar a UX publicada quando o deploy atualizar.
+Validar manualmente em producao com usuario real quando conveniente. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprints 1 e 2 de Salas implementadas: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; dialog de detalhes fecha automaticamente apos abrir sala; versionamento PWA atualizado para `checkin-cache-v133`.
+Task Salas concluida nas sprints 1-3: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; dialog de detalhes fecha automaticamente apos abrir sala; versionamento PWA atualizado para `checkin-cache-v133`; producao validada com mock Supabase.
 
 Ficou funcionando:
-Testes automatizados cobrem abertura em massa apenas de salas aptas e fechamento automatico do dialog. `npm.cmd test` passou com 120 testes.
+Testes automatizados cobrem abertura em massa apenas de salas aptas e fechamento automatico do dialog. `npm.cmd test` passou com 120 testes. Producao serve os assets novos e os fluxos de Salas foram validados sem gravar dados reais.
 
 Ficou pendente:
-Sprint 3 de Salas: commitar/push da Sprint 2 e validar UX publicada. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Validar manualmente em producao com usuario real quando conveniente. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
