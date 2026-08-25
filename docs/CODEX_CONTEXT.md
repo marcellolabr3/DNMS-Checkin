@@ -166,21 +166,21 @@ Arquivos envolvidos:
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Sprint 1 de Salas concluida no codigo local: o botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN.
+Sprints 1 e 2 de Salas concluidas. O botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN. No dialog de detalhes, clicar em "Abrir" abre a sala e fecha a janela automaticamente para evitar clique acidental em "Fechar sala".
 
-Versionamento PWA atualizado para `app.js?v=20260824p` e `checkin-cache-v132`.
+Versionamento PWA atualizado para `app.js?v=20260824q` e `checkin-cache-v133`.
 
 Validacao:
-`npm.cmd test` passou com 118 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje.
+`npm.cmd test` passou com 120 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje e fechamento automatico do dialog apos abrir sala.
 
 Plano de sprints de Salas:
 
 1. Concluido: ajustar acoes em massa da aba Salas para abrir selecionadas e selecionar apenas salas aptas.
-2. Pendente: ajustar dialog de detalhes da sala para fechar automaticamente apos clicar em "Abrir".
-3. Parcial: versionamento PWA, testes e contexto foram atualizados para Sprint 1; repetir validacao/commit/push ao final de cada sprint.
+2. Concluido: ajustar dialog de detalhes da sala para fechar automaticamente apos clicar em "Abrir".
+3. Em andamento: versionamento PWA, testes e contexto foram atualizados para Sprints 1 e 2; commitar e dar push ao final da Sprint 2.
 
 Proxima sprint:
-Sprint 2 de Salas: no dialog de detalhes da sala, ao clicar em "Abrir", abrir a sala e fechar a janela automaticamente para reduzir risco de clicar em "Fechar sala" por engano.
+Sprint 3 de Salas: commit/push da Sprint 2 e validacao final do estado publicado.
 
 ---
 
@@ -253,20 +253,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Concluir Sprint 2 de Salas: fechar automaticamente o dialog de detalhes apos abrir uma sala pelo botao "Abrir".
+Concluir Sprint 3 de Salas: commitar e dar push da Sprint 2; validar a UX publicada quando o deploy atualizar.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Sprint 1 de Salas implementada: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; versionamento PWA atualizado para `checkin-cache-v132`.
+Sprints 1 e 2 de Salas implementadas: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; dialog de detalhes fecha automaticamente apos abrir sala; versionamento PWA atualizado para `checkin-cache-v133`.
 
 Ficou funcionando:
-Teste automatizado cobre abertura em massa apenas de salas aptas. `npm.cmd test` passou com 118 testes.
+Testes automatizados cobrem abertura em massa apenas de salas aptas e fechamento automatico do dialog. `npm.cmd test` passou com 120 testes.
 
 Ficou pendente:
-Sprint 2 de Salas: fechar automaticamente o dialog de detalhes apos abrir uma sala. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Sprint 3 de Salas: commitar/push da Sprint 2 e validar UX publicada. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

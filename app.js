@@ -5298,8 +5298,13 @@ async function handleRoomDialogOpen() {
   if (!state.selectedRoomId) {
     return;
   }
-  await openRoom(state.selectedRoomId);
-  const room = state.rooms.find((item) => item.id === state.selectedRoomId);
+  const roomId = state.selectedRoomId;
+  await openRoom(roomId);
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (room?.status === "Aberta") {
+    els.roomDetailsDialog?.close();
+    return;
+  }
   if (room) {
     renderRoomDetailsDialog(room);
   }

@@ -412,6 +412,36 @@ test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
   await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
 });
 
+test("dialog de sala fecha automaticamente apos abrir sala", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.rooms.push({
+      id: "room-dialog-open",
+      name: "Culto Dialog",
+      date: today,
+      start_time: "00:00",
+      end_time: "23:59",
+      class_target: "Kids",
+      status: "Programada",
+      opened_at: null,
+      closed_at: null
+    });
+  }, todayIso());
+
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await page.locator("#roomList .list-item").filter({ hasText: "Culto Dialog" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+
+  await page.locator("#btnRoomDialogOpen").click();
+
+  await expect(page.locator("#roomDetailsDialog")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-dialog-open")?.status))
+    .toBe("Aberta");
+});
+
 test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
