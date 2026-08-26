@@ -8,70 +8,141 @@
   <style>
     body {
       padding: 24px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 247, 245, 0.96)),
+        var(--surface);
     }
 
     .print-panel {
-      max-width: 640px;
+      width: min(1120px, 100%);
       margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .print-header {
       display: flex;
-      flex-direction: column;
+      align-items: flex-end;
+      justify-content: space-between;
       gap: 16px;
     }
 
-    .print-panel h2 {
+    .print-header h2 {
       margin: 0;
-      font-size: clamp(22px, 3vw, 28px);
+      font-size: 28px;
       letter-spacing: 0;
+    }
+
+    .print-kicker {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .print-home-link {
+      color: var(--accent-strong);
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
     }
 
     .print-status {
       border: 1px solid var(--stroke);
-      border-left: 4px solid var(--accent);
-      border-radius: 10px;
-      padding: 12px 14px;
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      padding: 13px 15px;
       font-size: 14px;
       background: var(--surface);
       box-shadow: var(--shadow-soft);
     }
 
+    .print-status.is-error {
+      border-left-color: #c73434;
+    }
+
+    .print-workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(340px, 430px);
+      gap: 18px;
+      align-items: start;
+    }
+
     .print-reprint {
       border: 1px solid var(--stroke);
-      border-radius: 12px;
-      padding: 16px;
+      border-radius: 8px;
+      padding: 18px;
       display: grid;
-      gap: 12px;
+      gap: 14px;
       max-height: none;
       overflow: visible;
       background: #fff;
       box-shadow: var(--shadow);
     }
 
-    .print-reprint h3 {
+    .print-section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .print-section-title h3 {
       margin: 0;
       color: var(--accent-strong);
-      font-size: 17px;
+      font-size: 18px;
+    }
+
+    .print-section-title p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .print-toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+
+    .print-toolbar input {
+      min-width: 0;
+      border: 1px solid var(--stroke);
+      border-radius: 7px;
+      padding: 11px 12px;
+      font: inherit;
+      background: var(--surface);
+    }
+
+    .print-toolbar button {
+      border-radius: 7px;
+      padding-inline: 14px;
     }
 
     .print-student-list {
       border: 1px solid var(--stroke);
-      border-radius: 10px;
-      padding: 8px;
+      border-radius: 8px;
+      padding: 10px;
       display: grid;
       gap: 8px;
-      max-height: 280px;
+      max-height: min(560px, calc(100vh - 270px));
       overflow-y: auto;
       background: var(--surface);
     }
 
     .print-student-item {
-      display: flex;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto;
       align-items: center;
       gap: 10px;
+      text-align: left;
       font-size: 14px;
       border: 1px solid var(--stroke);
-      border-radius: 10px;
+      border-radius: 8px;
       background: #fff;
-      padding: 10px 12px;
+      padding: 12px 13px;
       cursor: pointer;
       user-select: none;
       box-shadow: var(--shadow-soft);
@@ -89,17 +160,108 @@
       background: var(--accent-soft);
     }
 
-    .print-student-item input[type="checkbox"] {
-      pointer-events: none;
+    .print-student-name {
+      display: block;
+      color: var(--text);
+      font-weight: 700;
+      overflow-wrap: anywhere;
     }
 
-    @media (max-width: 520px) {
+    .print-student-meta {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .print-student-action {
+      color: var(--accent-strong);
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .print-preview-panel {
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 18px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 14px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .print-preview-stage {
+      min-height: 230px;
+      border: 1px dashed #bdcac3;
+      border-radius: 8px;
+      background:
+        linear-gradient(45deg, rgba(222, 230, 226, 0.55) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(222, 230, 226, 0.55) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(222, 230, 226, 0.55) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(222, 230, 226, 0.55) 75%);
+      background-size: 22px 22px;
+      background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 22px;
+    }
+
+    .print-preview-stage #printLabel {
+      flex: 0 0 auto;
+      transform: scale(1.28);
+      transform-origin: center;
+      box-shadow: 0 16px 28px rgba(23, 31, 28, 0.18);
+    }
+
+    .print-preview-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      .print-workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .print-preview-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 560px) {
       body {
         padding: 12px;
       }
 
+      .print-header {
+        display: grid;
+      }
+
+      .print-header h2 {
+        font-size: 24px;
+      }
+
+      .print-toolbar {
+        grid-template-columns: 1fr;
+      }
+
       .print-reprint {
         padding: 12px;
+      }
+
+      .print-preview-stage {
+        min-height: 170px;
+        padding: 12px;
+      }
+
+      .print-preview-stage #printLabel {
+        transform: scale(0.92);
       }
     }
 
@@ -130,23 +292,66 @@
         display: none !important;
       }
 
+      body.print-only-label main.print-panel .print-preview-panel,
+      body.print-only-label main.print-panel .print-preview-stage {
+        display: flex !important;
+        position: static;
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+        width: 90mm;
+        height: 29mm;
+      }
+
       body.print-only-label main.print-panel #printLabel {
         display: flex !important;
         position: static;
         margin: 0;
+        transform: none;
+        box-shadow: none;
       }
     }
   </style>
 </head>
 <body>
   <main class="print-panel">
-    <h2>Painel de Etiquetas</h2>
+    <header class="print-header">
+      <div>
+        <p class="print-kicker">Brother QL-810W</p>
+        <h2>Painel de etiquetas</h2>
+      </div>
+      <a class="print-home-link" href="index.html">Voltar ao check-in</a>
+    </header>
     <div id="printAuthStatus" class="print-status">Aguardando autenticacao...</div>
-    <section class="print-reprint">
-      <h3>Reimprimir etiquetas</h3>
-      <div id="printStudentList" class="print-student-list"></div>
+    <section class="print-workspace">
+      <section class="print-reprint">
+        <div class="print-section-title">
+          <div>
+            <h3>Reimprimir etiquetas</h3>
+            <p>Alunos com check-in hoje.</p>
+          </div>
+        </div>
+        <div class="print-toolbar">
+          <input id="printStudentSearch" type="search" placeholder="Buscar crianca" autocomplete="off" />
+          <button id="btnRefreshReprintList" class="ghost" type="button">Atualizar</button>
+        </div>
+        <div id="printStudentList" class="print-student-list"></div>
+      </section>
+      <aside class="print-preview-panel" aria-label="Previa da etiqueta">
+        <div class="print-section-title">
+          <div>
+            <h3>Previa da etiqueta</h3>
+            <p>Use para confirmar se e a crianca certa.</p>
+          </div>
+        </div>
+        <div class="print-preview-stage">
+          <div id="printLabel" class="label"></div>
+        </div>
+        <p class="print-preview-note">A previa usa o mesmo corpo de etiqueta enviado para impressao.</p>
+      </aside>
     </section>
-    <div id="printLabel" class="label"></div>
   </main>
 
   <dialog id="reprintDialog" class="dialog">
@@ -161,6 +366,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="print.js?v=20260824d"></script>
+  <script src="print.js?v=20260826a"></script>
 </body>
 </html>

@@ -11,6 +11,7 @@ if (-not $createdMutex) {
 $root = Split-Path -Parent $PSScriptRoot
 $pidFile = Join-Path $root ".service.pid"
 $exePath = Join-Path $root "dist\\Servico-de-impressao.exe"
+$statusUrl = "http://localhost:3001/status"
 $healthUrl = "http://localhost:3001/health"
 
 function Set-NotifyText {
@@ -126,7 +127,7 @@ $timer.Add_Tick({
 })
 
 $statusItem.Add_Click({
-  Start-Process $healthUrl
+  Start-Process $statusUrl
 })
 
 $exitItem.Add_Click({

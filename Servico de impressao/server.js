@@ -63,20 +63,18 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: "5mb" }));
 
+app.get("/", (_req, res) => {
+  res.redirect("/status");
+});
+
+app.get("/status", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(buildStatusPageHtml());
+});
+
 app.get("/health", async (_req, res) => {
   try {
-    const printer = await getTargetPrinterOrThrow();
-    res.json({
-      ok: true,
-      status: "online",
-      target_printer: printer.name || "-",
-      auto_print_listener: Boolean(supabaseClient),
-      auto_print_polling: Boolean(autoPrintPollTimer),
-      reprint_queue_listener: Boolean(supabaseClient && SUPABASE_SERVICE_ROLE_KEY),
-      reprint_queue_polling: Boolean(reprintJobPollTimer),
-      supabase_role: resolveServiceDataRole(),
-      database_direct: canUseDirectDatabase
-    });
+    res.json(await buildHealthPayload());
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
   }
@@ -446,6 +444,24 @@ async function printCheckinById(checkinId, options = {}) {
   });
 }
 
+async function buildHealthPayload() {
+  const printer = await getTargetPrinterOrThrow();
+  return {
+    ok: true,
+    status: "online",
+    target_printer: printer.name || "-",
+    auto_print_listener: Boolean(supabaseClient),
+    auto_print_polling: Boolean(autoPrintPollTimer),
+    auto_print_processing: Boolean(autoPrintProcessing || autoPrintQueue.length),
+    auto_print_queue_length: autoPrintQueue.length,
+    reprint_queue_listener: Boolean(supabaseClient && SUPABASE_SERVICE_ROLE_KEY),
+    reprint_queue_polling: Boolean(reprintJobPollTimer),
+    reprint_queue_processing: Boolean(reprintJobProcessing),
+    supabase_role: resolveServiceDataRole(),
+    database_direct: canUseDirectDatabase
+  };
+}
+
 async function fetchCheckinForPrint(checkinId) {
   if (pgPool) {
     const { rows } = await pgPool.query(
@@ -523,6 +539,229 @@ function validateAutoPrintLabelData(labelData, checkinId) {
   if (missing.length) {
     throw new Error(`Dados insuficientes para imprimir checkin ${checkinId}: ${missing.join(", ")}.`);
   }
+}
+
+function buildStatusPageHtml() {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Status da impressao DNMS</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7f5;
+      --panel: #ffffff;
+      --text: #18211d;
+      --muted: #65716c;
+      --line: #d8e1dc;
+      --ok: #1f9d55;
+      --off: #c73434;
+      --busy: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Segoe UI", sans-serif;
+      padding: 28px;
+    }
+    main {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .updated {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(27, 39, 34, 0.08);
+      overflow: hidden;
+    }
+    .status-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+    }
+    .status-item {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .status-item:last-child { border-bottom: 0; }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      margin-top: 4px;
+      background: var(--off);
+      box-shadow: 0 0 0 4px rgba(199, 52, 52, 0.12);
+    }
+    .dot.ok {
+      background: var(--ok);
+      box-shadow: 0 0 0 4px rgba(31, 157, 85, 0.13);
+    }
+    .dot.busy {
+      background: var(--busy);
+      box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.13);
+    }
+    .label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .detail {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { border-color: #9fb1a8; }
+    @media (max-width: 620px) {
+      body { padding: 16px; }
+      header { display: grid; }
+      .updated { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Status da impressao</h1>
+      <div id="updated" class="updated">Carregando...</div>
+    </header>
+    <section class="panel" aria-label="Status do servico">
+      <ul id="statusList" class="status-list"></ul>
+    </section>
+    <div class="actions">
+      <button type="button" id="refreshButton">Atualizar agora</button>
+    </div>
+  </main>
+  <script>
+    const list = document.getElementById("statusList");
+    const updated = document.getElementById("updated");
+    const refreshButton = document.getElementById("refreshButton");
+
+    function statusItem(state, label, detail) {
+      const item = document.createElement("li");
+      item.className = "status-item";
+      const dot = document.createElement("span");
+      dot.className = "dot " + state;
+      const body = document.createElement("span");
+      const title = document.createElement("span");
+      title.className = "label";
+      title.textContent = label;
+      const description = document.createElement("span");
+      description.className = "detail";
+      description.textContent = detail;
+      body.append(title, description);
+      item.append(dot, body);
+      return item;
+    }
+
+    function setItems(items) {
+      list.replaceChildren(...items.map((item) => statusItem(item.state, item.label, item.detail)));
+      updated.textContent = "Atualizado em " + new Date().toLocaleString("pt-BR");
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch("/health", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        const health = await response.json();
+        const printingBusy = Boolean(health.auto_print_processing || health.reprint_queue_processing);
+        setItems([
+          {
+            state: health.ok ? "ok" : "off",
+            label: "Servico local",
+            detail: health.ok ? "Online e recebendo pedidos neste computador." : "Offline."
+          },
+          {
+            state: health.target_printer ? "ok" : "off",
+            label: "Impressora Brother",
+            detail: health.target_printer ? health.target_printer : "Brother QL-810W nao encontrada no Windows."
+          },
+          {
+            state: printingBusy ? "busy" : "ok",
+            label: "Autoimpressao",
+            detail: printingBusy
+              ? "Processando etiqueta ou fila de impressao."
+              : "Aguardando novos check-ins."
+          },
+          {
+            state: health.reprint_queue_polling || health.reprint_queue_listener ? "ok" : "off",
+            label: "Reimpressao remota",
+            detail: health.reprint_queue_polling || health.reprint_queue_listener
+              ? "Fila remota ativa para pedidos feitos em outro dispositivo."
+              : "Fila remota inativa."
+          },
+          {
+            state: health.supabase_role === "anon" ? "off" : "ok",
+            label: "Acesso aos dados",
+            detail: health.supabase_role === "postgres_direct"
+              ? "Conectado direto ao banco para ler etiquetas do celular."
+              : health.supabase_role === "service_role"
+                ? "Conectado com Service Role."
+                : "Usando anon; pode falhar para check-ins de outro dispositivo."
+          }
+        ]);
+      } catch (error) {
+        setItems([
+          {
+            state: "off",
+            label: "Servico local",
+            detail: "Nao foi possivel consultar o status. Confirme se o DNMS Impressao esta aberto."
+          }
+        ]);
+      }
+    }
+
+    refreshButton.addEventListener("click", refreshStatus);
+    refreshStatus();
+    setInterval(refreshStatus, 5000);
+  </script>
+</body>
+</html>`;
 }
 
 function cleanLabelValue(value) {

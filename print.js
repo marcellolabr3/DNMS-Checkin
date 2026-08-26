@@ -8,6 +8,8 @@ const els = {
   printAuthStatus: document.getElementById("printAuthStatus"),
   printLabel: document.getElementById("printLabel"),
   printStudentList: document.getElementById("printStudentList"),
+  printStudentSearch: document.getElementById("printStudentSearch"),
+  btnRefreshReprintList: document.getElementById("btnRefreshReprintList"),
   reprintDialog: document.getElementById("reprintDialog"),
   reprintDialogText: document.getElementById("reprintDialogText"),
   btnCloseReprintDialog: document.getElementById("btnCloseReprintDialog"),
@@ -23,16 +25,16 @@ boot();
 
 async function boot() {
   if (!supabaseClient) {
-    els.printAuthStatus.textContent = "Supabase nao configurado.";
+    setPrintStatus("Supabase nao configurado.", "error");
     return;
   }
   const { data } = await supabaseClient.auth.getSession();
   if (!data?.session) {
-    els.printAuthStatus.textContent = "Abra o app e faca login antes de usar este painel.";
+    setPrintStatus("Abra o app e faca login antes de usar este painel.", "error");
     return;
   }
   bindEvents();
-  els.printAuthStatus.textContent = "Autenticado. Selecione um aluno para reimprimir.";
+  setPrintStatus("Autenticado. Selecione uma crianca para reimprimir.");
   await fetchStudentsForReprint();
 }
 
@@ -41,6 +43,8 @@ function bindEvents() {
     els.reprintDialog?.close();
   });
   els.btnConfirmReprintDialog?.addEventListener("click", handleConfirmReprintFromDialog);
+  els.printStudentSearch?.addEventListener("input", renderStudentsForReprint);
+  els.btnRefreshReprintList?.addEventListener("click", fetchStudentsForReprint);
 }
 
 async function fetchPendingCheckins() {
@@ -103,7 +107,7 @@ function updateQueueStatus() {
     return;
   }
   const base = "Autenticado. Aguardando check-ins...";
-  els.printAuthStatus.textContent = queue.length ? `${base} Etiquetas na fila: ${queue.length}.` : base;
+  setPrintStatus(queue.length ? `${base} Etiquetas na fila: ${queue.length}.` : base);
 }
 
 async function processQueue() {
@@ -184,47 +188,69 @@ async function fetchStudentsForReprint() {
     .order("checked_in_at", { ascending: false })
     .limit(2000);
   if (checkinsError) {
-    if (els.printAuthStatus) {
-      els.printAuthStatus.textContent = "Falha ao carregar check-ins para reimpressao.";
-    }
+    setPrintStatus("Falha ao carregar check-ins para reimpressao.", "error");
     return;
   }
-  const studentIds = Array.from(new Set((checkins || []).map((item) => item.student_id).filter(Boolean)));
+  const latestByStudent = new Map();
+  (checkins || []).forEach((item) => {
+    if (!item.student_id || latestByStudent.has(item.student_id)) {
+      return;
+    }
+    latestByStudent.set(item.student_id, item.checked_in_at);
+  });
+  const studentIds = Array.from(latestByStudent.keys());
   if (!studentIds.length) {
     studentsCache = [];
     renderStudentsForReprint();
-    if (els.printAuthStatus) {
-      els.printAuthStatus.textContent = "Nenhuma crianca fez check-in hoje. Nao ha etiquetas para reimprimir.";
-    }
+    setPrintStatus("Nenhuma crianca fez check-in hoje. Nao ha etiquetas para reimprimir.");
     return;
   }
   const { data, error } = await supabaseClient.from("students").select("id,name").in("id", studentIds).order("name");
   if (error) {
-    if (els.printAuthStatus) {
-      els.printAuthStatus.textContent = "Falha ao carregar alunos para reimpressao.";
-    }
+    setPrintStatus("Falha ao carregar alunos para reimpressao.", "error");
     return;
   }
-  studentsCache = data || [];
+  studentsCache = (data || []).map((student) => ({
+    ...student,
+    checkedInAt: latestByStudent.get(student.id) || ""
+  }));
   renderStudentsForReprint();
+  setPrintStatus(`${studentsCache.length} crianca(s) com check-in hoje. Selecione uma para reimprimir.`);
 }
 
 function renderStudentsForReprint() {
   if (!els.printStudentList) {
     return;
   }
+  const search = normalizeSearch(els.printStudentSearch?.value || "");
+  const visibleStudents = search
+    ? studentsCache.filter((student) => normalizeSearch(student.name).includes(search))
+    : studentsCache;
   els.printStudentList.innerHTML = "";
   if (!studentsCache.length) {
     els.printStudentList.innerHTML = `<div class="summary">Nenhuma crianca fez check-in hoje.</div>`;
     return;
   }
-  studentsCache.forEach((student) => {
+  if (!visibleStudents.length) {
+    els.printStudentList.innerHTML = `<div class="summary">Nenhuma crianca encontrada para a busca.</div>`;
+    return;
+  }
+  visibleStudents.forEach((student) => {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "print-student-item";
+    const content = document.createElement("span");
     const name = document.createElement("span");
+    name.className = "print-student-name";
     name.textContent = student.name;
-    row.appendChild(name);
+    const meta = document.createElement("span");
+    meta.className = "print-student-meta";
+    meta.textContent = student.checkedInAt ? `Check-in: ${formatDateTime(student.checkedInAt)}` : "Check-in de hoje";
+    const action = document.createElement("span");
+    action.className = "print-student-action";
+    action.textContent = "Reimprimir";
+    content.append(name, meta);
+    row.append(content, action);
     row.addEventListener("click", () => {
       openReprintDialog(student);
     });
@@ -251,16 +277,12 @@ async function handleConfirmReprintFromDialog() {
   }
   const latest = await fetchLatestCheckinForStudent(studentId);
   if (!latest) {
-    if (els.printAuthStatus) {
-      els.printAuthStatus.textContent = `Nenhum check-in encontrado para ${reprintContext.studentName}.`;
-    }
+    setPrintStatus(`Nenhum check-in encontrado para ${reprintContext.studentName}.`, "error");
     return;
   }
   els.reprintDialog?.close();
   if (isPrinting) {
-    if (els.printAuthStatus) {
-      els.printAuthStatus.textContent = "Aguarde a impressao atual terminar para reimprimir.";
-    }
+    setPrintStatus("Aguarde a impressao atual terminar para reimprimir.");
     return;
   }
   isPrinting = true;
@@ -271,14 +293,14 @@ async function handleConfirmReprintFromDialog() {
     isPrinting = false;
   }
   processQueue();
-  if (els.printAuthStatus) {
-    els.printAuthStatus.textContent =
-      result === "printed"
-        ? `Etiqueta reimpressa para ${reprintContext.studentName}.`
-        : result === "queued"
-          ? `Reimpressao enviada para a fila da Brother para ${reprintContext.studentName}.`
-          : `Falha ao solicitar reimpressao para ${reprintContext.studentName}.`;
-  }
+  setPrintStatus(
+    result === "printed"
+      ? `Etiqueta reimpressa para ${reprintContext.studentName}.`
+      : result === "queued"
+        ? `Reimpressao enviada para a fila da Brother para ${reprintContext.studentName}.`
+        : `Falha ao solicitar reimpressao para ${reprintContext.studentName}.`,
+    result ? "ok" : "error"
+  );
 }
 
 async function sendToPrintService({ checkinId, type, labelHtml }) {
@@ -441,6 +463,22 @@ function getTodayUtcRange() {
   const startLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
   const endLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
   return { startIso: startLocal.toISOString(), endIso: endLocal.toISOString() };
+}
+
+function setPrintStatus(message, tone = "ok") {
+  if (!els.printAuthStatus) {
+    return;
+  }
+  els.printAuthStatus.textContent = message;
+  els.printAuthStatus.classList.toggle("is-error", tone === "error");
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function escapeHtml(value) {

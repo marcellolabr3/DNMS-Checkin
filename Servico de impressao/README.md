@@ -131,7 +131,7 @@ Resposta esperada do health:
 cmd /c npm run build:exe
 ```
 
-2. O arquivo sera criado em:
+2. O motor interno sera criado em:
 
 `dist\Servico-de-impressao.exe`
 
@@ -139,9 +139,9 @@ Obs.: o executavel nao e versionado no Git para nao bloquear o deploy web no Clo
 
 3. Iniciar com duplo clique no arquivo:
 
-`Iniciar Servico de impressao.cmd`
+`DNMS Impressao.cmd`
 
-Esse iniciador deixa o servico na area de notificacao do Windows. Pelo icone, use `Abrir status` para ver o `/health` ou `Encerrar servico` para parar a impressao local.
+Esse iniciador deixa o servico na area de notificacao do Windows. Pelo icone, use `Abrir status` para ver o painel local ou `Encerrar servico` para parar a impressao local.
 
 Evite iniciar `dist\Servico-de-impressao.exe` diretamente no uso normal, porque ele nao cria o icone da bandeja.
 
@@ -162,13 +162,13 @@ cmd /c npm run package:portable
 5. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `SUPABASE_SERVICE_ROLE_KEY`.
 6. Inicie com duplo clique em:
 
-`Iniciar Servico de impressao.cmd`
+`DNMS Impressao.cmd`
 
 7. Valide em:
 
-`http://localhost:3001/health`
+`http://localhost:3001/status`
 
-O servico esta operacional quando o health retornar `ok: true` e `target_printer` com uma impressora contendo `BROTHER QL-810W`.
+O servico esta operacional quando o painel mostrar bolinha verde para servico local, impressora Brother e acesso aos dados.
 Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role` ou `postgres_direct`.
 
 ## Requisito para o executavel
@@ -206,15 +206,15 @@ cmd /c npm run build:exe
 
 3. Iniciar servico:
 
-duplo clique em `Iniciar Servico de impressao.cmd`
+duplo clique em `DNMS Impressao.cmd`
 
 4. Validar:
 
-abra `http://localhost:3001/health` e confirme `target_printer` com `Brother QL-810W USB`.
+abra `http://localhost:3001/status` e confirme bolinha verde para a impressora Brother.
 
 5. Encerrar servico:
 
-duplo clique em `Parar Servico de impressao.cmd`
+clique com o botao direito no icone da area de notificacao e escolha `Encerrar servico`.
 
 ## Solucao rapida de problemas
 
@@ -224,7 +224,7 @@ Faca:
 
 1. Fechar qualquer processo `Servico-de-impressao.exe`
 2. Rodar novamente `npm run build:exe`
-3. Iniciar pelo `Iniciar Servico de impressao.cmd` da mesma pasta
+3. Iniciar pelo `DNMS Impressao.cmd` da mesma pasta
 4. Confirmar no `netstat`/Gerenciador de Tarefas se o processo ativo aponta para o caminho correto desta pasta (e nao outro clone do projeto)
 
 ## Logs

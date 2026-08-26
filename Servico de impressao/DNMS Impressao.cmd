@@ -2,7 +2,8 @@
 cd /d "%~dp0"
 
 if not exist "dist\Servico-de-impressao.exe" (
-  echo Executavel nao encontrado. Gere com: cmd /c npm run build:exe
+  echo Motor interno nao encontrado.
+  echo Gere o servico com: cmd /c npm run build:exe
   pause
   exit /b 1
 )

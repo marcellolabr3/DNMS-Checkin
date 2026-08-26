@@ -30,8 +30,7 @@ $items = @(
   "dist",
   "bin",
   "scripts",
-  "Iniciar Servico de impressao.cmd",
-  "Parar Servico de impressao.cmd",
+  "DNMS Impressao.cmd",
   "README.md",
   ".codex-secrets.example.env"
 )

@@ -161,14 +161,15 @@ Desenvolvido por **Marcello Labre**
 Para evitar popup do navegador e imprimir automaticamente no check-in, o projeto agora usa um servico local:
 
 * Pasta: `Servico de impressao`
-* Executavel: `Servico de impressao/dist/Servico-de-impressao.exe`
+* Iniciador: `Servico de impressao/DNMS Impressao.cmd`
+* Motor interno: `Servico de impressao/dist/Servico-de-impressao.exe`
 * API local: `http://localhost:3001` (`/print` e `/reprint`)
 * Impressao em **1 etiqueta por vez** (1 pagina, 90mm x 29mm)
 
 Fluxo operacional:
 
-1. Inicie `Iniciar Servico de impressao.cmd`
-2. O servico sobe localmente e fica em segundo plano (bandeja)
+1. Inicie `DNMS Impressao.cmd`
+2. O servico sobe localmente e fica na area de notificacao do Windows
 3. Ao fazer check-in no app, a etiqueta e enviada para o servico local e impressa na impressora padrao do Windows
 
 Observacoes:
@@ -176,10 +177,8 @@ Observacoes:
 * Se o servico nao estiver ativo, o app informa indisponibilidade do servico.
 * O app nao usa fallback de popup de impressao para check-in/reimpressao.
 * Check-in feito no celular nao abre popup e a etiqueta e impressa no desktop via listener/polling do servico local.
-* Health esperado do servico:
+* Status visual do servico:
 
-```json
-{"ok":true,"status":"online","target_printer":"Brother QL-810W USB","auto_print_listener":true,"auto_print_polling":true,"supabase_role":"service_role"}
-```
+`http://localhost:3001/status`
 
 * Se ainda nao imprimir, verifique se nao existe outro `Servico-de-impressao.exe` rodando em outra pasta/projeto.
