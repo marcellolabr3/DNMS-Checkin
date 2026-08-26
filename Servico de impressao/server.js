@@ -6,6 +6,7 @@ const path = require("path");
 const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
 const { createClient } = require("@supabase/supabase-js");
+const { Pool } = require("pg");
 
 loadEnvFromFiles();
 const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
@@ -23,7 +24,10 @@ const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
 const SUPABASE_ACCESS_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT;
 const supabaseClient = SUPABASE_ACCESS_KEY ? createClient(SUPABASE_URL, SUPABASE_ACCESS_KEY) : null;
-const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const pgPool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } }) : null;
+const canUseDirectDatabase = Boolean(pgPool);
+const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY || pgPool);
 const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at";
 const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
 
@@ -62,16 +66,16 @@ app.use(express.json({ limit: "5mb" }));
 app.get("/health", async (_req, res) => {
   try {
     const printer = await getTargetPrinterOrThrow();
-    const usingServiceRole = Boolean(SUPABASE_SERVICE_ROLE_KEY);
     res.json({
       ok: true,
       status: "online",
       target_printer: printer.name || "-",
       auto_print_listener: Boolean(supabaseClient),
       auto_print_polling: Boolean(autoPrintPollTimer),
-      reprint_queue_listener: Boolean(supabaseClient && canUseReprintQueue),
+      reprint_queue_listener: Boolean(supabaseClient && SUPABASE_SERVICE_ROLE_KEY),
       reprint_queue_polling: Boolean(reprintJobPollTimer),
-      supabase_role: usingServiceRole ? "service_role" : "anon"
+      supabase_role: resolveServiceDataRole(),
+      database_direct: canUseDirectDatabase
     });
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
@@ -213,10 +217,17 @@ async function getTargetPrinterOrThrow() {
 }
 
 async function markCheckinPrinted(checkinId) {
-  if (!supabaseClient || !checkinId) {
+  if (!checkinId) {
     return;
   }
   try {
+    if (pgPool) {
+      await pgPool.query("update public.checkins set printed_at = now() where id = $1", [checkinId]);
+      return;
+    }
+    if (!supabaseClient) {
+      return;
+    }
     await supabaseClient.from("checkins").update({ printed_at: new Date().toISOString() }).eq("id", checkinId);
   } catch (_error) {
     // sem bloqueio de fluxo
@@ -400,38 +411,16 @@ async function processAutoPrintQueue() {
 }
 
 async function printCheckinById(checkinId, options = {}) {
-  if (!supabaseClient || !checkinId) {
+  if (!checkinId || (!supabaseClient && !pgPool)) {
     return;
   }
-  const { data: checkin, error: checkinError } = await supabaseClient
-    .from("checkins")
-    .select(CHECKIN_PRINT_SELECT_COLUMNS)
-    .eq("id", checkinId)
-    .single();
-  if (checkinError || !checkin) {
-    throw new Error(`checkin nao encontrado: ${checkinError?.message || "-"}`);
-  }
+  const checkin = await fetchCheckinForPrint(checkinId);
   const isReprint = options.type === "reprint";
   if (checkin.printed_at && !isReprint) {
     return;
   }
 
-  let student = null;
-  if (checkin.student_id) {
-    const { data, error: studentError } = await supabaseClient
-      .from("students")
-      .select(STUDENT_PRINT_SELECT_COLUMNS)
-      .eq("id", checkin.student_id)
-      .single();
-    if (studentError) {
-      console.warn(
-        `[Servico de impressao] falha ao buscar dados da crianca para checkin ${checkinId}:`,
-        studentError.message || studentError
-      );
-    } else {
-      student = data;
-    }
-  }
+  const student = await fetchStudentForPrint(checkin.student_id, checkinId);
 
   const labelData = buildCheckinLabelData(checkin, student);
   validateAutoPrintLabelData(labelData, checkinId);
@@ -455,6 +444,60 @@ async function printCheckinById(checkinId, options = {}) {
     status: "sucesso",
     details: `${isReprint ? "Reimpressao via fila" : "Auto-print via listener"} (${printer.name || "-"})`
   });
+}
+
+async function fetchCheckinForPrint(checkinId) {
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      `select id, student_id, class_name, notes_snapshot, room_name_snapshot, printed_at
+       from public.checkins
+       where id = $1
+       limit 1`,
+      [checkinId]
+    );
+    if (!rows[0]) {
+      throw new Error("checkin nao encontrado: -");
+    }
+    return rows[0];
+  }
+  const { data, error } = await supabaseClient
+    .from("checkins")
+    .select(CHECKIN_PRINT_SELECT_COLUMNS)
+    .eq("id", checkinId)
+    .single();
+  if (error || !data) {
+    throw new Error(`checkin nao encontrado: ${error?.message || "-"}`);
+  }
+  return data;
+}
+
+async function fetchStudentForPrint(studentId, checkinId) {
+  if (!studentId) {
+    return null;
+  }
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      `select name, primary_guardian_name, notes, class_name
+       from public.students
+       where id = $1
+       limit 1`,
+      [studentId]
+    );
+    return rows[0] || null;
+  }
+  const { data, error } = await supabaseClient
+    .from("students")
+    .select(STUDENT_PRINT_SELECT_COLUMNS)
+    .eq("id", studentId)
+    .single();
+  if (error) {
+    console.warn(
+      `[Servico de impressao] falha ao buscar dados da crianca para checkin ${checkinId}:`,
+      error.message || error
+    );
+    return null;
+  }
+  return data;
 }
 
 function buildCheckinLabelData(checkin, student) {
@@ -486,8 +529,29 @@ function cleanLabelValue(value) {
   return String(value || "").trim();
 }
 
+function resolveServiceDataRole() {
+  if (SUPABASE_SERVICE_ROLE_KEY) {
+    return "service_role";
+  }
+  if (pgPool) {
+    return "postgres_direct";
+  }
+  return "anon";
+}
+
 async function processPendingCheckins() {
-  if (!supabaseClient) {
+  if (!supabaseClient && !pgPool) {
+    return;
+  }
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      `select id, printed_at
+       from public.checkins
+       where printed_at is null
+       order by checked_in_at asc
+       limit 300`
+    );
+    rows.forEach((item) => enqueueAutoPrint(item.id));
     return;
   }
   const { data, error } = await supabaseClient
@@ -551,7 +615,7 @@ function triggerReprintJobProcessing() {
 }
 
 async function processPendingReprintJobs() {
-  if (!supabaseClient || !canUseReprintQueue || reprintJobProcessing) {
+  if (!canUseReprintQueue || reprintJobProcessing) {
     return;
   }
   reprintJobProcessing = true;
@@ -581,6 +645,36 @@ async function processPendingReprintJobs() {
 }
 
 async function claimNextReprintJob() {
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      `with next_job as (
+         select pj.id
+         from public.print_jobs pj
+         where pj.job_type = 'reprint'
+           and (
+             pj.status = 'pending'
+             or (pj.status = 'processing' and pj.claimed_at < now() - interval '2 minutes')
+           )
+           and pj.attempts < 5
+         order by pj.created_at asc
+         for update skip locked
+         limit 1
+       )
+       update public.print_jobs pj
+       set
+         status = 'processing',
+         attempts = pj.attempts + 1,
+         claimed_by = nullif(btrim($1), ''),
+         claimed_at = now(),
+         updated_at = now(),
+         error_message = null
+       from next_job
+       where pj.id = next_job.id
+       returning pj.id, pj.checkin_id, pj.attempts`,
+      [PRINT_WORKER_ID]
+    );
+    return rows[0] || null;
+  }
   const { data, error } = await supabaseClient.rpc("claim_next_reprint_job", {
     worker_id: PRINT_WORKER_ID
   });
@@ -596,6 +690,15 @@ async function claimNextReprintJob() {
 
 async function completeReprintJob(jobId) {
   if (!jobId) {
+    return;
+  }
+  if (pgPool) {
+    await pgPool.query(
+      `update public.print_jobs
+       set status = 'printed', printed_at = now(), updated_at = now(), error_message = null
+       where id = $1`,
+      [jobId]
+    );
     return;
   }
   await supabaseClient
@@ -614,6 +717,15 @@ async function failReprintJob(jobId, error) {
     return;
   }
   const message = String(error?.message || error || "Falha ao reimprimir.").slice(0, 1000);
+  if (pgPool) {
+    await pgPool.query(
+      `update public.print_jobs
+       set status = 'failed', failed_at = now(), updated_at = now(), error_message = $2
+       where id = $1`,
+      [jobId, message]
+    );
+    return;
+  }
   await supabaseClient
     .from("print_jobs")
     .update({
@@ -626,7 +738,7 @@ async function failReprintJob(jobId, error) {
 }
 
 async function startRealtimeReprintJobs() {
-  if (!supabaseClient || !canUseReprintQueue) {
+  if (!supabaseClient || !SUPABASE_SERVICE_ROLE_KEY) {
     return;
   }
   await processPendingReprintJobs();
@@ -645,7 +757,7 @@ async function startRealtimeReprintJobs() {
 }
 
 function startReprintJobPolling() {
-  if (!supabaseClient || !canUseReprintQueue) {
+  if (!canUseReprintQueue) {
     return;
   }
   if (reprintJobPollTimer) {
@@ -765,9 +877,7 @@ function formatDate(date) {
 
 app.listen(PORT, HOST, () => {
   console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
-  console.log(
-    `[Servico de impressao] Supabase auth: ${SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "anon"}`
-  );
+  console.log(`[Servico de impressao] Acesso a dados: ${resolveServiceDataRole()}`);
   console.log(
     `[Servico de impressao] Protecao HTTP: ${PRINT_SERVICE_TOKEN ? "token ativo" : "token nao configurado"}; origens permitidas: ${
       PRINT_ALLOWED_ORIGINS.size ? Array.from(PRINT_ALLOWED_ORIGINS).join(", ") : "modo compatibilidade"
