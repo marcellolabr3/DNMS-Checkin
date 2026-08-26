@@ -168,19 +168,23 @@ Em 2026-08-25, o app reportou: `Falha ao solicitar reimpressao remota: Could not
 
 Diagnostico local da impressao: ha processo `Servico-de-impressao.exe` rodando em `127.0.0.1:3001`, mas `/health` retorna 503 porque o Windows nao lista nenhuma impressora com nome contendo `BROTHER QL-810W`. Impressoras visiveis no momento eram HP/OneNote/XPS/PDF/Fax. O executavel em `Servico de impressao/dist/Servico-de-impressao.exe` e de 2026-08-21, anterior ao `server.js` atual de 2026-08-24; para usar fila de reimpressao remota pelo servico, recriar/reiniciar pacote atualizado. Nao foi encontrado `.codex-secrets.env` do servico com `SUPABASE_SERVICE_ROLE_KEY`; sem Service Role o auto-print de check-ins feitos em celular/outro computador nao opera corretamente.
 
+Atualizacao posterior em 2026-08-25: usuario reportou que check-in pelo celular imprimiu etiqueta com dados em branco. O banco mostrou que os check-ins recentes tinham dados preenchidos e estavam marcados como impressos. Foi reforcado `Servico de impressao/server.js` para nao imprimir auto-print/reprint se faltarem dados minimos da etiqueta (`nome`, `turma`, `responsavel`) e para usar fallback de turma/observacao do cadastro da crianca quando snapshots do check-in estiverem vazios. `Servico de impressao/README.md` documenta que Service Role e necessaria para auto-impressao confiavel de outro dispositivo.
+
+O executavel local foi recriado com `npm.cmd run build:exe` e o servico foi reiniciado. `/health` passou a retornar `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `supabase_role: anon`, `reprint_queue_listener: false`. Pendentes das ultimas 24h ficaram zerados (`printed_at is null` = 0). Ainda falta configurar Service Role local para processar `print_jobs` de reimpressao remota.
+
 Validacao:
-Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Existem 2 check-ins das ultimas 24h com `printed_at is null`.
+Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
 
 Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Isso sugere registros duplicados reais, nao duplicacao simples por vinculo repetido, mas nao fazer merge/exclusao sem revisar IDs, responsaveis, check-ins e confirmar com o usuario.
 
 Plano sugerido:
 
-1. Impressao: confirmar Brother instalada/online no Windows, reiniciar servico com pacote atualizado e Service Role local configurada, testar `/health`, check-in pendente e reimpressao.
+1. Impressao: configurar Service Role local no servico para fila de reimpressao remota, reiniciar, testar `/health`, novo check-in pelo celular e reimpressao.
 2. Duplicidades: gerar relatorio seguro dos grupos duplicados, revisar responsaveis/check-ins, propor plano de merge preservando historico.
 3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Resolver operacionalmente a impressao local: Brother precisa aparecer no Windows como `BROTHER QL-810W` e o servico deve rodar versao atual com credenciais locais adequadas.
+Resolver reimpressao remota: preencher `.codex-secrets.env` local do servico com `SUPABASE_SERVICE_ROLE_KEY`, reiniciar, confirmar `/health` com `supabase_role: service_role` e `reprint_queue_listener: true`, e testar fila `print_jobs`.
 
 ---
 
@@ -233,7 +237,7 @@ Impacto:
 Check-ins/reimpressoes nao imprimem enquanto a Brother nao estiver visivel no Windows ou enquanto o servico estiver sem configuracao adequada.
 
 Status:
-ABERTO. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Pendencias locais: Brother QL-810W nao aparece em `Get-Printer`; executavel rodando esta desatualizado; nao ha `.codex-secrets.env` com Service Role para fila remota.
+PARCIAL. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Executavel local foi recriado e `/health` retorna `ok: true` com Brother QL-810W. Pendencia local: nao ha `.codex-secrets.env` com Service Role, entao `reprint_queue_listener` segue `false`.
 
 ---
 
@@ -247,8 +251,9 @@ Prioridade media:
 
 - [ ] Quando a Brother/PC de impressao estiver disponivel, testar Sprint 3 fisicamente: health em `http://localhost:3001/health`, check-in no proprio PC, reimpressao local, reimpressao via celular/fila, e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
 - [ ] Quando a Brother/PC de impressao estiver disponivel, testar reimpressao real pelo celular apos Sprint 2: solicitar reimpressao, confirmar job em `print_jobs` e confirmar impressao pelo servico local. Observacao: testes automatizados validaram que o service worker nao intercepta/cacheia Supabase/localhost, mas nao houve teste fisico por impressora indisponivel.
-- [ ] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
-- [ ] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual e configurar `.codex-secrets.env` local com Service Role se for usar impressao/reimpressao remota.
+- [x] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
+- [x] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual.
+- [ ] Configurar `.codex-secrets.env` local com Service Role para usar reimpressao remota por `print_jobs`.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -263,20 +268,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Primeiro resolver impressao local: fazer a Brother QL-810W aparecer no Windows, reiniciar servico atualizado e validar `/health`; depois processar os 2 check-ins pendentes e testar reimpressao remota. Em seguida investigar duplicidades com relatorio detalhado antes de qualquer merge.
+Primeiro configurar Service Role local do servico e validar `/health` com `supabase_role: service_role` e `reprint_queue_listener: true`; depois testar reimpressao remota. Em seguida investigar duplicidades com relatorio detalhado antes de qualquer merge.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Incidente de impressao investigado. `print_jobs`/`claim_next_reprint_job` estavam ausentes em producao; `supabase/patch_reprint_queue.sql` foi aplicado e a API ja reconhece a tabela. Diagnostico local mostrou servico aberto, mas sem Brother QL-810W visivel no Windows; executavel local esta desatualizado e sem Service Role local configurada.
+Incidente de impressao investigado. `print_jobs`/`claim_next_reprint_job` estavam ausentes em producao; `supabase/patch_reprint_queue.sql` foi aplicado e a API ja reconhece a tabela. Etiqueta em branco reportada apos check-in pelo celular; `server.js` agora bloqueia auto-print quando faltam dados minimos e usa fallbacks do cadastro. Executavel local foi recriado e servico reiniciado com Brother QL-810W visivel.
 
 Ficou funcionando:
-Erro de schema cache de `print_jobs` resolvido no banco/API. Existem 2 check-ins recentes com `printed_at is null` aguardando impressao quando o servico local estiver funcional.
+Erro de schema cache de `print_jobs` resolvido no banco/API. `/health` retorna `ok: true` com Brother QL-810W. Pendentes recentes de impressao foram zerados. `npm.cmd test` passou com 120 testes.
 
 Ficou pendente:
-Brother QL-810W precisa aparecer no Windows; reiniciar servico usando versao atual; configurar Service Role local para fila remota; testar impressao real. Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
+Configurar Service Role local para fila remota; testar novo check-in pelo celular e reimpressao remota. Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

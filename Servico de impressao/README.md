@@ -51,6 +51,7 @@ Ao iniciar, o servico:
 3. imprime automaticamente e marca `printed_at`.
 
 Para esse modo funcionar com permissao completa, use `SUPABASE_SERVICE_ROLE_KEY` (pode estar no `.codex-secrets.env`).
+Sem Service Role, o servico pode nao conseguir ler todos os dados necessarios para montar a etiqueta. A versao atual bloqueia a impressao se faltar nome, turma ou responsavel, para evitar etiqueta em branco marcada como impressa.
 
 ## Reimpressao remota por fila
 
@@ -170,6 +171,7 @@ cmd /c npm run package:portable
 `http://localhost:3001/health`
 
 O servico esta operacional quando o health retornar `ok: true` e `target_printer` com uma impressora contendo `BROTHER QL-810W`.
+Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role`.
 
 ## Requisito para o executavel
 

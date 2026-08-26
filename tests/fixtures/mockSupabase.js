@@ -2,10 +2,15 @@ function createMockSupabaseScript() {
   return `
 (() => {
   const today = new Date();
+  function localDateIso(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return yyyy + "-" + mm + "-" + dd;
+  }
   const yyyy = today.getFullYear();
   const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  const todayIso = yyyy + "-" + mm + "-" + dd;
+  const todayIso = localDateIso(today);
   function timeOffset(minutes) {
     const date = new Date(today.getTime() + minutes * 60000);
     return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
@@ -67,7 +72,7 @@ function createMockSupabaseScript() {
     for (let index = 0; index < 12; index += 1) {
       const date = new Date(today);
       date.setDate(today.getDate() + index);
-      const dateIso = date.toISOString().slice(0, 10);
+      const dateIso = localDateIso(date);
       db.schedules.push({
         id: "schedule-" + index,
         date: dateIso,

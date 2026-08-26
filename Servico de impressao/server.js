@@ -24,6 +24,8 @@ const SUPABASE_SERVICE_ROLE_KEY =
 const SUPABASE_ACCESS_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT;
 const supabaseClient = SUPABASE_ACCESS_KEY ? createClient(SUPABASE_URL, SUPABASE_ACCESS_KEY) : null;
 const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at";
+const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
 
 const autoPrintQueue = [];
 const autoPrintSeen = new Set();
@@ -403,7 +405,7 @@ async function printCheckinById(checkinId, options = {}) {
   }
   const { data: checkin, error: checkinError } = await supabaseClient
     .from("checkins")
-    .select("*")
+    .select(CHECKIN_PRINT_SELECT_COLUMNS)
     .eq("id", checkinId)
     .single();
   if (checkinError || !checkin) {
@@ -414,26 +416,26 @@ async function printCheckinById(checkinId, options = {}) {
     return;
   }
 
-  let studentName = "Aluno";
-  let guardian = "-";
+  let student = null;
   if (checkin.student_id) {
-    const { data: student } = await supabaseClient
+    const { data, error: studentError } = await supabaseClient
       .from("students")
-      .select("name,primary_guardian_name,notes,class_name")
+      .select(STUDENT_PRINT_SELECT_COLUMNS)
       .eq("id", checkin.student_id)
       .single();
-    if (student) {
-      studentName = student.name || studentName;
-      guardian = student.primary_guardian_name || guardian;
+    if (studentError) {
+      console.warn(
+        `[Servico de impressao] falha ao buscar dados da crianca para checkin ${checkinId}:`,
+        studentError.message || studentError
+      );
+    } else {
+      student = data;
     }
   }
 
-  const html = buildLabelDocumentHtml({
-    studentName,
-    className: checkin.class_name || "-",
-    guardian,
-    notes: checkin.notes_snapshot || "-"
-  });
+  const labelData = buildCheckinLabelData(checkin, student);
+  validateAutoPrintLabelData(labelData, checkinId);
+  const html = buildLabelDocumentHtml(labelData);
 
   const printer = await getTargetPrinterOrThrow();
   const pdfPath = await renderHtmlToPdf(html);
@@ -453,6 +455,35 @@ async function printCheckinById(checkinId, options = {}) {
     status: "sucesso",
     details: `${isReprint ? "Reimpressao via fila" : "Auto-print via listener"} (${printer.name || "-"})`
   });
+}
+
+function buildCheckinLabelData(checkin, student) {
+  return {
+    studentName: cleanLabelValue(student?.name),
+    className: cleanLabelValue(checkin?.class_name) || cleanLabelValue(student?.class_name),
+    guardian: cleanLabelValue(student?.primary_guardian_name),
+    notes: cleanLabelValue(checkin?.notes_snapshot) || cleanLabelValue(student?.notes) || "-"
+  };
+}
+
+function validateAutoPrintLabelData(labelData, checkinId) {
+  const missing = [];
+  if (!labelData.studentName) {
+    missing.push("nome");
+  }
+  if (!labelData.className) {
+    missing.push("turma");
+  }
+  if (!labelData.guardian) {
+    missing.push("responsavel");
+  }
+  if (missing.length) {
+    throw new Error(`Dados insuficientes para imprimir checkin ${checkinId}: ${missing.join(", ")}.`);
+  }
+}
+
+function cleanLabelValue(value) {
+  return String(value || "").trim();
 }
 
 async function processPendingCheckins() {
