@@ -7,7 +7,7 @@
 ## Estado atual
 
 Ultima atualizacao:
-2026-08-24
+2026-08-25
 
 Branch atual:
 `main`
@@ -154,33 +154,33 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Task Salas: melhorar abertura de salas em massa e reduzir risco operacional na abertura/fechamento.
+Incidente de impressao e duplicidades de criancas.
 
 Arquivos envolvidos:
 
-- `app.js`
-- `index.html`
-- `sw.js`
-- `tests/checkin.spec.js`
-- `tests/service-worker.spec.js`
+- `supabase/patch_reprint_queue.sql`
+- `Servico de impressao/server.js`
+- `Servico de impressao/README.md`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Task Salas concluida nas sprints 1-3. O botao "Editar em massa" foi substituido por "Abrir selecionadas". A checkbox "Selecionar todas" agora seleciona apenas salas visiveis e aptas a abertura hoje; salas ja abertas, fechadas/passadas ou futuras ficam fora da acao. Equipe/admin podem abrir salas em massa respeitando `canOpenRoomNow`; exclusao em massa segue restrita a admin/SADMIN. No dialog de detalhes, clicar em "Abrir" abre a sala e fecha a janela automaticamente para evitar clique acidental em "Fechar sala".
+Em 2026-08-25, o app reportou: `Falha ao solicitar reimpressao remota: Could not find the table 'public.print_jobs' in the schema cache`. Verificacao direta no banco mostrou que `public.print_jobs` e `public.claim_next_reprint_job(text)` nao existiam em producao. O patch idempotente `supabase/patch_reprint_queue.sql` foi aplicado diretamente no Supabase e o schema cache foi recarregado com `notify pgrst, 'reload schema'`. Validacao via PostgREST confirmou que `print_jobs` ja e reconhecida pela API.
 
-Versionamento PWA atualizado para `app.js?v=20260824q` e `checkin-cache-v133`.
+Diagnostico local da impressao: ha processo `Servico-de-impressao.exe` rodando em `127.0.0.1:3001`, mas `/health` retorna 503 porque o Windows nao lista nenhuma impressora com nome contendo `BROTHER QL-810W`. Impressoras visiveis no momento eram HP/OneNote/XPS/PDF/Fax. O executavel em `Servico de impressao/dist/Servico-de-impressao.exe` e de 2026-08-21, anterior ao `server.js` atual de 2026-08-24; para usar fila de reimpressao remota pelo servico, recriar/reiniciar pacote atualizado. Nao foi encontrado `.codex-secrets.env` do servico com `SUPABASE_SERVICE_ROLE_KEY`; sem Service Role o auto-print de check-ins feitos em celular/outro computador nao opera corretamente.
 
 Validacao:
-`npm.cmd test` passou com 120 testes em desktop/mobile. `tests/checkin.spec.js` cobre abertura em massa apenas de salas aptas de hoje e fechamento automatico do dialog apos abrir sala. Producao em `https://dnms-checkin.pages.dev/` foi validada com mock Supabase, sem usar credenciais reais nem gravar dados reais: HTML referencia `app.js?v=20260824q`, `sw.js` contem `checkin-cache-v133`, abertura em massa funciona e o dialog fecha apos abrir sala.
+Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Existem 2 check-ins das ultimas 24h com `printed_at is null`.
 
-Plano de sprints de Salas:
+Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Isso sugere registros duplicados reais, nao duplicacao simples por vinculo repetido, mas nao fazer merge/exclusao sem revisar IDs, responsaveis, check-ins e confirmar com o usuario.
 
-1. Concluido: ajustar acoes em massa da aba Salas para abrir selecionadas e selecionar apenas salas aptas.
-2. Concluido: ajustar dialog de detalhes da sala para fechar automaticamente apos clicar em "Abrir".
-3. Concluido: versionamento PWA, testes, contexto, commits/push e validacao publicada.
+Plano sugerido:
+
+1. Impressao: confirmar Brother instalada/online no Windows, reiniciar servico com pacote atualizado e Service Role local configurada, testar `/health`, check-in pendente e reimpressao.
+2. Duplicidades: gerar relatorio seguro dos grupos duplicados, revisar responsaveis/check-ins, propor plano de merge preservando historico.
+3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Task Salas concluida. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
+Resolver operacionalmente a impressao local: Brother precisa aparecer no Windows como `BROTHER QL-810W` e o servico deve rodar versao atual com credenciais locais adequadas.
 
 ---
 
@@ -222,10 +222,18 @@ CONTORNADO. Manter em `docs/CODEX_CONTEXT.local.md`, ignorado pelo git, sem expo
 ### 2. Possiveis duplicidades antigas de criancas
 
 Impacto:
-Trigger novo bloqueia novos duplicados para o mesmo responsavel, mas nao faz merge automatico de registros legados.
+Trigger novo bloqueia novos duplicados para o mesmo responsavel, mas nao faz merge automatico de registros legados. Em 2026-08-25, leitura agregada encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`.
 
 Status:
-ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup.
+ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup e confirmacao do usuario.
+
+### 3. Impressao local indisponivel
+
+Impacto:
+Check-ins/reimpressoes nao imprimem enquanto a Brother nao estiver visivel no Windows ou enquanto o servico estiver sem configuracao adequada.
+
+Status:
+ABERTO. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Pendencias locais: Brother QL-810W nao aparece em `Get-Printer`; executavel rodando esta desatualizado; nao ha `.codex-secrets.env` com Service Role para fila remota.
 
 ---
 
@@ -239,6 +247,8 @@ Prioridade media:
 
 - [ ] Quando a Brother/PC de impressao estiver disponivel, testar Sprint 3 fisicamente: health em `http://localhost:3001/health`, check-in no proprio PC, reimpressao local, reimpressao via celular/fila, e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
 - [ ] Quando a Brother/PC de impressao estiver disponivel, testar reimpressao real pelo celular apos Sprint 2: solicitar reimpressao, confirmar job em `print_jobs` e confirmar impressao pelo servico local. Observacao: testes automatizados validaram que o service worker nao intercepta/cacheia Supabase/localhost, mas nao houve teste fisico por impressora indisponivel.
+- [ ] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
+- [ ] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual e configurar `.codex-secrets.env` local com Service Role se for usar impressao/reimpressao remota.
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -253,20 +263,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar manualmente em producao com usuario real quando conveniente. Se continuar desenvolvimento, escolher uma nova frente pequena antes de editar.
+Primeiro resolver impressao local: fazer a Brother QL-810W aparecer no Windows, reiniciar servico atualizado e validar `/health`; depois processar os 2 check-ins pendentes e testar reimpressao remota. Em seguida investigar duplicidades com relatorio detalhado antes de qualquer merge.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Task Salas concluida nas sprints 1-3: "Editar em massa" virou "Abrir selecionadas"; "Selecionar todas" seleciona apenas salas aptas de hoje; dialog de detalhes fecha automaticamente apos abrir sala; versionamento PWA atualizado para `checkin-cache-v133`; producao validada com mock Supabase.
+Incidente de impressao investigado. `print_jobs`/`claim_next_reprint_job` estavam ausentes em producao; `supabase/patch_reprint_queue.sql` foi aplicado e a API ja reconhece a tabela. Diagnostico local mostrou servico aberto, mas sem Brother QL-810W visivel no Windows; executavel local esta desatualizado e sem Service Role local configurada.
 
 Ficou funcionando:
-Testes automatizados cobrem abertura em massa apenas de salas aptas e fechamento automatico do dialog. `npm.cmd test` passou com 120 testes. Producao serve os assets novos e os fluxos de Salas foram validados sem gravar dados reais.
+Erro de schema cache de `print_jobs` resolvido no banco/API. Existem 2 check-ins recentes com `printed_at is null` aguardando impressao quando o servico local estiver funcional.
 
 Ficou pendente:
-Validar manualmente em producao com usuario real quando conveniente. Pendencias anteriores permanecem: confirmar nomes corretos para reparar registros existentes se necessario, e teste fisico na Brother quando disponivel.
+Brother QL-810W precisa aparecer no Windows; reiniciar servico usando versao atual; configurar Service Role local para fila remota; testar impressao real. Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

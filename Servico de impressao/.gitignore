@@ -1,6 +1,6 @@
 node_modules/
 .service.pid
 npm-debug.log*
-bin/*.exe
+bin/*
 dist/*.exe
 dist-pacote/
