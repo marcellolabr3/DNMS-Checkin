@@ -172,6 +172,8 @@ Atualizacao posterior em 2026-08-25: usuario reportou que check-in pelo celular 
 
 Atualizacao em 2026-08-25: usuario reportou que check-in pelo celular nao imprimia. Diagnostico mostrou o `.exe` rodando versao antiga com `/health` em `supabase_role: anon`, sem `database_direct`. O executavel foi recriado com `npm.cmd run build:exe`, o servico foi reiniciado, e `/health` passou a retornar `supabase_role: postgres_direct`, `database_direct: true`, `auto_print_polling: true` e `reprint_queue_polling: true`. Verificacao posterior encontrou 0 check-ins pendentes das ultimas 24h com `printed_at is null`.
 
+Atualizacao em 2026-08-25: iniciador `Iniciar Servico de impressao.cmd`/`scripts/start-service-ui.ps1` foi ajustado para sempre exibir icone na area de notificacao do Windows, mesmo quando o servico ja estiver rodando na porta 3001. O menu do icone permite abrir `/health` e encerrar o servico. Para uso normal no PC da Brother, iniciar pelo `.cmd`, nao pelo `.exe` direto.
+
 O executavel local foi recriado com `npm.cmd run build:exe` e o servico foi reiniciado. `/health` passou a retornar `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `supabase_role: anon`, `reprint_queue_listener: false`. Pendentes das ultimas 24h ficaram zerados (`printed_at is null` = 0). Ainda falta configurar Service Role local para processar `print_jobs` de reimpressao remota.
 
 Validacao:

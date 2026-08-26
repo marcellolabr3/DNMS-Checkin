@@ -137,15 +137,13 @@ cmd /c npm run build:exe
 
 Obs.: o executavel nao e versionado no Git para nao bloquear o deploy web no Cloudflare Pages.
 
-3. Executar o `.exe` diretamente:
-
-```powershell
-.\dist\Servico-de-impressao.exe
-```
-
-Ou com duplo clique no arquivo:
+3. Iniciar com duplo clique no arquivo:
 
 `Iniciar Servico de impressao.cmd`
+
+Esse iniciador deixa o servico na area de notificacao do Windows. Pelo icone, use `Abrir status` para ver o `/health` ou `Encerrar servico` para parar a impressao local.
+
+Evite iniciar `dist\Servico-de-impressao.exe` diretamente no uso normal, porque ele nao cria o icone da bandeja.
 
 ## Gerar pacote portatil para instalar em outro Windows
 
@@ -171,7 +169,7 @@ cmd /c npm run package:portable
 `http://localhost:3001/health`
 
 O servico esta operacional quando o health retornar `ok: true` e `target_printer` com uma impressora contendo `BROTHER QL-810W`.
-Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role`.
+Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role` ou `postgres_direct`.
 
 ## Requisito para o executavel
 

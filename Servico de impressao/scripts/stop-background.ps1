@@ -3,25 +3,52 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $pidFile = Join-Path $root ".service.pid"
 
-if (-not (Test-Path $pidFile)) {
-  Write-Host "PID nao encontrado. Servico provavelmente nao esta em execucao."
-  exit 0
+function Stop-ServiceProcessById {
+  param([string]$PidValue)
+
+  if (-not $PidValue) {
+    return $false
+  }
+
+  try {
+    Stop-Process -Id $PidValue -Force -ErrorAction Stop
+    Write-Host "Servico encerrado. PID: $PidValue"
+    return $true
+  } catch {
+    Write-Host "Nao foi possivel encerrar o PID $PidValue. Pode ja estar parado."
+    return $false
+  }
 }
 
-$pidValue = Get-Content $pidFile -ErrorAction SilentlyContinue
-if (-not $pidValue) {
-  Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-  Write-Host "PID invalido removido."
-  exit 0
+function Get-ServicePidFromPort {
+  try {
+    $connection = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction Stop | Select-Object -First 1
+    if ($connection -and $connection.OwningProcess) {
+      return [string]$connection.OwningProcess
+    }
+  } catch {}
+
+  return $null
 }
 
-try {
-  Stop-Process -Id $pidValue -Force -ErrorAction Stop
-  Write-Host "Servico encerrado. PID: $pidValue"
-} catch {
-  Write-Host "Nao foi possivel encerrar o PID $pidValue. Pode ja estar parado."
+$stopped = $false
+if (Test-Path $pidFile) {
+  $pidValue = Get-Content $pidFile -ErrorAction SilentlyContinue
+  if ($pidValue) {
+    $stopped = Stop-ServiceProcessById -PidValue $pidValue
+  } else {
+    Write-Host "PID invalido removido."
+  }
 }
 
+$portPid = Get-ServicePidFromPort
+if ($portPid) {
+  $stopped = (Stop-ServiceProcessById -PidValue $portPid) -or $stopped
+}
+
+if (-not $stopped) {
+  Write-Host "Servico provavelmente nao esta em execucao."
+}
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
 
 try {
