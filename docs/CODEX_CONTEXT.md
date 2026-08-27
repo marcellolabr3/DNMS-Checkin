@@ -217,8 +217,10 @@ Atualizacao em 2026-08-27: corrigida duplicidade de etiquetas em check-in feito 
 
 Atualizacao em 2026-08-27: implementado QR fixo de presenca para check-in de responsaveis. O responsavel nao consegue mais fazer check-in direto no card da crianca; o app abre o dialog de QR/camera e so chama a RPC `parent_checkin_with_presence(student_id, presence_token)` apos ler/digitar o codigo. A RPC valida perfil `responsavel`, vinculo familiar em `student_guardians`, QR fixo e sala aberta da turma antes de inserir em `checkins`. A policy antiga que permitia insert direto de responsavel em `checkins` foi substituida por `checkins_insert_staff_only`, preservando insert direto apenas para `admin`/`equipe`. O bloco antigo de Gestao > Convites por email/tipo de acesso foi removido da UI; suporte a links legados `?invite=` segue preservado para compatibilidade.
 
+Atualizacao em 2026-08-27: criado `qr-checkin-presencial.svg` com o conteudo `DNMS-CHECKIN-PRESENCIAL`. A aba Gestao agora mostra o bloco "QR de check-in presencial" com imagem do QR e botao "Imprimir QR". A impressao abre uma pagina A4 limpa para fixar no local. Equipe/admin continuam fazendo check-in manual normal pelos cards de alunos, sem QR.
+
 Validacao:
-QR fixo de presenca: `supabase/patch_parent_checkin_presence_qr.sql` aplicado em producao em 2026-08-27. Verificacao direta confirmou RPC `parent_checkin_with_presence`, configuracao `app_settings.parent_checkin_presence_sha256`, policy `checkins_insert_staff_only` e ausencia da policy antiga `checkins_insert_staff_or_guardian`. `npm.cmd test` passou com 128 testes.
+QR fixo de presenca: `supabase/patch_parent_checkin_presence_qr.sql` aplicado em producao em 2026-08-27. Verificacao direta confirmou RPC `parent_checkin_with_presence`, configuracao `app_settings.parent_checkin_presence_sha256`, policy `checkins_insert_staff_only` e ausencia da policy antiga `checkins_insert_staff_or_guardian`. `npm.cmd test` passou com 128 testes. Depois, o QR imprimivel foi adicionado na Gestao; testes direcionados de check-in/responsavel/service worker passaram com 37 testes.
 
 Duplicidade de etiquetas: `npm.cmd test` passou com 124 testes. O executavel `Servico de impressao/dist/Servico-de-impressao.exe` foi recriado com `npm.cmd run build:exe`, o servico foi reiniciado e `/health` retornou `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `reprint_queue_polling: true`, `supabase_role: postgres_direct` e `database_direct: true`.
 
@@ -344,7 +346,7 @@ Ficou funcionando:
 Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. `npm.cmd test` passou com 128 testes.
 
 Ficou pendente:
-Imprimir e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
+Imprimir pela aba Gestao e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

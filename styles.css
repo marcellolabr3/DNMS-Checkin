@@ -1407,6 +1407,48 @@ button:disabled,
   object-fit: cover;
 }
 
+.presence-qr-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+}
+
+.presence-qr-print-area {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 340px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-align: center;
+  background: #fff;
+}
+
+.presence-qr-image {
+  width: min(260px, 100%);
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+
+.presence-qr-print-area span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.presence-qr-print-area code {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .dialog-body .grid-2 {
   align-items: start;
 }

@@ -160,6 +160,7 @@ const els = {
   logStudentsList: document.getElementById("logStudentsList"),
   btnApplyLogStudents: document.getElementById("btnApplyLogStudents"),
   inviteCard: document.getElementById("inviteCard"),
+  btnPrintPresenceQr: document.getElementById("btnPrintPresenceQr"),
   familiesCard: document.getElementById("familiesCard"),
   manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
@@ -358,6 +359,7 @@ function bindEvents() {
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
+  els.btnPrintPresenceQr?.addEventListener("click", printPresenceQr);
   els.btnLinkFamilyResponsible?.addEventListener("click", handleLinkFamilyResponsible);
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
@@ -4349,6 +4351,75 @@ function renderManagementPanel() {
   btnDeleteUser?.addEventListener("click", async () => {
     await deleteUserProfile(selectedProfile);
   });
+}
+
+function printPresenceQr() {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
+  if (!printWindow) {
+    alert("Nao foi possivel abrir a janela de impressao do QR.");
+    return;
+  }
+  printWindow.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR de check-in presencial</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, "Segoe UI", sans-serif;
+      color: #111;
+      background: #fff;
+      text-align: center;
+    }
+    main {
+      display: grid;
+      justify-items: center;
+      gap: 10mm;
+      width: 100%;
+    }
+    img {
+      width: 120mm;
+      height: 120mm;
+      image-rendering: pixelated;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24pt;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0;
+      font-size: 14pt;
+      line-height: 1.35;
+    }
+    code {
+      font-size: 11pt;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="${window.location.origin}${window.location.pathname.replace(/[^/]*$/, "")}qr-checkin-presencial.svg" alt="QR Code de check-in presencial" />
+    <h1>Check-in presencial DNMS Kids</h1>
+    <p>Use a camera do app para confirmar presenca no local.</p>
+    <code>DNMS-CHECKIN-PRESENCIAL</code>
+  </main>
+  <script>
+    window.addEventListener("load", () => {
+      window.print();
+    });
+  </script>
+</body>
+</html>`);
+  printWindow.document.close();
 }
 
 function renderFamiliesPanel() {

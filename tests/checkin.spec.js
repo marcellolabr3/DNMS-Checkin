@@ -492,6 +492,9 @@ test("gestao nao exibe gerador antigo de convites por tipo de acesso", async ({ 
 
   await page.click("#btnInvitePanel");
   await expect(page.locator("#inviteCard")).toBeVisible();
+  await expect(page.locator("#presenceQrCard")).toContainText("QR de check-in presencial");
+  await expect(page.locator("#presenceQrCard img")).toHaveAttribute("src", "qr-checkin-presencial.svg");
+  await expect(page.locator("#btnPrintPresenceQr")).toBeVisible();
   await expect(page.locator("#inviteCard")).not.toContainText("Convites");
   await expect(page.locator("#inviteCard")).not.toContainText("Tipo de acesso");
   await expect(page.locator("#manageInviteEmail")).toHaveCount(0);

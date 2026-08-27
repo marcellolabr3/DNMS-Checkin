@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260827e" />
+  <link rel="stylesheet" href="styles.css?v=20260827f" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -254,6 +254,21 @@
         <h2>Gestao</h2>
       </div>
       <p class="muted">Gestao de usuarios cadastrados.</p>
+      <section id="presenceQrCard" class="presence-qr-panel" aria-label="QR fixo de check-in">
+        <div>
+          <h3 class="dashboard-title">QR de check-in presencial</h3>
+          <p class="muted">Fixe este QR no local de entrada para liberar o check-in dos responsaveis.</p>
+        </div>
+        <div class="presence-qr-print-area">
+          <img class="presence-qr-image" src="qr-checkin-presencial.svg" alt="QR Code de check-in presencial" />
+          <strong>Check-in presencial DNMS Kids</strong>
+          <span>Use a camera do app para confirmar presenca no local.</span>
+          <code>DNMS-CHECKIN-PRESENCIAL</code>
+        </div>
+        <div class="actions">
+          <button id="btnPrintPresenceQr" class="primary" type="button">Imprimir QR</button>
+        </div>
+      </section>
       <div id="manageUsersStatus" class="summary"></div>
       <label class="field">
         Buscar usuario por nome
@@ -601,6 +616,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260827e"></script>
+  <script src="app.js?v=20260827f"></script>
 </body>
 </html>
