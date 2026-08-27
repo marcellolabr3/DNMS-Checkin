@@ -1408,12 +1408,19 @@ button:disabled,
 }
 
 .presence-qr-panel {
-  display: grid;
-  gap: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 16px;
   background: #fff;
+}
+
+.presence-qr-panel summary {
+  padding: 14px 16px;
+}
+
+.presence-qr-content {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
 }
 
 .presence-qr-print-area {
