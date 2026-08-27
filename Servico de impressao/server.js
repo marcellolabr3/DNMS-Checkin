@@ -3,11 +3,14 @@ const fs = require("fs/promises");
 const fsSync = require("fs");
 const os = require("os");
 const path = require("path");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
 const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
 const { createClient } = require("@supabase/supabase-js");
 const { Pool } = require("pg");
 
+const execFileAsync = promisify(execFile);
 loadEnvFromFiles();
 const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
 const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
@@ -212,9 +215,27 @@ async function handlePrintRequest(req, res, routeType) {
 }
 
 async function getTargetPrinterOrThrow() {
+  const status = await getTargetPrinterStatus();
+  if (!status.installed) {
+    throw new Error(status.error || `Impressora obrigatoria nao encontrada (${REQUIRED_PRINTER_HINT}).`);
+  }
+  if (!status.ready) {
+    throw new Error(status.error || `Impressora ${status.name || REQUIRED_PRINTER_HINT} indisponivel.`);
+  }
+  return status.printer;
+}
+
+async function getTargetPrinterStatus() {
   const printers = await getPrinters();
   if (!Array.isArray(printers) || !printers.length) {
-    throw new Error("Nenhuma impressora disponivel no sistema.");
+    return {
+      installed: false,
+      ready: false,
+      name: "",
+      status: "not_found",
+      detail: "Nenhuma impressora disponivel no sistema.",
+      error: "Nenhuma impressora disponivel no sistema."
+    };
   }
 
   const normalized = printers.map((printer) => ({
@@ -226,11 +247,106 @@ async function getTargetPrinterOrThrow() {
   const selected = normalized.find((item) => item.key.includes(REQUIRED_PRINTER_HINT));
   if (!selected?.raw) {
     const available = normalized.map((item) => item.name).filter(Boolean).join(" | ");
-    throw new Error(
-      `Impressora obrigatoria nao encontrada (${REQUIRED_PRINTER_HINT}). Disponiveis: ${available || "-"}`
-    );
+    const error = `Impressora obrigatoria nao encontrada (${REQUIRED_PRINTER_HINT}). Disponiveis: ${available || "-"}`;
+    return {
+      installed: false,
+      ready: false,
+      name: "",
+      status: "not_found",
+      detail: error,
+      error
+    };
   }
-  return selected.raw;
+
+  const windowsStatus = await readWindowsPrinterStatus(selected.name);
+  const readiness = evaluateWindowsPrinterReadiness(windowsStatus);
+  return {
+    installed: true,
+    ready: readiness.ready,
+    name: selected.name,
+    printer: selected.raw,
+    status: readiness.status,
+    detail: readiness.detail,
+    windows_status: windowsStatus
+  };
+}
+
+async function readWindowsPrinterStatus(printerName) {
+  if (process.platform !== "win32" || !printerName) {
+    return null;
+  }
+  const psCommand = `
+$name = ${JSON.stringify(printerName)}
+$printer = Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1 Name,WorkOffline,PrinterStatus,DetectedErrorState,ExtendedPrinterStatus,PrinterState,Availability
+if (-not $printer) {
+  $printer = Get-Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1 Name,PrinterStatus,WorkOffline,PrinterState,DetectedErrorState
+}
+if ($printer) { $printer | ConvertTo-Json -Compress -Depth 3 }
+`;
+  try {
+    const { stdout } = await execFileAsync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
+      { windowsHide: true, timeout: 3500, maxBuffer: 1024 * 64 }
+    );
+    const raw = String(stdout || "").trim();
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    return {
+      status_error: error?.message || String(error)
+    };
+  }
+}
+
+function evaluateWindowsPrinterReadiness(status) {
+  if (!status) {
+    return {
+      ready: true,
+      status: "unknown",
+      detail: "Impressora encontrada; estado online nao confirmado pelo sistema."
+    };
+  }
+  if (status.status_error) {
+    return {
+      ready: true,
+      status: "unknown",
+      detail: `Impressora encontrada; nao foi possivel ler estado do Windows: ${status.status_error}`
+    };
+  }
+
+  const fields = [
+    status.PrinterStatus,
+    status.ExtendedPrinterStatus,
+    status.DetectedErrorState,
+    status.PrinterState,
+    status.Availability
+  ]
+    .filter((value) => value !== null && value !== undefined && value !== "")
+    .map((value) => String(value).toLowerCase());
+
+  const hasKnownOfflineState = fields.some((value) =>
+    /\boffline\b|paper\s*out|no\s*toner|door\s*open|error|jam|paused|not\s*available|degraded|user\s*intervention|server\s*unknown/.test(
+      value
+    )
+  );
+  const hasKnownErrorCode = [4, 5, 6, 7, 8, 9, 10, 11, 12].some(
+    (code) => Number(status.DetectedErrorState) === code
+  );
+  const isMarkedOffline = status.WorkOffline === true || String(status.WorkOffline).toLowerCase() === "true";
+
+  if (isMarkedOffline || hasKnownOfflineState || hasKnownErrorCode) {
+    return {
+      ready: false,
+      status: "offline",
+      detail: "Brother encontrada, mas a fila esta offline ou com erro no Windows."
+    };
+  }
+
+  return {
+    ready: true,
+    status: "online",
+    detail: "Brother encontrada e sem erro/offline reportado pelo Windows."
+  };
 }
 
 async function markCheckinPrinted(checkinId) {
@@ -464,11 +580,16 @@ async function printCheckinById(checkinId, options = {}) {
 }
 
 async function buildHealthPayload() {
-  const printer = await getTargetPrinterOrThrow();
+  const printerStatus = await getTargetPrinterStatus();
   return {
-    ok: true,
-    status: "online",
-    target_printer: printer.name || "-",
+    ok: Boolean(printerStatus.installed && printerStatus.ready),
+    status: printerStatus.ready ? "online" : printerStatus.status,
+    target_printer: printerStatus.name || "",
+    printer_installed: Boolean(printerStatus.installed),
+    printer_ready: Boolean(printerStatus.ready),
+    printer_status: printerStatus.status,
+    printer_status_detail: printerStatus.detail,
+    printer_windows_status: printerStatus.windows_status || null,
     auto_print_listener: Boolean(supabaseClient),
     auto_print_polling: Boolean(autoPrintPollTimer),
     auto_print_processing: Boolean(autoPrintProcessing || autoPrintQueue.length),
@@ -731,14 +852,16 @@ function buildStatusPageHtml() {
         const printingBusy = Boolean(health.auto_print_processing || health.reprint_queue_processing);
         setItems([
           {
-            state: health.ok ? "ok" : "off",
+            state: "ok",
             label: "Servico local",
-            detail: health.ok ? "Online e recebendo pedidos neste computador." : "Offline."
+            detail: "Online e recebendo pedidos neste computador."
           },
           {
-            state: health.target_printer ? "ok" : "off",
+            state: health.printer_ready ? "ok" : "off",
             label: "Impressora Brother",
-            detail: health.target_printer ? health.target_printer : "Brother QL-810W nao encontrada no Windows."
+            detail: health.target_printer
+              ? health.target_printer + " - " + (health.printer_status_detail || "estado nao confirmado")
+              : (health.printer_status_detail || "Brother QL-810W nao encontrada no Windows.")
           },
           {
             state: printingBusy ? "busy" : "ok",

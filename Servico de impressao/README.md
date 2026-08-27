@@ -42,6 +42,10 @@ O servico foi configurado para usar somente a impressora com nome contendo:
 
 Se essa impressora nao for encontrada, o servico retorna erro e nao imprime.
 
+O health/status tambem consulta o estado da fila no Windows via `Win32_Printer`/`Get-Printer`. Quando o Windows marcar a Brother como offline ou com erro conhecido, `/health` retorna `ok: false`, `printer_ready: false` e o painel mostra a impressora em vermelho. Essa verificacao nao imprime etiqueta de teste.
+
+Alguns drivers retornam apenas estado neutro/desconhecido mesmo com a impressora instalada. Nesse caso o servico informa que o estado online nao foi confirmado, mas nao bloqueia a impressao para preservar compatibilidade.
+
 ## Auto-impressao por listener (check-in de qualquer origem)
 
 Ao iniciar, o servico:
@@ -120,7 +124,7 @@ curl http://localhost:3001/health
 Resposta esperada do health:
 
 ```json
-{"ok":true,"status":"online","target_printer":"Brother QL-810W USB","auto_print_listener":true,"auto_print_polling":true,"supabase_role":"service_role"}
+{"ok":true,"status":"online","target_printer":"Brother QL-810W USB","printer_ready":true,"auto_print_listener":true,"auto_print_polling":true,"supabase_role":"service_role"}
 ```
 
 ## Gerar executavel (.exe)
@@ -211,6 +215,7 @@ duplo clique em `DNMS Impressao.cmd`
 4. Validar:
 
 abra `http://localhost:3001/status` e confirme bolinha verde para a impressora Brother.
+Se a Brother aparecer em vermelho, abra a fila/impressora no Windows e verifique se ela esta ligada, sem erro e sem modo offline.
 
 5. Encerrar servico:
 

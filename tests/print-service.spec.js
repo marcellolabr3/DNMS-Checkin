@@ -20,6 +20,12 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain('const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name"');
   expect(server).toContain("validateAutoPrintLabelData(labelData, checkinId)");
   expect(server).toContain("Dados insuficientes para imprimir checkin");
+  expect(server).toContain("getTargetPrinterStatus");
+  expect(server).toContain("readWindowsPrinterStatus");
+  expect(server).toContain("evaluateWindowsPrinterReadiness");
+  expect(server).toContain("printer_ready");
+  expect(server).toContain("printer_status_detail");
+  expect(server).toContain("Brother encontrada, mas a fila esta offline ou com erro no Windows.");
   expect(server.indexOf("validatePrintPayload({ checkinId, conteudo })")).toBeLessThan(
     server.indexOf("async function printCheckinById")
   );

@@ -219,6 +219,8 @@ Atualizacao em 2026-08-27: implementado QR fixo de presenca para check-in de res
 
 Atualizacao em 2026-08-27: criado `qr-checkin-presencial.svg` com o conteudo `DNMS-CHECKIN-PRESENCIAL`. A aba Gestao agora mostra o menu recolhivel "QR de check-in presencial" com imagem do QR e botao "Imprimir QR". A impressao abre uma pagina A4 limpa para fixar no local. Equipe/admin continuam fazendo check-in manual normal pelos cards de alunos, sem QR.
 
+Atualizacao em 2026-08-27: mitigado falso positivo do status da Brother no servico local. `/health` e `/status` agora consultam `Win32_Printer`/`Get-Printer`, expõem `printer_ready`/`printer_status_detail` e marcam a impressora em vermelho quando o Windows reportar offline ou erro conhecido, sem imprimir etiqueta de teste. Estados neutros/desconhecidos continuam permitidos para preservar compatibilidade com drivers que nao informam status fisico. O executavel local foi recriado e `/health` confirmou `printer_ready: true`, Brother QL-810W, `supabase_role: postgres_direct` e `database_direct: true`; nesta sessao o motor foi mantido rodando diretamente porque o tray nao persistiu no ambiente de comando.
+
 Validacao:
 QR fixo de presenca: `supabase/patch_parent_checkin_presence_qr.sql` aplicado em producao em 2026-08-27. Verificacao direta confirmou RPC `parent_checkin_with_presence`, configuracao `app_settings.parent_checkin_presence_sha256`, policy `checkins_insert_staff_only` e ausencia da policy antiga `checkins_insert_staff_or_guardian`. `npm.cmd test` passou com 128 testes. Depois, o QR imprimivel foi adicionado na Gestao; testes direcionados de check-in/responsavel/service worker passaram com 37 testes.
 
@@ -233,11 +235,11 @@ Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura a
 Plano sugerido:
 
 1. Monitorar fluxo de rede familiar em producao.
-2. Corrigir status da impressora para diferenciar impressora instalada de impressora realmente online/pronta.
+2. Validar QR fixo de presenca com check-in real de responsavel no local.
 3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Corrigir falso positivo do status da impressora desligada.
+Validar QR fixo de presenca com check-in real de responsavel no local.
 
 ---
 
@@ -292,13 +294,13 @@ Check-ins/reimpressoes nao imprimem enquanto a Brother nao estiver visivel no Wi
 Status:
 RESOLVIDO OPERACIONALMENTE. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Executavel local foi recriado. Em 2026-08-27, `/health` retornou `ok: true` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`. `reprint_queue_listener` pode seguir `false` nesse modo porque a fila e processada por polling direto no banco.
 
-### 4. Status da impressora pode falso-positivar
+### 4. Status fisico da impressora depende do driver
 
 Impacto:
-O painel/status do servico pode indicar impressora pronta mesmo quando a Brother esta desligada, porque a impressora continua registrada no Windows. Isso pode mascarar falha fisica ate alguem tentar imprimir.
+O painel/status do servico agora diferencia offline/erro quando o Windows informa esse estado. Alguns drivers podem retornar estado neutro/desconhecido mesmo com a impressora instalada; nesses casos o servico nao bloqueia impressao para evitar falso negativo.
 
 Status:
-ABERTO. Corrigir health/status para diferenciar impressora instalada/listada de impressora realmente pronta/online, sem enviar etiquetas de teste desnecessarias.
+MITIGADO. Health/status mostra `printer_ready`, `printer_status_detail` e sinal vermelho para offline/erro conhecido, sem enviar etiquetas de teste.
 
 ---
 
@@ -312,7 +314,7 @@ Prioridade media:
 
 - [x] Validar servico local em `http://localhost:3001/health` com Brother QL-810W, auto-print ativo e fila remota por polling (`postgres_direct`).
 - [ ] Se o problema voltar, testar ponta a ponta com etiqueta real: check-in no PC, reimpressao local, reimpressao via celular/fila e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
-- [ ] Corrigir status do servico de impressao para nao marcar Brother como pronta quando ela estiver desligada/offline.
+- [x] Corrigir status do servico de impressao para nao marcar Brother como pronta quando o Windows reportar Brother desligada/offline ou em erro conhecido.
 - [x] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
 - [x] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual.
 - [x] Configurar credencial local suficiente para usar reimpressao remota por `print_jobs` (`DATABASE_URL` com `supabase_role: postgres_direct`).
@@ -333,7 +335,7 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Imprimir o QR fixo `DNMS-CHECKIN-PRESENCIAL` e validar um check-in real de responsavel no local; depois corrigir falso positivo do status da Brother desligada no servico de impressao, sem gastar etiquetas em testes.
+Abrir `http://localhost:3001/status` e, se possivel, validar visualmente a Brother ligada/desligada. Depois imprimir o QR fixo `DNMS-CHECKIN-PRESENCIAL` e validar um check-in real de responsavel no local.
 
 ---
 
@@ -346,7 +348,7 @@ Ficou funcionando:
 Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. `npm.cmd test` passou com 128 testes.
 
 Ficou pendente:
-Imprimir pela aba Gestao e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
+Imprimir pela aba Gestao e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Validar visualmente no `/status` como o driver reporta Brother ligada/desligada.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
