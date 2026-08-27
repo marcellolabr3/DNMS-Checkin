@@ -1181,6 +1181,10 @@ button:disabled,
   color: color-mix(in srgb, var(--danger) 72%, var(--ink));
 }
 
+.family-link-request-actions {
+  justify-content: flex-start;
+}
+
 .tips-empty {
   color: var(--muted);
 }

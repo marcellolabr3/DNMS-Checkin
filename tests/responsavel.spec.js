@@ -133,7 +133,7 @@ test("responsavel cadastra outra crianca diferente", async ({ page }) => {
     .toBe(true);
 });
 
-test("responsavel vincula outro responsavel e compartilha todas as criancas da rede", async ({ page }) => {
+test("responsavel solicita vinculo familiar e compartilha criancas somente apos aceite", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {
     window.__mockDnmsDb.students.push({
@@ -159,7 +159,23 @@ test("responsavel vincula outro responsavel e compartilha todas as criancas da r
   await expect(page.locator("#myDataDialog")).toBeVisible();
   await page.fill("#familyLinkEmail", "secundario@dnms.test");
   await page.click("#btnLinkFamilyResponsible");
-  await expect(page.locator("#familyLinkStatus")).toContainText("Responsavel vinculado");
+  await expect(page.locator("#familyLinkStatus")).toContainText("Convite enviado dentro do app");
+  await expect(page.locator("#familyNetworkList")).toContainText("Aguardando aceite");
+  await page.locator("#myDataDialog").press("Escape");
+
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+  await expect(page.locator("#studentList")).not.toContainText("Caio Secundario");
+
+  await page.click("#btnLogout");
+  await loginAs(page, "secundario@dnms.test");
+  await page.click("#btnTipsInbox");
+  await expect(page.locator("#tipsList")).toContainText("Responsavel Teste te adicionou a sua familia");
+  await page.locator("#tipsList .family-link-request-actions .primary").click();
+  await expect.poll(() => page.evaluate(() => window.alertMessages)).toContainEqual(
+    expect.stringContaining("Voce esta sendo vinculado a familia de Responsavel Teste")
+  );
+  await expect(page.locator("#myDataDialog")).toBeVisible();
+  await expect(page.locator("#familyNetworkList")).toContainText("Responsavel Teste");
   await page.locator("#myDataDialog").press("Escape");
 
   await expect(page.locator("#studentList")).toContainText("Ana Kids");
@@ -182,7 +198,7 @@ test("responsavel vincula outro responsavel e compartilha todas as criancas da r
   expect(network.anaLinks).toEqual(["parent-1", "parent-2"]);
 });
 
-test("responsavel gera convite por email quando o outro responsavel ainda nao tem cadastro", async ({ page }) => {
+test("responsavel nao convida email sem cadastro", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "responsavel@dnms.test");
 
@@ -191,21 +207,10 @@ test("responsavel gera convite por email quando o outro responsavel ainda nao te
   await page.fill("#familyLinkEmail", "novo.responsavel@dnms.test");
   await page.click("#btnLinkFamilyResponsible");
 
-  await expect(page.locator("#familyLinkStatus")).toContainText("Convite enviado por email");
-  const result = await page.evaluate(() => ({
-    invite: window.__mockDnmsDb.invites.find((item) => item.email === "novo.responsavel@dnms.test"),
-    invocation: window.__mockFunctionInvocations[0]
-  }));
-  expect(result.invite).toMatchObject({
-    email: "novo.responsavel@dnms.test",
-    role: "responsavel",
-    status: "pending",
-    created_by: "parent-1"
-  });
-  expect(result.invocation).toMatchObject({
-    name: "send-dnms-kids-invite"
-  });
-  expect(result.invocation.payload.body.inviteUrl).toContain("?invite=");
+  await expect.poll(() => page.evaluate(() => window.alertMessages)).toContainEqual(
+    expect.stringContaining("Responsavel nao encontrado")
+  );
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.family_link_requests.length)).toBe(0);
 });
 
 test("responsavel cadastra crianca vinculada mesmo quando upload de foto falha", async ({ page }) => {

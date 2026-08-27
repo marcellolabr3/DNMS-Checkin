@@ -87,6 +87,10 @@ begin
   delete from public.tip_reads
   where user_id = target_profile_id;
 
+  delete from public.family_link_requests
+  where requester_id = target_profile_id
+     or target_id = target_profile_id;
+
   delete from public.tips
   where recipient_id = target_profile_id
      or created_by = target_profile_id;

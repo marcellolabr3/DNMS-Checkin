@@ -154,7 +154,7 @@ Estado do banco:
 - Criada rede familiar de responsaveis: responsavel pode vincular outro responsavel por email em "Meus dados"; todos da rede compartilham todas as criancas, inclusive novas criancas cadastradas por qualquer membro.
 - Aplicado `supabase/patch_family_network.sql` em producao em 2026-08-27; adiciona `profiles.family_id`, RPCs `get_my_family_network`, `link_family_responsible`, `sync_student_family_guardians` e duplicidade por familia.
 - Duplicidades antigas Paula/Diego foram consolidadas em producao: Jonathan e Sophia ficaram em registros canonicos vinculados a Paula e Diego, com check-ins preservados.
-- Corrigido fluxo de convite de responsavel familiar: se o email ainda nao tem cadastro, "Vincular responsavel" cria convite de `responsavel`, tenta enviar pela Edge Function existente e mostra link de fallback; ao aceitar o convite, o novo responsavel entra na mesma rede familiar. Patch aplicado em producao: `supabase/patch_family_responsible_invites.sql`.
+- Corrigido fluxo de rede familiar: "Vincular responsavel" aceita apenas email ja cadastrado como `responsavel`, cria solicitacao interna pendente por 7 dias e envia mensagem dentro do app com botoes Sim/Nao. O vinculo so e aplicado quando o responsavel convidado aceita. Patch aplicado em producao: `supabase/patch_family_link_requests.sql`.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -169,7 +169,7 @@ Arquivos envolvidos:
 
 - `supabase/patch_delete_user_account.sql`
 - `supabase/patch_family_network.sql`
-- `supabase/patch_family_responsible_invites.sql`
+- `supabase/patch_family_link_requests.sql`
 - `supabase/setup_dnms_checkin.sql`
 - `app.js`
 - `index.html`
@@ -204,12 +204,12 @@ Atualizacao em 2026-08-27: a aba Familias foi reorganizada para lista + painel d
 
 Atualizacao em 2026-08-27: foi implementada rede familiar de responsaveis. `profiles.family_id` agrupa responsaveis; `link_family_responsible(email)` permite que um responsavel vincule outro responsavel ja cadastrado por email; `sync_student_family_guardians(student_id, seed_guardian_id)` garante que novas criancas sejam vinculadas a todos os responsaveis da rede. A UI fica em `Meus dados > Rede familiar`.
 
-Atualizacao em 2026-08-27: o fluxo de `Meus dados > Rede familiar` passou a criar convite quando o email informado ainda nao existe em `profiles`. O convite usa role `responsavel`, tenta enviar email pela Edge Function `send-dnms-kids-invite` e, se o envio falhar/nao existir, exibe link manual. O cadastro por convite de responsavel mantem campos obrigatorios de responsavel. A RPC `accept_invite_token` marca o convite aceito e vincula a rede familiar do convidante apos o perfil ser criado.
+Atualizacao em 2026-08-27: o fluxo de `Meus dados > Rede familiar` passou a usar confirmacao interna. Se o email informado nao existir como `responsavel`, o app mostra erro e nao envia email. Se existir, a RPC `request_family_link` cria uma linha em `family_link_requests` e uma mensagem em `tips` para o responsavel convidado: "Fulano te adicionou a sua familia! Deseja aceitar?". A mensagem mostra botoes Sim/Nao. A RPC `respond_family_link_request` aplica o vinculo somente no aceite, envia mensagens de retorno para os dois responsaveis e expira solicitacoes apos 7 dias.
 
 Validacao:
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
 
-Convite familiar: `supabase/patch_family_responsible_invites.sql` foi aplicado em producao em 2026-08-27; verificacao confirmou RPCs `get_invite_meta` e `accept_invite_token`, policy `invites_insert_family_responsible` e constraint `invites_role_check` permitindo `responsavel`. `npm.cmd test` passou com 124 testes.
+Convite familiar interno: `supabase/patch_family_link_requests.sql` foi aplicado em producao em 2026-08-27; verificacao confirmou tabela `family_link_requests`, RPCs `request_family_link` e `respond_family_link_request`, RPCs administrativas `get_invite_meta`/`accept_invite_token` preservadas para convites por URL, e `invites_role_check` sem `responsavel`. `npm.cmd test` passou com 124 testes.
 
 Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Revisao em 2026-08-27 confirmou: Jonathan Nery Costa tinha um registro da Paula com 1 check-in e um registro do Diego com 0 check-ins; Sophia Nery De Mendonca tinha um registro da Paula com 1 check-in e um registro do Diego com 1 check-in. Em 2026-08-27, os registros da Paula foram mantidos como canonicos, Diego foi vinculado como responsavel familiar, o check-in de Sophia no registro duplicado foi movido para o canonico e os duplicados foram removidos. Verificacao posterior encontrou 0 grupos duplicados.
 
@@ -304,7 +304,7 @@ Prioridade media:
 - [x] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
 - [x] Aplicar rede familiar de responsaveis e consolidar duplicidades antigas Paula/Diego.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
-- [ ] Confirmar se a Edge Function `send-dnms-kids-invite` esta implantada/configurada para envio real de email; se falhar, o app exibe link manual como fallback.
+- [x] Corrigir fluxo de rede familiar para usar mensagem interna com aceite/recusa em vez de convite por email.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
 
@@ -323,10 +323,10 @@ Corrigir falso positivo do status da Brother desligada no servico de impressao, 
 ## Ultima sessao
 
 Foi feito:
-Rede familiar implementada e aplicada em producao. Responsaveis podem vincular outro responsavel por email em "Meus dados"; a rede compartilha todas as criancas e novas criancas sao herdadas por todos os membros. `patch_family_network.sql` foi aplicado. Duplicidades antigas de Jonathan/Sophia foram consolidadas mantendo os registros canonicos da Paula, vinculando Diego e preservando check-ins.
+Rede familiar implementada e aplicada em producao. Responsaveis solicitam vinculo por email ja cadastrado em "Meus dados"; o outro responsavel recebe mensagem interna com Sim/Nao e o vinculo so acontece no aceite, com validade de 7 dias. `patch_family_network.sql` e `patch_family_link_requests.sql` foram aplicados. Duplicidades antigas de Jonathan/Sophia foram consolidadas mantendo os registros canonicos da Paula, vinculando Diego e preservando check-ins.
 
 Ficou funcionando:
-Rede familiar testada no mock Playwright; verificacao em producao encontrou 0 grupos duplicados e Paula/Diego no mesmo `family_id`. `npm.cmd test` passou com 122 testes.
+Rede familiar testada no mock Playwright; solicitacao pendente, aceite interno e erro para email sem cadastro cobertos por teste. Verificacao em producao confirmou `family_link_requests` e RPCs novas. `npm.cmd test` passou com 124 testes.
 
 Ficou pendente:
 Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.

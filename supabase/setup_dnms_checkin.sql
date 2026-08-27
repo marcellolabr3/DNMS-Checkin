@@ -95,7 +95,7 @@ create table if not exists public.student_guardians (
 create table if not exists public.invites (
   id uuid primary key default gen_random_uuid(),
   email text not null,
-  role text not null default 'dnms_kids' check (role in ('dnms_kids', 'equipe', 'admin', 'responsavel')),
+  role text not null default 'dnms_kids' check (role in ('dnms_kids', 'equipe', 'admin')),
   token text not null unique,
   status text not null default 'pending' check (status in ('pending', 'accepted', 'expired', 'cancelled')),
   expires_at timestamptz not null,
@@ -139,7 +139,7 @@ alter table public.invites
 
 alter table public.invites
   add constraint invites_role_check
-  check (role in ('dnms_kids', 'equipe', 'admin', 'responsavel'));
+  check (role in ('dnms_kids', 'equipe', 'admin'));
 
 alter table public.tips
   add column if not exists sender_name text null;
@@ -150,6 +150,23 @@ create table if not exists public.tip_reads (
   read_at timestamptz not null default now(),
   primary key (tip_id, user_id)
 );
+
+create table if not exists public.family_link_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references public.profiles (id) on delete cascade,
+  target_id uuid not null references public.profiles (id) on delete cascade,
+  requester_name_snapshot text not null default '',
+  target_name_snapshot text not null default '',
+  tip_id uuid null references public.tips (id) on delete set null,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'expired', 'cancelled')),
+  expires_at timestamptz not null default (now() + interval '7 days'),
+  responded_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.family_link_requests
+  add column if not exists requester_name_snapshot text not null default '',
+  add column if not exists target_name_snapshot text not null default '';
 
 create table if not exists public.print_jobs (
   id uuid primary key default gen_random_uuid(),
@@ -183,6 +200,13 @@ create index if not exists idx_schedules_date on public.schedules (date);
 create index if not exists idx_schedules_target_user on public.schedules (target_user);
 create index if not exists idx_tips_recipient on public.tips (recipient_id, created_at desc);
 create index if not exists idx_tip_reads_user on public.tip_reads (user_id, read_at desc);
+create index if not exists idx_family_link_requests_target_status
+  on public.family_link_requests (target_id, status, expires_at desc);
+create index if not exists idx_family_link_requests_requester_status
+  on public.family_link_requests (requester_id, status, expires_at desc);
+create unique index if not exists family_link_requests_one_pending_pair
+  on public.family_link_requests (requester_id, target_id)
+  where status = 'pending';
 create index if not exists idx_print_jobs_status_created_at on public.print_jobs (status, created_at);
 create index if not exists idx_print_jobs_checkin on public.print_jobs (checkin_id);
 create unique index if not exists print_jobs_one_open_reprint_per_checkin
@@ -200,6 +224,7 @@ alter table public.dashboard_settings enable row level security;
 alter table public.schedules enable row level security;
 alter table public.tips enable row level security;
 alter table public.tip_reads enable row level security;
+alter table public.family_link_requests enable row level security;
 alter table public.print_jobs enable row level security;
 
 create or replace function public.is_staff_user(uid uuid)
@@ -505,59 +530,27 @@ begin
 end;
 $$;
 
-create or replace function public.link_family_responsible(target_email text)
+create or replace function public.apply_family_link_between_responsibles(
+  requester uuid,
+  target uuid
+)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  actor_id uuid := auth.uid();
-  actor_profile record;
-  target_profile record;
-  actor_family_id uuid;
+  requester_family_id uuid;
   target_family_id uuid;
   merged_family_id uuid;
   member_count integer := 0;
   student_count integer := 0;
 begin
-  if actor_id is null then
-    raise exception 'not_authenticated';
-  end if;
+  requester_family_id := public.ensure_profile_family_id(requester);
+  target_family_id := public.ensure_profile_family_id(target);
+  merged_family_id := requester_family_id;
 
-  select *
-  into actor_profile
-  from public.profiles
-  where id = actor_id;
-
-  if actor_profile.id is null or lower(coalesce(actor_profile.role, '')) <> 'responsavel' then
-    raise exception 'family_link_only_responsavel';
-  end if;
-
-  if nullif(btrim(coalesce(target_email, '')), '') is null then
-    raise exception 'family_link_email_required';
-  end if;
-
-  select *
-  into target_profile
-  from public.profiles
-  where lower(coalesce(email, '')) = lower(btrim(target_email))
-    and lower(coalesce(role, '')) = 'responsavel'
-  limit 1;
-
-  if target_profile.id is null then
-    raise exception 'family_link_target_not_found';
-  end if;
-
-  if target_profile.id = actor_id then
-    raise exception 'family_link_self_not_allowed';
-  end if;
-
-  actor_family_id := public.ensure_profile_family_id(actor_id);
-  target_family_id := public.ensure_profile_family_id(target_profile.id);
-  merged_family_id := actor_family_id;
-
-  if target_family_id is distinct from actor_family_id then
+  if target_family_id is distinct from requester_family_id then
     update public.profiles
     set family_id = merged_family_id
     where family_id = target_family_id
@@ -566,7 +559,8 @@ begin
 
   update public.profiles
   set family_id = merged_family_id
-  where id in (actor_id, target_profile.id);
+  where id in (requester, target)
+    and lower(coalesce(role, '')) = 'responsavel';
 
   with family_members as (
     select id, public.normalize_student_duplicate_text(name) as normalized_name
@@ -604,10 +598,274 @@ begin
   return jsonb_build_object(
     'ok', true,
     'family_id', merged_family_id,
-    'linked_responsible_id', target_profile.id,
-    'linked_responsible_name', target_profile.name,
     'member_count', member_count,
     'student_count', student_count
+  );
+end;
+$$;
+
+create or replace function public.request_family_link(target_email text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id uuid := auth.uid();
+  actor_profile record;
+  target_profile record;
+  existing_request record;
+  request_id uuid;
+  message_id uuid;
+  expiration timestamptz := now() + interval '7 days';
+begin
+  if actor_id is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into actor_profile
+  from public.profiles
+  where id = actor_id;
+
+  if actor_profile.id is null or lower(coalesce(actor_profile.role, '')) <> 'responsavel' then
+    raise exception 'family_link_only_responsavel';
+  end if;
+
+  if nullif(btrim(coalesce(target_email, '')), '') is null then
+    raise exception 'family_link_email_required';
+  end if;
+
+  select * into target_profile
+  from public.profiles
+  where lower(coalesce(email, '')) = lower(btrim(target_email))
+    and lower(coalesce(role, '')) = 'responsavel'
+  limit 1;
+
+  if target_profile.id is null then
+    raise exception 'family_link_target_not_found';
+  end if;
+
+  if target_profile.id = actor_id then
+    raise exception 'family_link_self_not_allowed';
+  end if;
+
+  if coalesce(actor_profile.family_id, actor_profile.id) = coalesce(target_profile.family_id, target_profile.id)
+     and actor_profile.family_id is not null
+     and target_profile.family_id is not null then
+    return jsonb_build_object(
+      'ok', true,
+      'status', 'already_linked',
+      'target_id', target_profile.id,
+      'target_name', target_profile.name
+    );
+  end if;
+
+  update public.family_link_requests
+  set status = 'expired'
+  where status = 'pending'
+    and expires_at < now();
+
+  select * into existing_request
+  from public.family_link_requests
+  where requester_id = actor_id
+    and target_id = target_profile.id
+    and status = 'pending'
+    and expires_at >= now()
+  limit 1;
+
+  if existing_request.id is not null then
+    return jsonb_build_object(
+      'ok', true,
+      'status', 'pending',
+      'request_id', existing_request.id,
+      'target_id', target_profile.id,
+      'target_name', target_profile.name,
+      'expires_at', existing_request.expires_at
+    );
+  end if;
+
+  insert into public.family_link_requests (
+    requester_id,
+    target_id,
+    requester_name_snapshot,
+    target_name_snapshot,
+    status,
+    expires_at
+  )
+  values (
+    actor_id,
+    target_profile.id,
+    coalesce(actor_profile.name, ''),
+    coalesce(target_profile.name, ''),
+    'pending',
+    expiration
+  )
+  returning id into request_id;
+
+  insert into public.tips (message, recipient_id, created_by, sender_name)
+  values (
+    coalesce(actor_profile.name, 'Um responsavel') || ' te adicionou a sua familia! Deseja aceitar?',
+    target_profile.id,
+    actor_id,
+    coalesce(actor_profile.name, '')
+  )
+  returning id into message_id;
+
+  update public.family_link_requests
+  set tip_id = message_id
+  where id = request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'status', 'pending',
+    'request_id', request_id,
+    'target_id', target_profile.id,
+    'target_name', target_profile.name,
+    'tip_id', message_id,
+    'expires_at', expiration
+  );
+end;
+$$;
+
+create or replace function public.respond_family_link_request(
+  request_id uuid,
+  accept boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id uuid := auth.uid();
+  request_record record;
+  requester_profile record;
+  target_profile record;
+  link_result jsonb := '{}'::jsonb;
+begin
+  if actor_id is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into request_record
+  from public.family_link_requests
+  where id = request_id;
+
+  if request_record.id is null then
+    raise exception 'family_link_request_not_found';
+  end if;
+
+  if request_record.target_id <> actor_id then
+    raise exception 'family_link_request_not_allowed';
+  end if;
+
+  if request_record.status is distinct from 'pending' then
+    raise exception 'family_link_request_not_pending';
+  end if;
+
+  select * into requester_profile from public.profiles where id = request_record.requester_id;
+  select * into target_profile from public.profiles where id = request_record.target_id;
+
+  if request_record.expires_at < now() then
+    update public.family_link_requests
+    set status = 'expired',
+        responded_at = now()
+    where id = request_record.id;
+    raise exception 'family_link_request_expired';
+  end if;
+
+  if not accept then
+    update public.family_link_requests
+    set status = 'declined',
+        responded_at = now()
+    where id = request_record.id;
+
+    insert into public.tips (message, recipient_id, created_by, sender_name)
+    values (
+      coalesce(target_profile.name, 'O responsavel') || ' recusou o vinculo familiar.',
+      request_record.requester_id,
+      actor_id,
+      coalesce(target_profile.name, '')
+    );
+
+    return jsonb_build_object(
+      'ok', true,
+      'status', 'declined',
+      'requester_name', requester_profile.name,
+      'target_name', target_profile.name
+    );
+  end if;
+
+  link_result := public.apply_family_link_between_responsibles(request_record.requester_id, request_record.target_id);
+
+  update public.family_link_requests
+  set status = 'accepted',
+      responded_at = now()
+  where id = request_record.id;
+
+  insert into public.tips (message, recipient_id, created_by, sender_name)
+  values
+    (
+      'Voce esta sendo vinculado a familia de ' || coalesce(requester_profile.name, 'responsavel') || '.',
+      request_record.target_id,
+      request_record.requester_id,
+      coalesce(requester_profile.name, '')
+    ),
+    (
+      coalesce(target_profile.name, 'Responsavel') || ' aceitou entrar na sua rede familiar.',
+      request_record.requester_id,
+      request_record.target_id,
+      coalesce(target_profile.name, '')
+    );
+
+  return jsonb_build_object(
+    'ok', true,
+    'status', 'accepted',
+    'requester_name', requester_profile.name,
+    'target_name', target_profile.name,
+    'family_id', link_result->>'family_id',
+    'member_count', coalesce((link_result->>'member_count')::integer, 0),
+    'student_count', coalesce((link_result->>'student_count')::integer, 0)
+  );
+end;
+$$;
+
+create or replace function public.link_family_responsible(target_email text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return public.request_family_link(target_email);
+end;
+$$;
+
+create or replace function public.get_invite_meta(invite_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite_record record;
+begin
+  select id, email, role, status, expires_at
+  into invite_record
+  from public.invites
+  where token = invite_token
+  limit 1;
+
+  if invite_record.id is null then
+    raise exception 'invite_not_found';
+  end if;
+
+  return jsonb_build_object(
+    'id', invite_record.id,
+    'email', invite_record.email,
+    'role', invite_record.role,
+    'status', invite_record.status,
+    'expires_at', invite_record.expires_at
   );
 end;
 $$;
@@ -626,10 +884,6 @@ declare
   actor_id uuid := auth.uid();
   invite_record record;
   normalized_expected text := lower(btrim(coalesce(expected_role, '')));
-  actor_family_id uuid;
-  inviter_family_id uuid;
-  merged_family_id uuid;
-  inserted_count integer := 0;
 begin
   if actor_id is null then
     raise exception 'not_authenticated';
@@ -669,80 +923,7 @@ begin
       accepted_at = now()
   where id = invite_record.id;
 
-  if lower(invite_record.role) = 'responsavel' and invite_record.created_by is not null then
-    actor_family_id := public.ensure_profile_family_id(actor_id);
-    inviter_family_id := public.ensure_profile_family_id(invite_record.created_by);
-    merged_family_id := coalesce(inviter_family_id, actor_family_id);
-
-    update public.profiles
-    set family_id = merged_family_id
-    where lower(coalesce(role, '')) = 'responsavel'
-      and (family_id = actor_family_id or id = actor_id);
-
-    update public.profiles
-    set family_id = merged_family_id
-    where id = invite_record.created_by
-      and lower(coalesce(role, '')) = 'responsavel';
-
-    with family_members as (
-      select id, public.normalize_student_duplicate_text(name) as normalized_name
-      from public.profiles
-      where family_id = merged_family_id
-        and lower(coalesce(role, '')) = 'responsavel'
-    ),
-    family_students as (
-      select distinct s.id
-      from public.students s
-      left join public.student_guardians sg on sg.student_id = s.id
-      left join family_members linked_member on linked_member.id = sg.guardian_id
-      left join family_members named_member
-        on named_member.normalized_name = public.normalize_student_duplicate_text(s.primary_guardian_name)
-      where linked_member.id is not null
-         or named_member.id is not null
-    )
-    insert into public.student_guardians (student_id, guardian_id)
-    select fs.id, fm.id
-    from family_students fs
-    cross join family_members fm
-    on conflict do nothing;
-
-    get diagnostics inserted_count = row_count;
-  end if;
-
-  return jsonb_build_object(
-    'ok', true,
-    'role', invite_record.role,
-    'family_links_created', inserted_count
-  );
-end;
-$$;
-
-create or replace function public.get_invite_meta(invite_token text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  invite_record record;
-begin
-  select id, email, role, status, expires_at
-  into invite_record
-  from public.invites
-  where token = invite_token
-  limit 1;
-
-  if invite_record.id is null then
-    raise exception 'invite_not_found';
-  end if;
-
-  return jsonb_build_object(
-    'id', invite_record.id,
-    'email', invite_record.email,
-    'role', invite_record.role,
-    'status', invite_record.status,
-    'expires_at', invite_record.expires_at
-  );
+  return jsonb_build_object('ok', true, 'role', invite_record.role);
 end;
 $$;
 
@@ -750,14 +931,19 @@ revoke all on function public.ensure_profile_family_id(uuid) from public;
 revoke all on function public.sync_student_family_guardians(uuid, uuid) from public;
 revoke all on function public.get_my_family_network() from public;
 revoke all on function public.link_family_responsible(text) from public;
-revoke all on function public.accept_invite_token(text, text, text) from public;
+revoke all on function public.apply_family_link_between_responsibles(uuid, uuid) from public;
+revoke all on function public.request_family_link(text) from public;
+revoke all on function public.respond_family_link_request(uuid, boolean) from public;
 revoke all on function public.get_invite_meta(text) from public;
+revoke all on function public.accept_invite_token(text, text, text) from public;
 
 grant execute on function public.sync_student_family_guardians(uuid, uuid) to authenticated;
 grant execute on function public.get_my_family_network() to authenticated;
 grant execute on function public.link_family_responsible(text) to authenticated;
-grant execute on function public.accept_invite_token(text, text, text) to authenticated;
+grant execute on function public.request_family_link(text) to authenticated;
+grant execute on function public.respond_family_link_request(uuid, boolean) to authenticated;
 grant execute on function public.get_invite_meta(text) to anon, authenticated;
+grant execute on function public.accept_invite_token(text, text, text) to authenticated;
 
 create or replace function public.can_manage_profile(actor uuid, target uuid)
 returns boolean
@@ -948,6 +1134,10 @@ begin
 
   delete from public.tip_reads
   where user_id = target_profile_id;
+
+  delete from public.family_link_requests
+  where requester_id = target_profile_id
+     or target_id = target_profile_id;
 
   delete from public.tips
   where recipient_id = target_profile_id
@@ -1288,19 +1478,6 @@ with check (
   )
 );
 
-drop policy if exists invites_insert_family_responsible on public.invites;
-create policy invites_insert_family_responsible on public.invites
-for insert to authenticated
-with check (
-  role = 'responsavel'
-  and created_by = auth.uid()
-  and exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid()
-      and p.role = 'responsavel'
-  )
-);
-
 drop policy if exists invites_update_admin_or_matching_email on public.invites;
 create policy invites_update_admin_or_matching_email on public.invites
 for update to authenticated
@@ -1318,6 +1495,26 @@ with check (
   )
   or lower(invites.email) = lower((select u.email from auth.users u where u.id = auth.uid()))
 );
+
+drop policy if exists family_link_requests_select_own on public.family_link_requests;
+create policy family_link_requests_select_own on public.family_link_requests
+for select to authenticated
+using (
+  requester_id = auth.uid()
+  or target_id = auth.uid()
+  or public.is_staff_user(auth.uid())
+);
+
+drop policy if exists family_link_requests_no_direct_insert on public.family_link_requests;
+create policy family_link_requests_no_direct_insert on public.family_link_requests
+for insert to authenticated
+with check (false);
+
+drop policy if exists family_link_requests_no_direct_update on public.family_link_requests;
+create policy family_link_requests_no_direct_update on public.family_link_requests
+for update to authenticated
+using (false)
+with check (false);
 
 drop policy if exists dashboard_settings_select_all on public.dashboard_settings;
 create policy dashboard_settings_select_all on public.dashboard_settings

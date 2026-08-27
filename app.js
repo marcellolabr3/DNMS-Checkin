@@ -21,6 +21,7 @@ const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,a
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
 const TIP_SELECT_COLUMNS = "id,message,recipient_id,created_at,created_by,sender_name";
 const TIP_READ_SELECT_COLUMNS = "tip_id,user_id,read_at";
+const FAMILY_LINK_REQUEST_SELECT_COLUMNS = "id,requester_id,target_id,requester_name_snapshot,target_name_snapshot,tip_id,status,expires_at,responded_at,created_at";
 const CSV_DELIMITER = ";";
 const CSV_BOM = "\uFEFF";
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
@@ -748,6 +749,29 @@ function isTipReadByCurrentUser(tipId) {
   return state.tipReads.some((read) => read.tipId === tipId && read.userId === state.session.id);
 }
 
+function getFamilyLinkRequestForTip(tipId) {
+  if (!tipId || !state.session) {
+    return null;
+  }
+  return (
+    (state.familyLinkRequests || []).find(
+      (request) => request.tipId === tipId && request.targetId === state.session.id && request.status === "pending"
+    ) || null
+  );
+}
+
+function getProfileName(profileId, fallback = "Responsavel") {
+  if (profileId === state.session?.id) {
+    return state.session?.name || fallback;
+  }
+  const profile = state.profiles.find((item) => item.id === profileId);
+  return profile?.name || fallback;
+}
+
+function isFamilyLinkRequestExpired(request) {
+  return Boolean(request?.expiresAt && new Date(request.expiresAt).getTime() < Date.now());
+}
+
 function openTipsDialog() {
   openTipsPanel();
 }
@@ -848,6 +872,39 @@ function renderTipsPanel() {
       hint.className = "muted";
       hint.textContent = "Clique para recolher";
       wrapper.appendChild(hint);
+    }
+
+    const familyLinkRequest = getFamilyLinkRequestForTip(tip.id);
+    if (familyLinkRequest) {
+      const requestActions = document.createElement("div");
+      requestActions.className = "actions family-link-request-actions";
+      if (isFamilyLinkRequestExpired(familyLinkRequest)) {
+        const expired = document.createElement("span");
+        expired.className = "muted";
+        expired.textContent = "Convite expirado.";
+        requestActions.appendChild(expired);
+      } else {
+        const requesterName = getProfileName(familyLinkRequest.requesterId);
+        const btnAccept = document.createElement("button");
+        btnAccept.type = "button";
+        btnAccept.className = "primary";
+        btnAccept.textContent = "Sim";
+        btnAccept.addEventListener("click", async () => {
+          await respondFamilyLinkRequest(familyLinkRequest.id, true, requesterName);
+        });
+
+        const btnDecline = document.createElement("button");
+        btnDecline.type = "button";
+        btnDecline.className = "ghost";
+        btnDecline.textContent = "Nao";
+        btnDecline.addEventListener("click", async () => {
+          await respondFamilyLinkRequest(familyLinkRequest.id, false, requesterName);
+        });
+
+        requestActions.appendChild(btnAccept);
+        requestActions.appendChild(btnDecline);
+      }
+      wrapper.appendChild(requestActions);
     }
 
     if (canDeleteTips) {
@@ -1125,6 +1182,46 @@ async function markAllTipsAsRead() {
   render();
 }
 
+async function respondFamilyLinkRequest(requestId, accept, requesterName = "responsavel") {
+  if (!supabaseClient || !state.session || !requestId) {
+    return;
+  }
+  if (accept && !confirm(`Confirmar vinculo com a familia de ${requesterName}?`)) {
+    return;
+  }
+  const { data, error } = await supabaseClient.rpc("respond_family_link_request", {
+    request_id: requestId,
+    accept: Boolean(accept)
+  });
+  if (error) {
+    const message = String(error.message || "");
+    if (message.includes("family_link_request_expired")) {
+      alert("Este convite expirou. Peca para o responsavel enviar um novo convite.");
+    } else if (message.includes("family_link_request_not_pending")) {
+      alert("Este convite ja foi respondido.");
+    } else {
+      alert(`Falha ao responder convite: ${error.message || "erro inesperado"}`);
+    }
+    await fetchDashboardData();
+    render();
+    return;
+  }
+
+  await fetchProfiles();
+  await fetchStudents();
+  await fetchDashboardData();
+  await loadMyFamilyNetwork();
+  renderTipsPanel();
+  updateTipsUnreadBadge();
+  if (accept) {
+    alert(`Voce esta sendo vinculado a familia de ${data?.requester_name || requesterName}.`);
+    await openMyDataDialog();
+  } else {
+    alert("Convite recusado.");
+    render();
+  }
+}
+
 async function hydrateFromSupabase() {
   try {
     const { data, error } = await supabaseClient.auth.getSession();
@@ -1142,6 +1239,7 @@ async function hydrateFromSupabase() {
       state.schedules = [];
       state.tips = [];
       state.tipReads = [];
+      state.familyLinkRequests = [];
       state.dashboardInfo = "";
       render();
       return;
@@ -1708,12 +1806,19 @@ async function fetchDashboardData() {
   }
   state.tipsStatus = { loading: true, error: "" };
   renderTipsSurfaces();
-  const [{ data: infoRows, error: infoError }, { data: schedules, error: schedulesError }, { data: tips, error: tipsError }, { data: reads, error: readsError }] =
+  const [
+    { data: infoRows, error: infoError },
+    { data: schedules, error: schedulesError },
+    { data: tips, error: tipsError },
+    { data: reads, error: readsError },
+    { data: familyLinkRequests, error: familyLinkRequestsError }
+  ] =
     await Promise.all([
       supabaseClient.from("dashboard_settings").select("info_text").eq("id", 1).limit(1),
       supabaseClient.from("schedules").select(SCHEDULE_SELECT_COLUMNS),
       supabaseClient.from("tips").select(TIP_SELECT_COLUMNS),
-      supabaseClient.from("tip_reads").select(TIP_READ_SELECT_COLUMNS)
+      supabaseClient.from("tip_reads").select(TIP_READ_SELECT_COLUMNS),
+      supabaseClient.from("family_link_requests").select(FAMILY_LINK_REQUEST_SELECT_COLUMNS)
     ]);
 
   if (!infoError) {
@@ -1762,6 +1867,24 @@ async function fetchDashboardData() {
   } else {
     console.warn("Falha ao buscar tip_reads", readsError);
     state.tipReads = [];
+  }
+
+  if (!familyLinkRequestsError) {
+    state.familyLinkRequests = (familyLinkRequests || []).map((item) => ({
+      id: item.id,
+      requesterId: item.requester_id || "",
+      targetId: item.target_id || "",
+      tipId: item.tip_id || "",
+      status: item.status || "",
+      expiresAt: item.expires_at || "",
+      respondedAt: item.responded_at || "",
+      createdAt: item.created_at || "",
+      requesterName: item.requester_name_snapshot || "",
+      targetName: item.target_name_snapshot || ""
+    }));
+  } else {
+    console.warn("Falha ao buscar solicitacoes de rede familiar", familyLinkRequestsError);
+    state.familyLinkRequests = [];
   }
   state.tipsStatus.loading = false;
   renderTipsSurfaces();
@@ -3353,6 +3476,7 @@ async function handleLogout() {
   state.schedules = [];
   state.tips = [];
   state.tipReads = [];
+  state.familyLinkRequests = [];
   state.dashboardInfo = "";
   familyNetworkContext.members = [];
   familyNetworkContext.familyId = "";
@@ -3396,15 +3520,12 @@ function openSignupDialog(role, inviteToken = "") {
   signupContext.inviteToken = inviteToken || "";
   const isInvite = Boolean(signupContext.inviteToken);
   const normalizedRole = normalizeRole(role);
-  const isResponsibleSignup = normalizedRole === "responsavel";
   const inviteLabel =
     normalizedRole === "admin"
       ? "Admin"
       : normalizedRole === "equipe"
         ? "Equipe"
-        : normalizedRole === "responsavel"
-          ? "Responsavel"
-          : "DNMS Kids";
+        : "DNMS Kids";
   if (els.signupDialogTitle) {
     els.signupDialogTitle.textContent = isInvite ? `Cadastro por convite (${inviteLabel})` : "Cadastro de Responsavel";
   }
@@ -3412,28 +3533,28 @@ function openSignupDialog(role, inviteToken = "") {
     els.signupInviteToken.value = signupContext.inviteToken;
   }
   if (els.signupBirthField) {
-    els.signupBirthField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
+    els.signupBirthField.style.display = isInvite ? "none" : "flex";
   }
   if (els.signupCivilField) {
-    els.signupCivilField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
+    els.signupCivilField.style.display = isInvite ? "none" : "flex";
   }
   if (els.signupPhoneField) {
-    els.signupPhoneField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
+    els.signupPhoneField.style.display = isInvite ? "none" : "flex";
   }
   if (els.signupVisitorField) {
-    els.signupVisitorField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
+    els.signupVisitorField.style.display = isInvite ? "none" : "flex";
   }
   if (els.signupBirth) {
-    els.signupBirth.required = !isInvite || isResponsibleSignup;
+    els.signupBirth.required = !isInvite;
   }
   if (els.signupCivilStatus) {
-    els.signupCivilStatus.required = !isInvite || isResponsibleSignup;
+    els.signupCivilStatus.required = !isInvite;
   }
   if (els.signupPhone) {
-    els.signupPhone.required = !isInvite || isResponsibleSignup;
+    els.signupPhone.required = !isInvite;
   }
   if (els.signupPhoneDdd) {
-    els.signupPhoneDdd.required = !isInvite || isResponsibleSignup;
+    els.signupPhoneDdd.required = !isInvite;
   }
   if (els.signupName) {
     els.signupName.value = "";
@@ -3500,7 +3621,6 @@ async function handleSignupSubmit(event) {
   const password = els.signupPassword.value;
   const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
   const isInviteFlow = Boolean(signupContext.inviteToken);
-  const isResponsibleSignup = normalizeRole(signupContext.role) === "responsavel";
   const signupPhotoFile = els.signupPhoto?.files?.[0] || null;
   const pendingPhotoData = signupPhotoFile ? await readFileAsDataUrl(signupPhotoFile) : "";
 
@@ -3508,15 +3628,15 @@ async function handleSignupSubmit(event) {
     alert("Preencha os campos obrigatorios.");
     return;
   }
-  if ((!isInviteFlow || isResponsibleSignup) && birthDateRaw && !birthDate) {
+  if (!isInviteFlow && birthDateRaw && !birthDate) {
     alert("Data de nascimento invalida. Use dd/mm/aaaa.");
     return;
   }
-  if ((!isInviteFlow || isResponsibleSignup) && phoneNational.length < 10) {
+  if (!isInviteFlow && phoneNational.length < 10) {
     alert("Informe um celular valido do responsavel.");
     return;
   }
-  if ((!isInviteFlow || isResponsibleSignup) && (!birthDate || !civilStatus || !phone || phoneNational.length < 10)) {
+  if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneNational.length < 10)) {
     alert("Preencha todos os campos obrigatorios.");
     return;
   }
@@ -3555,11 +3675,11 @@ async function handleSignupSubmit(event) {
         data: {
           full_name: name,
           desired_role: signupContext.role,
-          birth_date: isInviteFlow && !isResponsibleSignup ? null : birthDate,
-          marital_status: isInviteFlow && !isResponsibleSignup ? null : civilStatus,
-          phone: isInviteFlow && !isResponsibleSignup ? null : phone,
+          birth_date: isInviteFlow ? null : birthDate,
+          marital_status: isInviteFlow ? null : civilStatus,
+          phone: isInviteFlow ? null : phone,
           invite_token: isInviteFlow ? signupContext.inviteToken : null,
-          is_visitor: isInviteFlow && !isResponsibleSignup ? false : responsibleVisitor
+          is_visitor: isInviteFlow ? false : responsibleVisitor
         }
       }
     });
@@ -3784,15 +3904,32 @@ function renderMyFamilyNetwork() {
   }
   if (els.familyNetworkList) {
     const members = familyNetworkContext.members || [];
-    if (!members.length) {
+    const pendingRequests = (state.familyLinkRequests || []).filter(
+      (request) =>
+        request.status === "pending" &&
+        !isFamilyLinkRequestExpired(request) &&
+        (request.requesterId === state.session?.id || request.targetId === state.session?.id)
+    );
+    if (!members.length && !pendingRequests.length) {
       els.familyNetworkList.textContent = "Voce ainda nao tem outro responsavel vinculado.";
     } else {
-      els.familyNetworkList.innerHTML = members
+      const memberHtml = members
         .map((member) => {
           const current = member.id === state.session?.id ? " (voce)" : "";
           return `<div><strong>${escapeHtml(member.name || "Responsavel")}${current}</strong><br /><span>${escapeHtml(member.email || "-")}</span></div>`;
         })
         .join("");
+      const pendingHtml = pendingRequests
+        .map((request) => {
+          const invitedByMe = request.requesterId === state.session?.id;
+          const name = invitedByMe
+            ? request.targetName || "Responsavel"
+            : request.requesterName || "Responsavel";
+          const status = invitedByMe ? "Aguardando aceite" : "Convite pendente";
+          return `<div><strong>${escapeHtml(name)}</strong><br /><span>${escapeHtml(status)} ate ${escapeHtml(formatDateTimeFromIso(request.expiresAt))}</span></div>`;
+        })
+        .join("");
+      els.familyNetworkList.innerHTML = `${memberHtml}${pendingHtml}`;
     }
   }
 }
@@ -3815,23 +3952,11 @@ async function handleLinkFamilyResponsible() {
     return;
   }
 
-  const { data, error } = await supabaseClient.rpc("link_family_responsible", { target_email: email });
+  const { data, error } = await supabaseClient.rpc("request_family_link", { target_email: email });
   if (error) {
     const message = String(error.message || "");
     if (message.includes("family_link_target_not_found")) {
-      const inviteResult = await createFamilyResponsibleInvite(email);
-      if (!inviteResult.ok) {
-        alert(inviteResult.message || "Responsavel nao encontrado. Ele precisa ter cadastro ativo antes do vinculo.");
-        return;
-      }
-      if (els.familyLinkEmail) {
-        els.familyLinkEmail.value = "";
-      }
-      if (els.familyLinkStatus) {
-        els.familyLinkStatus.textContent = inviteResult.sentByEmail
-          ? `Responsavel ainda nao cadastrado. Convite enviado por email para ${email}.`
-          : `Responsavel ainda nao cadastrado. Convite salvo. Compartilhe este link: ${inviteResult.inviteUrl}`;
-      }
+      alert("Responsavel nao encontrado. O email precisa estar cadastrado como responsavel antes do convite.");
     } else if (message.includes("family_link_self_not_allowed")) {
       alert("Informe o email de outro responsavel.");
     } else {
@@ -3840,50 +3965,20 @@ async function handleLinkFamilyResponsible() {
     return;
   }
 
-  await recordAuditLog(
-    "family_responsible_linked",
-    "profile",
-    data?.linked_responsible_id || null,
-    data?.linked_responsible_name || email,
-    `Responsavel ${data?.linked_responsible_name || email} vinculado a rede familiar.`,
-    {
-      linkedResponsibleId: data?.linked_responsible_id || "",
-      linkedResponsibleEmail: email,
-      familyId: data?.family_id || "",
-      memberCount: data?.member_count || 0,
-      studentCount: data?.student_count || 0
-    }
-  );
   if (els.familyLinkEmail) {
     els.familyLinkEmail.value = "";
   }
   if (els.familyLinkStatus) {
-    els.familyLinkStatus.textContent = `Responsavel vinculado. Criancas compartilhadas: ${data?.student_count || 0}.`;
+    if (data?.status === "already_linked") {
+      els.familyLinkStatus.textContent = `${data?.target_name || "Responsavel"} ja esta na sua rede familiar.`;
+    } else {
+      els.familyLinkStatus.textContent = `Convite enviado dentro do app para ${data?.target_name || email}. O vinculo fica pendente por 7 dias.`;
+    }
   }
+  await fetchDashboardData();
   await loadMyFamilyNetwork();
-  await fetchStudents();
   renderMyFamilyNetwork();
   render();
-}
-
-async function createFamilyResponsibleInvite(email) {
-  const token = uid();
-  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabaseClient.from("invites").insert({
-    email,
-    role: "responsavel",
-    token,
-    status: "pending",
-    expires_at: expiresAt,
-    created_by: state.session?.id || null
-  });
-  if (error) {
-    return { ok: false, message: `Responsavel nao encontrado e nao foi possivel gerar convite: ${error.message || "erro inesperado"}` };
-  }
-
-  const sentByEmail = await trySendInviteEmail(email, inviteUrl);
-  return { ok: true, inviteUrl, sentByEmail };
 }
 
 async function trySendInviteEmail(email, inviteUrl) {
@@ -4010,7 +4105,7 @@ async function getInviteMeta(token) {
         return { ok: false, message: "Convite ja utilizado." };
       }
       const rpcRole = normalizeRole(rpcData.role || "");
-      if (!["dnms_kids", "equipe", "admin", "responsavel"].includes(rpcRole)) {
+      if (!["dnms_kids", "equipe", "admin"].includes(rpcRole)) {
         return { ok: false, message: "Convite invalido para este cadastro." };
       }
       if (rpcData.expires_at && new Date(rpcData.expires_at).getTime() < Date.now()) {
@@ -4034,7 +4129,7 @@ async function getInviteMeta(token) {
     return { ok: false, message: "Convite ja utilizado." };
   }
   const inviteRole = normalizeRole(data.role || "");
-  if (!["dnms_kids", "equipe", "admin", "responsavel"].includes(inviteRole)) {
+  if (!["dnms_kids", "equipe", "admin"].includes(inviteRole)) {
     return { ok: false, message: "Convite invalido para este cadastro." };
   }
   if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
@@ -8998,8 +9093,9 @@ function loadState() {
           schedules: [],
           tips: [],
           tipReads: [],
-  dashboardInfo: "",
-  tipsStatus: { loading: false, error: "" },
+          familyLinkRequests: [],
+          dashboardInfo: "",
+          tipsStatus: { loading: false, error: "" },
           ...parsed,
           rooms,
           ui
@@ -9022,6 +9118,7 @@ function loadState() {
     schedules: [],
     tips: [],
     tipReads: [],
+    familyLinkRequests: [],
     dashboardInfo: "",
     tipsStatus: { loading: false, error: "" },
     visitors: [],

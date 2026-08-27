@@ -48,6 +48,7 @@ function createMockSupabaseScript() {
     ],
     checkins: [],
     invites: [],
+    family_link_requests: [],
     schedules: [],
     tips: [],
     tip_reads: [],
@@ -230,28 +231,20 @@ function createMockSupabaseScript() {
     };
   }
 
-  function linkFamilyResponsible(targetEmail) {
-    const actor = db.profiles.find((item) => item.id === currentUser?.id);
-    const target = db.profiles.find(
-      (item) => item.role === "responsavel" && String(item.email || "").toLowerCase() === String(targetEmail || "").toLowerCase()
-    );
-    if (!actor || actor.role !== "responsavel") {
-      return { data: null, error: { message: "family_link_only_responsavel" } };
-    }
-    if (!target) {
+  function applyFamilyLinkBetweenResponsibles(requesterId, targetId) {
+    const requester = db.profiles.find((item) => item.id === requesterId);
+    const target = db.profiles.find((item) => item.id === targetId);
+    if (!requester || !target) {
       return { data: null, error: { message: "family_link_target_not_found" } };
     }
-    if (target.id === actor.id) {
-      return { data: null, error: { message: "family_link_self_not_allowed" } };
-    }
-    const actorFamilyId = ensureFamilyId(actor.id);
+    const actorFamilyId = ensureFamilyId(requester.id);
     const targetFamilyId = ensureFamilyId(target.id);
     db.profiles.forEach((profile) => {
       if (profile.role === "responsavel" && profile.family_id === targetFamilyId) {
         profile.family_id = actorFamilyId;
       }
     });
-    actor.family_id = actorFamilyId;
+    requester.family_id = actorFamilyId;
     target.family_id = actorFamilyId;
     const members = getFamilyMembers(actorFamilyId);
     const memberIds = new Set(members.map((item) => item.id));
@@ -274,10 +267,154 @@ function createMockSupabaseScript() {
       data: {
         ok: true,
         family_id: actorFamilyId,
-        linked_responsible_id: target.id,
-        linked_responsible_name: target.name,
         member_count: members.length,
         student_count: familyStudentIds.size
+      },
+      error: null
+    };
+  }
+
+  function requestFamilyLink(targetEmail) {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    const target = db.profiles.find(
+      (item) => item.role === "responsavel" && String(item.email || "").toLowerCase() === String(targetEmail || "").toLowerCase()
+    );
+    if (!actor || actor.role !== "responsavel") {
+      return { data: null, error: { message: "family_link_only_responsavel" } };
+    }
+    if (!target) {
+      return { data: null, error: { message: "family_link_target_not_found" } };
+    }
+    if (target.id === actor.id) {
+      return { data: null, error: { message: "family_link_self_not_allowed" } };
+    }
+    const actorFamilyId = ensureFamilyId(actor.id);
+    const targetFamilyId = ensureFamilyId(target.id);
+    if (actorFamilyId === targetFamilyId) {
+      return {
+        data: {
+          ok: true,
+          status: "already_linked",
+          target_id: target.id,
+          target_name: target.name
+        },
+        error: null
+      };
+    }
+    const existing = db.family_link_requests.find(
+      (item) => item.requester_id === actor.id && item.target_id === target.id && item.status === "pending"
+    );
+    if (existing) {
+      return {
+        data: {
+          ok: true,
+          status: "pending",
+          request_id: existing.id,
+          target_id: target.id,
+          target_name: target.name,
+          expires_at: existing.expires_at
+        },
+        error: null
+      };
+    }
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const request = {
+      id: "family-link-request-" + idCounter++,
+      requester_id: actor.id,
+      target_id: target.id,
+      requester_name_snapshot: actor.name,
+      target_name_snapshot: target.name,
+      tip_id: "",
+      status: "pending",
+      expires_at: expiresAt,
+      responded_at: null,
+      created_at: new Date().toISOString()
+    };
+    const tip = {
+      id: "tips-" + idCounter++,
+      message: actor.name + " te adicionou a sua familia! Deseja aceitar?",
+      recipient_id: target.id,
+      created_by: actor.id,
+      sender_name: actor.name,
+      created_at: new Date().toISOString()
+    };
+    request.tip_id = tip.id;
+    db.family_link_requests.push(request);
+    db.tips.push(tip);
+    return {
+      data: {
+        ok: true,
+        status: "pending",
+        request_id: request.id,
+        target_id: target.id,
+        target_name: target.name,
+        tip_id: tip.id,
+        expires_at: expiresAt
+      },
+      error: null
+    };
+  }
+
+  function respondFamilyLinkRequest(requestId, accept) {
+    const request = db.family_link_requests.find((item) => item.id === requestId);
+    if (!request) {
+      return { data: null, error: { message: "family_link_request_not_found" } };
+    }
+    if (request.target_id !== currentUser?.id) {
+      return { data: null, error: { message: "family_link_request_not_allowed" } };
+    }
+    if (request.status !== "pending") {
+      return { data: null, error: { message: "family_link_request_not_pending" } };
+    }
+    const requester = db.profiles.find((item) => item.id === request.requester_id);
+    const target = db.profiles.find((item) => item.id === request.target_id);
+    request.status = accept ? "accepted" : "declined";
+    request.responded_at = new Date().toISOString();
+    if (!accept) {
+      db.tips.push({
+        id: "tips-" + idCounter++,
+        message: target.name + " recusou o vinculo familiar.",
+        recipient_id: requester.id,
+        created_by: target.id,
+        sender_name: target.name,
+        created_at: new Date().toISOString()
+      });
+      return {
+        data: { ok: true, status: "declined", requester_name: requester.name, target_name: target.name },
+        error: null
+      };
+    }
+    const linkResult = applyFamilyLinkBetweenResponsibles(requester.id, target.id);
+    if (linkResult.error) {
+      return linkResult;
+    }
+    db.tips.push(
+      {
+        id: "tips-" + idCounter++,
+        message: "Voce esta sendo vinculado a familia de " + requester.name + ".",
+        recipient_id: target.id,
+        created_by: requester.id,
+        sender_name: requester.name,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: "tips-" + idCounter++,
+        message: target.name + " aceitou entrar na sua rede familiar.",
+        recipient_id: requester.id,
+        created_by: target.id,
+        sender_name: target.name,
+        created_at: new Date().toISOString()
+      }
+    );
+    return {
+      data: {
+        ok: true,
+        status: "accepted",
+        requester_name: requester.name,
+        target_name: target.name,
+        family_id: linkResult.data.family_id,
+        member_count: linkResult.data.member_count,
+        student_count: linkResult.data.student_count
       },
       error: null
     };
@@ -570,8 +707,14 @@ function createMockSupabaseScript() {
           if (name === "get_my_family_network") {
             return getMyFamilyNetwork();
           }
+          if (name === "request_family_link") {
+            return requestFamilyLink(params?.target_email);
+          }
+          if (name === "respond_family_link_request") {
+            return respondFamilyLinkRequest(params?.request_id, params?.accept);
+          }
           if (name === "link_family_responsible") {
-            return linkFamilyResponsible(params?.target_email);
+            return requestFamilyLink(params?.target_email);
           }
           if (name === "get_invite_meta") {
             return getInviteMeta(params?.invite_token);
