@@ -16,6 +16,31 @@ test("responsavel visualiza apenas suas criancas e abre detalhes", async ({ page
   await expect(page.locator("#studentDetailsInfo")).toContainText("Responsavel Teste");
 });
 
+test("responsavel precisa validar QR fixo antes de fazer check-in", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+
+  const ana = page.locator("#studentList .list-item").filter({ hasText: "Ana Kids" });
+  await ana.getByRole("button", { name: "Check-in" }).click();
+
+  await expect(page.locator("#qrDialog")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(0);
+
+  await page.fill("#qrDialogInput", "QR-INVALIDO");
+  await page.click("#btnQrDialogCheckin");
+  await expect(page.locator("#qrDialogStatus")).toContainText("QR Code de check-in invalido");
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(0);
+
+  await page.fill("#qrDialogInput", "DNMS-CHECKIN-PRESENCIAL");
+  await page.click("#btnQrDialogCheckin");
+
+  await expect(page.locator("#qrDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins[0]?.actor_id))
+    .toBe("parent-1");
+});
+
 test("responsavel secundario visualiza crianca vinculada a ele", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "secundario@dnms.test");

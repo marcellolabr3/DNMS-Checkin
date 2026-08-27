@@ -486,6 +486,18 @@ test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ p
   await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
 });
 
+test("gestao nao exibe gerador antigo de convites por tipo de acesso", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+
+  await page.click("#btnInvitePanel");
+  await expect(page.locator("#inviteCard")).toBeVisible();
+  await expect(page.locator("#inviteCard")).not.toContainText("Convites");
+  await expect(page.locator("#inviteCard")).not.toContainText("Tipo de acesso");
+  await expect(page.locator("#manageInviteEmail")).toHaveCount(0);
+  await expect(page.locator("#btnGenerateInviteLink")).toHaveCount(0);
+});
+
 test("familias mostra crianca vinculada a responsavel secundario", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

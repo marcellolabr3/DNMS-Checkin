@@ -1109,15 +1109,6 @@ button:disabled,
   margin-top: 10px;
 }
 
-#manageInviteStatus:empty,
-#manageInviteLink:empty {
-  display: none;
-}
-
-#manageInviteLink {
-  overflow-wrap: anywhere;
-}
-
 .message-btn {
   position: relative;
 }
@@ -1403,6 +1394,17 @@ button:disabled,
 
 .dialog-body .summary {
   background: linear-gradient(180deg, #fff, var(--surface));
+}
+
+.qr-camera-preview {
+  display: none;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 320px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0f172a;
+  object-fit: cover;
 }
 
 .dialog-body .grid-2 {

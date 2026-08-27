@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260827d" />
+  <link rel="stylesheet" href="styles.css?v=20260827e" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -253,27 +253,7 @@
       <div class="card-header">
         <h2>Gestao</h2>
       </div>
-      <p class="muted">Gestao de acessos de usuarios.</p>
-      <h3 class="dashboard-title">Convites</h3>
-      <div class="grid-2">
-        <label class="field">
-          Email do convite
-          <input id="manageInviteEmail" type="email" placeholder="usuario@email.com" />
-        </label>
-        <label class="field">
-          Tipo de acesso
-          <select id="manageInviteRole">
-            <option value="equipe">Equipe</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-      </div>
-      <div class="actions">
-        <button id="btnGenerateInviteLink" class="primary" type="button">Gerar link</button>
-        <button id="btnCopyInviteLink" class="ghost" type="button" disabled>Copiar link</button>
-      </div>
-      <div id="manageInviteStatus" class="summary"></div>
-      <div id="manageInviteLink" class="summary"></div>
+      <p class="muted">Gestao de usuarios cadastrados.</p>
       <div id="manageUsersStatus" class="summary"></div>
       <label class="field">
         Buscar usuario por nome
@@ -425,8 +405,10 @@
       <label class="field"><span id="qrDialogLabel">QR Code (simulado)</span>
         <input id="qrDialogInput" placeholder="Cole o codigo do aluno" />
       </label>
+      <video id="qrCameraPreview" class="qr-camera-preview" playsinline muted></video>
       <div id="qrDialogStatus" class="summary"></div>
       <div class="dialog-actions">
+        <button id="btnStartQrCamera" type="button" class="ghost">Abrir camera</button>
         <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnQrDialogCheckin" value="default" class="primary">Confirmar check-in</button>
       </div>
@@ -619,6 +601,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260827d"></script>
+  <script src="app.js?v=20260827e"></script>
 </body>
 </html>

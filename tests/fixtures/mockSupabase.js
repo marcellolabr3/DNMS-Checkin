@@ -17,6 +17,7 @@ function createMockSupabaseScript() {
   }
   const startedAt = timeOffset(-120);
   const endedAt = timeOffset(-60);
+  const parentCheckinPresenceCode = "DNMS-CHECKIN-PRESENCIAL";
 
   const db = {
     auth_users: [
@@ -208,6 +209,43 @@ function createMockSupabaseScript() {
       }
     });
     return { data: { ok: true, family_id: familyId, inserted_links: inserted }, error: null };
+  }
+
+  function parentCheckinWithPresence(targetStudentId, presenceToken) {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    if (!actor || actor.role !== "responsavel") {
+      return { data: null, error: { message: "Somente responsavel pode usar check-in com QR." } };
+    }
+    if (String(presenceToken || "").trim() !== parentCheckinPresenceCode) {
+      return { data: null, error: { message: "QR Code de presenca invalido." } };
+    }
+    const student = db.students.find((item) => item.id === targetStudentId);
+    if (!student) {
+      return { data: null, error: { message: "Aluno nao encontrado." } };
+    }
+    if (!db.student_guardians.some((item) => item.student_id === student.id && item.guardian_id === actor.id)) {
+      return { data: null, error: { message: "Sem permissao para check-in deste aluno." } };
+    }
+    const room = db.rooms.find((item) => item.status === "Aberta" && item.class_target === student.class_name);
+    if (!room) {
+      return { data: null, error: { message: "Nao ha sala aberta para a turma deste aluno." } };
+    }
+    if (db.checkins.some((item) => item.student_id === student.id && item.checked_out_at === null)) {
+      return { data: null, error: { message: "Este aluno ja possui um check-in ativo." } };
+    }
+    const row = {
+      id: "checkins-" + idCounter++,
+      student_id: student.id,
+      room_id: room.id,
+      room_name_snapshot: room.name,
+      class_name: student.class_name,
+      actor_id: actor.id,
+      notes_snapshot: student.notes || "",
+      checked_in_at: new Date().toISOString(),
+      checked_out_at: null
+    };
+    db.checkins.push(row);
+    return { data: row, error: null };
   }
 
   function getMyFamilyNetwork() {
@@ -712,6 +750,9 @@ function createMockSupabaseScript() {
           }
           if (name === "respond_family_link_request") {
             return respondFamilyLinkRequest(params?.request_id, params?.accept);
+          }
+          if (name === "parent_checkin_with_presence") {
+            return parentCheckinWithPresence(params?.target_student_id, params?.presence_token);
           }
           if (name === "link_family_responsible") {
             return requestFamilyLink(params?.target_email);

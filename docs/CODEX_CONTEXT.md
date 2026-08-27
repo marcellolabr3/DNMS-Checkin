@@ -163,13 +163,14 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Corrigida duplicidade de etiquetas no check-in feito no PC da Brother; validar em uso real que sai apenas 1 etiqueta por crianca.
+QR fixo de presenca implementado para check-in de responsavel; Gestao nao gera mais convites antigos por tipo de acesso.
 
 Arquivos envolvidos:
 
 - `supabase/patch_delete_user_account.sql`
 - `supabase/patch_family_network.sql`
 - `supabase/patch_family_link_requests.sql`
+- `supabase/patch_parent_checkin_presence_qr.sql`
 - `supabase/setup_dnms_checkin.sql`
 - `app.js`
 - `index.html`
@@ -177,6 +178,10 @@ Arquivos envolvidos:
 - `sw.js`
 - `Servico de impressao/server.js`
 - `tests/print-service.spec.js`
+- `tests/responsavel.spec.js`
+- `tests/checkin.spec.js`
+- `tests/fixtures/mockSupabase.js`
+- `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -210,7 +215,11 @@ Atualizacao em 2026-08-27: o fluxo de `Meus dados > Rede familiar` passou a usar
 
 Atualizacao em 2026-08-27: corrigida duplicidade de etiquetas em check-in feito no PC da Brother. A causa era concorrencia entre a impressao direta `/print` chamada pelo PWA desktop e o auto-print do servico local via listener/polling do mesmo INSERT em `checkins` enquanto `printed_at` ainda estava vazio. `Servico de impressao/server.js` agora coordena os dois caminhos por `checkin_id`: se o auto-print ja reservou o check-in, `/print` retorna sucesso sem imprimir de novo; se `/print` chega primeiro, reserva o mesmo ID para o listener/polling nao duplicar.
 
+Atualizacao em 2026-08-27: implementado QR fixo de presenca para check-in de responsaveis. O responsavel nao consegue mais fazer check-in direto no card da crianca; o app abre o dialog de QR/camera e so chama a RPC `parent_checkin_with_presence(student_id, presence_token)` apos ler/digitar o codigo. A RPC valida perfil `responsavel`, vinculo familiar em `student_guardians`, QR fixo e sala aberta da turma antes de inserir em `checkins`. A policy antiga que permitia insert direto de responsavel em `checkins` foi substituida por `checkins_insert_staff_only`, preservando insert direto apenas para `admin`/`equipe`. O bloco antigo de Gestao > Convites por email/tipo de acesso foi removido da UI; suporte a links legados `?invite=` segue preservado para compatibilidade.
+
 Validacao:
+QR fixo de presenca: `supabase/patch_parent_checkin_presence_qr.sql` aplicado em producao em 2026-08-27. Verificacao direta confirmou RPC `parent_checkin_with_presence`, configuracao `app_settings.parent_checkin_presence_sha256`, policy `checkins_insert_staff_only` e ausencia da policy antiga `checkins_insert_staff_or_guardian`. `npm.cmd test` passou com 128 testes.
+
 Duplicidade de etiquetas: `npm.cmd test` passou com 124 testes. O executavel `Servico de impressao/dist/Servico-de-impressao.exe` foi recriado com `npm.cmd run build:exe`, o servico foi reiniciado e `/health` retornou `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `reprint_queue_polling: true`, `supabase_role: postgres_direct` e `database_direct: true`.
 
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
@@ -322,20 +331,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Corrigir falso positivo do status da Brother desligada no servico de impressao, sem gastar etiquetas em testes.
+Imprimir o QR fixo `DNMS-CHECKIN-PRESENCIAL` e validar um check-in real de responsavel no local; depois corrigir falso positivo do status da Brother desligada no servico de impressao, sem gastar etiquetas em testes.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Corrigida duplicidade de etiquetas no check-in feito no PC da Brother. A causa era concorrencia entre a impressao direta `/print` chamada pelo PWA desktop e o auto-print do servico local via listener/polling do mesmo check-in com `printed_at is null`. O servico agora coordena os dois caminhos por `checkin_id` para nao imprimir a mesma crianca duas vezes.
+Implementado QR fixo de presenca para check-in de responsavel. O responsavel nao faz mais check-in direto no card; precisa ler/digitar o QR fixo do local. O banco valida pela RPC `parent_checkin_with_presence`, e a policy antiga de insert direto por responsavel em `checkins` foi removida. A aba Gestao tambem deixou de exibir o gerador antigo de convites por email/tipo de acesso.
 
 Ficou funcionando:
-`npm.cmd test` passou com 124 testes. O executavel do servico foi recriado e reiniciado; `/health` confirmou Brother QL-810W, auto-print ativo, reimpressao remota por polling e `postgres_direct`.
+Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. `npm.cmd test` passou com 128 testes.
 
 Ficou pendente:
-Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias. Fazer um check-in real no PC da Brother para confirmar que sai apenas 1 etiqueta.
+Imprimir e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

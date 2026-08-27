@@ -5,7 +5,6 @@ const SCHEDULE_SHEET_CONFIG_KEY = "checkin_schedule_sheet_config_v1";
 const AUTO_SHEET_DETAILS_PREFIX = "[AUTO_GSHEET]";
 const XLSX_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
 const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
-
 const RECURRENCE_WEEKS_PER_MONTH = 4;
 const DASHBOARD_UPCOMING_SCHEDULE_LIMIT = 3;
 const PRINT_SERVICE_URL = "http://localhost:3001";
@@ -47,6 +46,7 @@ const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "" };
+const parentCheckinContext = { presenceToken: "", targetStudentId: "", qrStream: null, qrScanTimer: null };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyNetworkContext = { members: [], familyId: "" };
 const familyContext = { selectedProfileId: "" };
@@ -122,6 +122,8 @@ const els = {
   qrDialogInput: document.getElementById("qrDialogInput"),
   qrDialogStatus: document.getElementById("qrDialogStatus"),
   qrDialogLabel: document.getElementById("qrDialogLabel"),
+  qrCameraPreview: document.getElementById("qrCameraPreview"),
+  btnStartQrCamera: document.getElementById("btnStartQrCamera"),
   btnQrDialogCheckin: document.getElementById("btnQrDialogCheckin"),
   parentCheckinDialog: document.getElementById("parentCheckinDialog"),
   parentCheckinList: document.getElementById("parentCheckinList"),
@@ -158,12 +160,6 @@ const els = {
   logStudentsList: document.getElementById("logStudentsList"),
   btnApplyLogStudents: document.getElementById("btnApplyLogStudents"),
   inviteCard: document.getElementById("inviteCard"),
-  manageInviteEmail: document.getElementById("manageInviteEmail"),
-  manageInviteRole: document.getElementById("manageInviteRole"),
-  btnGenerateInviteLink: document.getElementById("btnGenerateInviteLink"),
-  btnCopyInviteLink: document.getElementById("btnCopyInviteLink"),
-  manageInviteStatus: document.getElementById("manageInviteStatus"),
-  manageInviteLink: document.getElementById("manageInviteLink"),
   familiesCard: document.getElementById("familiesCard"),
   manageUserSearch: document.getElementById("manageUserSearch"),
   manageUsersStatus: document.getElementById("manageUsersStatus"),
@@ -325,9 +321,11 @@ function bindEvents() {
   els.selectAllStudents.addEventListener("change", handleSelectAllStudents);
   els.btnBulkCheckin.addEventListener("click", handleBulkCheckin);
   els.btnBulkCheckout.addEventListener("click", handleBulkCheckout);
+  els.btnStartQrCamera?.addEventListener("click", startQrCameraScan);
   els.btnQrDialogCheckin.addEventListener("click", (event) =>
     handleQrCheckin(els.qrDialogInput, els.qrDialogStatus, event)
   );
+  els.qrDialog?.addEventListener("close", stopQrCameraScan);
   els.btnExport.addEventListener("click", exportCsv);
   els.btnShareWhatsapp?.addEventListener("click", shareLogWhatsapp);
   els.logReportType?.addEventListener("change", renderLog);
@@ -360,8 +358,6 @@ function bindEvents() {
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
-  els.btnGenerateInviteLink?.addEventListener("click", handleGenerateAccessInviteLink);
-  els.btnCopyInviteLink?.addEventListener("click", copyGeneratedAccessInviteLink);
   els.btnLinkFamilyResponsible?.addEventListener("click", handleLinkFamilyResponsible);
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
@@ -1985,7 +1981,13 @@ function renderStudents() {
     const btnCheckout = item.querySelector("[data-checkout]");
 
     btnEdit?.addEventListener("click", () => openStudentDialog(student));
-    btnCheckin.addEventListener("click", () => handleManualCheckin(student.id));
+    btnCheckin.addEventListener("click", () => {
+      if (isResponsavel && !isAdmin() && !isEquipe()) {
+        openQrDialog({ studentId: student.id });
+        return;
+      }
+      handleManualCheckin(student.id);
+    });
     btnCheckout?.addEventListener("click", () => openCheckoutDialog(openCheckin));
     item.addEventListener("click", (event) => {
       const target = event.target;
@@ -3492,7 +3494,6 @@ async function handleLogout() {
     selectedRoomIds: [],
     logSelectedStudentIds: [],
     dashboardNeuroExpanded: false,
-    generatedInviteLink: ""
   };
   render();
 }
@@ -3981,17 +3982,6 @@ async function handleLinkFamilyResponsible() {
   render();
 }
 
-async function trySendInviteEmail(email, inviteUrl) {
-  try {
-    const result = await supabaseClient.functions.invoke("send-dnms-kids-invite", {
-      body: { email, inviteUrl }
-    });
-    return !result.error;
-  } catch (_) {
-    return false;
-  }
-}
-
 async function handleSaveMyData(event) {
   event.preventDefault();
   if (!state.session) {
@@ -4238,113 +4228,6 @@ function getAllowedRoleTargets() {
   return ["responsavel"];
 }
 
-function getAllowedInviteRoleTargets() {
-  if (isSadmin()) {
-    return ["equipe", "admin"];
-  }
-  if (isAdmin()) {
-    return ["equipe"];
-  }
-  return [];
-}
-
-function renderManagementInviteControls() {
-  const allowedRoles = getAllowedInviteRoleTargets();
-  const canInvite = allowedRoles.length > 0;
-  if (els.manageInviteRole) {
-    const current = normalizeRole(els.manageInviteRole.value || "");
-    els.manageInviteRole.innerHTML = allowedRoles
-      .map((role) => `<option value="${role}">${formatRole(role)}</option>`)
-      .join("");
-    if (allowedRoles.includes(current)) {
-      els.manageInviteRole.value = current;
-    }
-    els.manageInviteRole.disabled = !canInvite;
-  }
-  if (els.manageInviteEmail) {
-    els.manageInviteEmail.disabled = !canInvite;
-  }
-  if (els.btnGenerateInviteLink) {
-    els.btnGenerateInviteLink.disabled = !canInvite;
-  }
-  if (els.btnCopyInviteLink) {
-    els.btnCopyInviteLink.disabled = !state.ui.generatedInviteLink;
-  }
-  if (els.manageInviteStatus && !canInvite) {
-    els.manageInviteStatus.textContent = "Sem permissao para gerar convites.";
-  }
-  if (els.manageInviteLink) {
-    els.manageInviteLink.textContent = state.ui.generatedInviteLink || "";
-  }
-}
-
-async function handleGenerateAccessInviteLink() {
-  if (!supabaseClient) {
-    alert("Convites disponiveis apenas com Supabase.");
-    return;
-  }
-  if (!state.session || !canAccessManagementPanel()) {
-    alert("Sem permissao para gerar convites.");
-    return;
-  }
-  const email = String(els.manageInviteEmail?.value || "").trim().toLowerCase();
-  const role = normalizeRole(els.manageInviteRole?.value || "");
-  const allowedRoles = getAllowedInviteRoleTargets();
-  if (!email || !isValidEmail(email)) {
-    alert("Informe um email valido.");
-    return;
-  }
-  if (!allowedRoles.includes(role)) {
-    alert("Tipo de acesso invalido para o seu nivel.");
-    return;
-  }
-
-  const token = uid();
-  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabaseClient.from("invites").insert({
-    email,
-    role,
-    token,
-    status: "pending",
-    expires_at: expiresAt,
-    created_by: state.session?.id || null
-  });
-  if (error) {
-    alert(`Falha ao gerar convite: ${error.message || "erro inesperado"}`);
-    return;
-  }
-
-  state.ui.generatedInviteLink = inviteUrl;
-  if (els.manageInviteStatus) {
-    els.manageInviteStatus.textContent = `Convite gerado para ${email} com perfil ${formatRole(role)}.`;
-  }
-  if (els.manageInviteLink) {
-    els.manageInviteLink.textContent = inviteUrl;
-  }
-  if (els.btnCopyInviteLink) {
-    els.btnCopyInviteLink.disabled = false;
-  }
-  if (els.manageInviteEmail) {
-    els.manageInviteEmail.value = "";
-  }
-}
-
-async function copyGeneratedAccessInviteLink() {
-  const link = String(state.ui.generatedInviteLink || "").trim();
-  if (!link) {
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(link);
-    if (els.manageInviteStatus) {
-      els.manageInviteStatus.textContent = "Link copiado para a area de transferencia.";
-    }
-  } catch (_) {
-    alert("Nao foi possivel copiar automaticamente. Copie manualmente o link exibido.");
-  }
-}
-
 function renderManagementPanel() {
   if (!els.manageUsersList || !els.manageUsersStatus || !els.manageUserEditor) {
     return;
@@ -4357,16 +4240,8 @@ function renderManagementPanel() {
     if (els.scheduleSheetSyncStatus) {
       els.scheduleSheetSyncStatus.textContent = "";
     }
-    if (els.manageInviteStatus) {
-      els.manageInviteStatus.textContent = "";
-    }
-    if (els.manageInviteLink) {
-      els.manageInviteLink.textContent = "";
-    }
     return;
   }
-
-  renderManagementInviteControls();
 
   if (els.scheduleSheetUrl) {
     els.scheduleSheetUrl.value = scheduleSheetContext.config.url || "";
@@ -5098,51 +4973,6 @@ async function deleteUserProfile(profile) {
   await fetchStudents();
   await fetchCheckins();
   render();
-}
-
-async function handleSendInvite(event) {
-  event.preventDefault();
-  if (!supabaseClient) {
-    alert("Convites disponiveis apenas com Supabase.");
-    return;
-  }
-  if (!isAdmin()) {
-    alert("Somente administradores podem enviar convites.");
-    return;
-  }
-  const email = els.inviteEmail?.value.trim().toLowerCase();
-  if (!email || !isValidEmail(email)) {
-    alert("Informe um email valido.");
-    return;
-  }
-
-  const token = uid();
-  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabaseClient.from("invites").insert({
-    email,
-    role: "dnms_kids",
-    token,
-    status: "pending",
-    expires_at: expiresAt,
-    created_by: state.session?.id || null
-  });
-  if (error) {
-    alert("Falha ao salvar convite no banco.");
-    return;
-  }
-
-  const sentByEmail = await trySendInviteEmail(email, inviteUrl);
-
-  if (els.inviteStatus) {
-    const message = sentByEmail
-      ? `Convite enviado por email para ${email}.`
-      : `Convite salvo. Compartilhe este link: ${inviteUrl}`;
-    els.inviteStatus.textContent = message;
-  }
-  if (els.inviteEmail) {
-    els.inviteEmail.value = "";
-  }
 }
 
 async function createRooms() {
@@ -6431,35 +6261,92 @@ function findProfileByGuardianName(guardianName) {
   return partial || null;
 }
 
-async function openQrDialog() {
+async function startQrCameraScan() {
+  if (!els.qrCameraPreview || !els.qrDialogInput) {
+    return;
+  }
+  if (!("BarcodeDetector" in window)) {
+    if (els.qrDialogStatus) {
+      els.qrDialogStatus.textContent = "Camera sem leitor QR nativo. Digite ou cole o codigo exibido no local.";
+    }
+    return;
+  }
+  try {
+    stopQrCameraScan();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+    parentCheckinContext.qrStream = stream;
+    els.qrCameraPreview.srcObject = stream;
+    els.qrCameraPreview.style.display = "block";
+    await els.qrCameraPreview.play();
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const scan = async () => {
+      if (!parentCheckinContext.qrStream || !els.qrDialog?.open) {
+        stopQrCameraScan();
+        return;
+      }
+      try {
+        const codes = await detector.detect(els.qrCameraPreview);
+        const value = String(codes?.[0]?.rawValue || "").trim();
+        if (value) {
+          els.qrDialogInput.value = value;
+          stopQrCameraScan();
+          handleQrCheckin(els.qrDialogInput, els.qrDialogStatus);
+          return;
+        }
+      } catch (_error) {}
+      parentCheckinContext.qrScanTimer = window.setTimeout(scan, 500);
+    };
+    scan();
+  } catch (_error) {
+    if (els.qrDialogStatus) {
+      els.qrDialogStatus.textContent = "Nao foi possivel abrir a camera. Digite ou cole o codigo exibido no local.";
+    }
+    stopQrCameraScan();
+  }
+}
+
+function stopQrCameraScan() {
+  if (parentCheckinContext.qrScanTimer) {
+    window.clearTimeout(parentCheckinContext.qrScanTimer);
+    parentCheckinContext.qrScanTimer = null;
+  }
+  if (parentCheckinContext.qrStream) {
+    parentCheckinContext.qrStream.getTracks().forEach((track) => track.stop());
+    parentCheckinContext.qrStream = null;
+  }
+  if (els.qrCameraPreview) {
+    els.qrCameraPreview.pause();
+    els.qrCameraPreview.srcObject = null;
+    els.qrCameraPreview.style.display = "none";
+  }
+}
+
+async function openQrDialog(options = {}) {
   if (!state.session) {
     alert("Autenticacao obrigatoria.");
     return;
   }
   if (state.session.role === "responsavel") {
-    const owned = state.students.slice();
-    if (!owned.length) {
-      alert("Nenhum filho cadastrado para check-in.");
-      return;
-    }
-    if (owned.length === 1) {
-      const result = await handleManualCheckin(owned[0].id, { silent: true });
-      if (!result.ok) {
-        alert(result.message);
-      } else {
-        alert(`Check-in confirmado para ${owned[0].name}.`);
-      }
-      return;
-    }
-    openParentCheckinDialog(owned);
-    return;
+    parentCheckinContext.presenceToken = "";
+    parentCheckinContext.targetStudentId = options.studentId || "";
   }
   if (els.qrDialogStatus) {
     els.qrDialogStatus.textContent = "";
   }
+  if (els.qrDialogLabel) {
+    els.qrDialogLabel.textContent =
+      state.session.role === "responsavel" ? "QR Code de presenca" : "QR Code do aluno";
+  }
   if (els.qrDialogInput) {
     els.qrDialogInput.value = "";
-    els.qrDialogInput.placeholder = "Cole o codigo do aluno";
+    els.qrDialogInput.placeholder =
+      state.session.role === "responsavel" ? "Escaneie o QR do check-in" : "Cole o codigo do aluno";
+  }
+  if (els.btnStartQrCamera) {
+    els.btnStartQrCamera.style.display = state.session.role === "responsavel" ? "inline-flex" : "none";
   }
   els.qrDialog?.showModal();
 }
@@ -6475,6 +6362,66 @@ async function handleQrCheckin(inputEl, statusEl, event) {
       return;
     }
     alert("Informe o codigo do aluno.");
+    return;
+  }
+  if (state.session?.role === "responsavel") {
+    const owned = state.students.slice();
+    if (!owned.length) {
+      const message = "Nenhum filho cadastrado para check-in.";
+      if (statusEl) {
+        statusEl.textContent = message;
+      } else {
+        alert(message);
+      }
+      return;
+    }
+    parentCheckinContext.presenceToken = rawInput;
+    stopQrCameraScan();
+    if (inputEl) {
+      inputEl.value = "";
+    }
+    const targetStudent = parentCheckinContext.targetStudentId
+      ? owned.find((student) => student.id === parentCheckinContext.targetStudentId)
+      : owned.length === 1
+        ? owned[0]
+        : null;
+    if (parentCheckinContext.targetStudentId && !targetStudent) {
+      parentCheckinContext.presenceToken = "";
+      parentCheckinContext.targetStudentId = "";
+      const message = "Sem permissao para check-in deste aluno.";
+      if (statusEl) {
+        statusEl.textContent = message;
+      } else {
+        alert(message);
+      }
+      return;
+    }
+    if (targetStudent) {
+      const result = await handleManualCheckin(targetStudent.id, {
+        silent: true,
+        presenceToken: parentCheckinContext.presenceToken
+      });
+      if (!result.ok) {
+        if (statusEl) {
+          statusEl.textContent = result.message;
+        } else {
+          alert(result.message);
+        }
+        return;
+      }
+      parentCheckinContext.presenceToken = "";
+      parentCheckinContext.targetStudentId = "";
+      if (els.qrDialog?.open) {
+        els.qrDialog.close();
+      }
+      alert(`Check-in confirmado para ${targetStudent.name}.`);
+      return;
+    }
+    parentCheckinContext.targetStudentId = "";
+    if (els.qrDialog?.open) {
+      els.qrDialog.close();
+    }
+    openParentCheckinDialog(owned);
     return;
   }
   const result = await handleManualCheckin(rawInput, { silent: Boolean(statusEl) });
@@ -6517,7 +6464,10 @@ async function handleParentCheckinSelected(event) {
   let success = 0;
   let failed = 0;
   for (const id of ids) {
-    const result = await handleManualCheckin(id, { silent: true });
+    const result = await handleManualCheckin(id, {
+      silent: true,
+      presenceToken: parentCheckinContext.presenceToken
+    });
     if (result.ok) {
       success += 1;
     } else {
@@ -6525,6 +6475,8 @@ async function handleParentCheckinSelected(event) {
     }
   }
   alert(`Check-in concluido. Sucesso: ${success}. Falhas: ${failed}.`);
+  parentCheckinContext.presenceToken = "";
+  parentCheckinContext.targetStudentId = "";
   els.parentCheckinDialog?.close();
   render();
 }
@@ -6578,29 +6530,52 @@ async function handleManualCheckin(studentId, options = {}) {
     checkedOutAt: ""
   };
   if (supabaseClient) {
-    const { data, error } = await supabaseClient
-      .from("checkins")
-      .insert({
-        student_id: student.id,
-        room_id: room.id,
-        room_name_snapshot: room.name,
-        class_name: className,
-        actor_id: state.session?.id || null,
-        notes_snapshot: student.notes || ""
-      })
-      .select()
-      .single();
+    let data;
+    let error;
+    if (state.session.role === "responsavel") {
+      const presenceToken = String(options.presenceToken || "").trim();
+      if (!presenceToken) {
+        return fail("Escaneie o QR Code de check-in no local antes de confirmar.");
+      }
+      const rpcResult = await supabaseClient.rpc("parent_checkin_with_presence", {
+        target_student_id: student.id,
+        presence_token: presenceToken
+      });
+      error = rpcResult.error;
+      data = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+    } else {
+      const insertResult = await supabaseClient
+        .from("checkins")
+        .insert({
+          student_id: student.id,
+          room_id: room.id,
+          room_name_snapshot: room.name,
+          class_name: className,
+          actor_id: state.session?.id || null,
+          notes_snapshot: student.notes || ""
+        })
+        .select()
+        .single();
+      data = insertResult.data;
+      error = insertResult.error;
+    }
     if (error) {
       const message = String(error.message || "").toLowerCase();
       if (error.code === "23505" || message.includes("checkins_one_active_per_student")) {
         return fail("Este aluno ja possui um check-in ativo. Faça checkout antes de registrar outro check-in.");
       }
+      if (message.includes("qr") || message.includes("presenca") || message.includes("presence")) {
+        return fail("QR Code de check-in invalido.");
+      }
       return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
+    }
+    if (!data?.id) {
+      return fail("Falha ao registrar check-in: retorno invalido.");
     }
     record = {
       id: data.id,
       roomId: data.room_id,
-      roomName: room.name,
+      roomName: data.room_name_snapshot || room.name,
       studentId: data.student_id,
       className: data.class_name,
       notes: data.notes_snapshot || "",
@@ -9081,7 +9056,6 @@ function loadState() {
           selectedRoomIds: [],
           logSelectedStudentIds: [],
           dashboardNeuroExpanded: false,
-          generatedInviteLink: "",
           ...(parsed.ui || {})
         };
         return {
@@ -9131,8 +9105,7 @@ function loadState() {
       selectedManageUserId: "",
       selectedRoomIds: [],
       logSelectedStudentIds: [],
-      dashboardNeuroExpanded: false,
-      generatedInviteLink: ""
+      dashboardNeuroExpanded: false
     }
   };
 }
