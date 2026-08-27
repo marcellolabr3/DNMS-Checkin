@@ -174,7 +174,7 @@ test("dados com HTML sao exibidos como texto nas listas, detalhes e etiqueta", a
   expect(await page.evaluate(() => Boolean(window.__xssFromName || window.__xssFromNotes))).toBe(false);
 });
 
-test("nao cadastra a mesma crianca duas vezes para o mesmo responsavel", async ({ page }) => {
+test("nao cadastra a mesma crianca duas vezes para a mesma familia", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -197,7 +197,7 @@ test("nao cadastra a mesma crianca duas vezes para o mesmo responsavel", async (
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.students.length))
     .toBe(beforeCount);
-  await expect.poll(() => getAlerts(page)).toContain("Esta crianca ja esta cadastrada para este responsavel.");
+  await expect.poll(() => getAlerts(page)).toContain("Esta crianca ja esta cadastrada nesta familia.");
 });
 
 test("foto da crianca pode ser trocada mais de uma vez", async ({ page }) => {

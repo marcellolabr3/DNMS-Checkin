@@ -31,8 +31,8 @@ function createMockSupabaseScript() {
       { id: "sadmin-1", name: "Sadmin DNMS", role: "admin", email: "marvinlabre@gmail.com", phone: "11911110000", address: "Rua Sadmin", photo_url: "" },
       { id: "admin-1", name: "Admin DNMS", role: "admin", email: "admin@dnms.test", phone: "11999990000", address: "Rua Admin", photo_url: "" },
       { id: "team-1", name: "Equipe DNMS", role: "equipe", email: "equipe@dnms.test", phone: "11966660000", address: "Rua Equipe", photo_url: "" },
-      { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "" },
-      { id: "parent-2", name: "Responsavel Secundario", role: "responsavel", email: "secundario@dnms.test", phone: "11955550000", address: "Rua Secundaria", photo_url: "" }
+      { id: "parent-1", name: "Responsavel Teste", role: "responsavel", email: "responsavel@dnms.test", phone: "11988880000", address: "Rua Familia", photo_url: "", family_id: "parent-1" },
+      { id: "parent-2", name: "Responsavel Secundario", role: "responsavel", email: "secundario@dnms.test", phone: "11955550000", address: "Rua Secundaria", photo_url: "", family_id: "parent-2" }
     ],
     rooms: [
       { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null },
@@ -166,6 +166,120 @@ function createMockSupabaseScript() {
       return ["equipe", "responsavel", "dnms_kids"].includes(target.role);
     }
     return false;
+  }
+
+  function ensureFamilyId(profileId) {
+    const profile = db.profiles.find((item) => item.id === profileId);
+    if (!profile) {
+      return "";
+    }
+    if (!profile.family_id) {
+      profile.family_id = profile.id;
+    }
+    return profile.family_id;
+  }
+
+  function getFamilyMembers(familyId) {
+    return db.profiles.filter((profile) => profile.role === "responsavel" && profile.family_id === familyId);
+  }
+
+  function addStudentGuardianLink(studentId, guardianId) {
+    if (!studentId || !guardianId) {
+      return;
+    }
+    if (!db.student_guardians.some((item) => item.student_id === studentId && item.guardian_id === guardianId)) {
+      db.student_guardians.push({ student_id: studentId, guardian_id: guardianId });
+    }
+  }
+
+  function syncStudentFamilyGuardians(targetStudentId, seedGuardianId) {
+    const familyId = ensureFamilyId(seedGuardianId || currentUser?.id);
+    if (!familyId) {
+      return { data: { ok: true, inserted_links: 0 }, error: null };
+    }
+    let inserted = 0;
+    getFamilyMembers(familyId).forEach((member) => {
+      const before = db.student_guardians.length;
+      addStudentGuardianLink(targetStudentId, member.id);
+      if (db.student_guardians.length > before) {
+        inserted += 1;
+      }
+    });
+    return { data: { ok: true, family_id: familyId, inserted_links: inserted }, error: null };
+  }
+
+  function getMyFamilyNetwork() {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    if (!actor || actor.role !== "responsavel") {
+      return { data: { ok: true, family_id: null, members: [] }, error: null };
+    }
+    const familyId = ensureFamilyId(actor.id);
+    return {
+      data: {
+        ok: true,
+        family_id: familyId,
+        members: getFamilyMembers(familyId).map((item) => ({
+          id: item.id,
+          name: item.name,
+          email: item.email,
+          phone: item.phone
+        }))
+      },
+      error: null
+    };
+  }
+
+  function linkFamilyResponsible(targetEmail) {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    const target = db.profiles.find(
+      (item) => item.role === "responsavel" && String(item.email || "").toLowerCase() === String(targetEmail || "").toLowerCase()
+    );
+    if (!actor || actor.role !== "responsavel") {
+      return { data: null, error: { message: "family_link_only_responsavel" } };
+    }
+    if (!target) {
+      return { data: null, error: { message: "family_link_target_not_found" } };
+    }
+    if (target.id === actor.id) {
+      return { data: null, error: { message: "family_link_self_not_allowed" } };
+    }
+    const actorFamilyId = ensureFamilyId(actor.id);
+    const targetFamilyId = ensureFamilyId(target.id);
+    db.profiles.forEach((profile) => {
+      if (profile.role === "responsavel" && profile.family_id === targetFamilyId) {
+        profile.family_id = actorFamilyId;
+      }
+    });
+    actor.family_id = actorFamilyId;
+    target.family_id = actorFamilyId;
+    const members = getFamilyMembers(actorFamilyId);
+    const memberIds = new Set(members.map((item) => item.id));
+    const memberNames = new Set(members.map((item) => String(item.name || "").trim().toLowerCase()));
+    const familyStudentIds = new Set();
+    db.student_guardians.forEach((link) => {
+      if (memberIds.has(link.guardian_id)) {
+        familyStudentIds.add(link.student_id);
+      }
+    });
+    db.students.forEach((student) => {
+      if (memberNames.has(String(student.primary_guardian_name || "").trim().toLowerCase())) {
+        familyStudentIds.add(student.id);
+      }
+    });
+    familyStudentIds.forEach((studentId) => {
+      members.forEach((member) => addStudentGuardianLink(studentId, member.id));
+    });
+    return {
+      data: {
+        ok: true,
+        family_id: actorFamilyId,
+        linked_responsible_id: target.id,
+        linked_responsible_name: target.name,
+        member_count: members.length,
+        student_count: familyStudentIds.size
+      },
+      error: null
+    };
   }
 
   function deleteUserAccount(targetProfileId) {
@@ -417,6 +531,15 @@ function createMockSupabaseScript() {
         async rpc(name, params) {
           if (name === "delete_user_account") {
             return deleteUserAccount(params?.target_profile_id);
+          }
+          if (name === "get_my_family_network") {
+            return getMyFamilyNetwork();
+          }
+          if (name === "link_family_responsible") {
+            return linkFamilyResponsible(params?.target_email);
+          }
+          if (name === "sync_student_family_guardians") {
+            return syncStudentFamilyGuardians(params?.target_student_id, params?.seed_guardian_id);
           }
           return { data: null, error: { message: "Function not found", code: "42883" } };
         },

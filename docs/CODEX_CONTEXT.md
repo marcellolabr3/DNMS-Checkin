@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Usabilidade de reimpressao/familias ajustada e duplicidades revisadas.
+Rede familiar de responsaveis e merge de duplicidades antigas.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -151,6 +151,9 @@ Estado do banco:
 - Funcao `delete_user_account` passou a limpar dependencias relacionadas a logs, mensagens, escalas, convites e fila de impressao antes de remover o usuario.
 - Corrigido cache/versionamento do painel de reimpressao: service worker passou para `checkin-cache-v135` e `print.js?v=20260827a`, evitando navegador usar fluxo antigo que abria confirmacao antes da previa.
 - Aba Familias virou workspace com lista e painel de detalhes lado a lado no desktop; no mobile, detalhes do responsavel selecionado aparecem antes da lista para reduzir rolagem.
+- Criada rede familiar de responsaveis: responsavel pode vincular outro responsavel por email em "Meus dados"; todos da rede compartilham todas as criancas, inclusive novas criancas cadastradas por qualquer membro.
+- Aplicado `supabase/patch_family_network.sql` em producao em 2026-08-27; adiciona `profiles.family_id`, RPCs `get_my_family_network`, `link_family_responsible`, `sync_student_family_guardians` e duplicidade por familia.
+- Duplicidades antigas Paula/Diego foram consolidadas em producao: Jonathan e Sophia ficaram em registros canonicos vinculados a Paula e Diego, com check-ins preservados.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -159,12 +162,17 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Duplicidades antigas de criancas.
+Rede familiar de responsaveis concluida; acompanhar uso em producao.
 
 Arquivos envolvidos:
 
 - `supabase/patch_delete_user_account.sql`
+- `supabase/patch_family_network.sql`
 - `supabase/setup_dnms_checkin.sql`
+- `app.js`
+- `index.html`
+- `styles.css`
+- `sw.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -192,19 +200,21 @@ Atualizacao em 2026-08-27: o service worker foi atualizado para `checkin-cache-v
 
 Atualizacao em 2026-08-27: a aba Familias foi reorganizada para lista + painel de detalhes em duas colunas no desktop, com detalhes fixos ao lado. No mobile, o detalhe selecionado aparece acima da lista. A selecao de responsavel tambem ficou acessivel por teclado.
 
+Atualizacao em 2026-08-27: foi implementada rede familiar de responsaveis. `profiles.family_id` agrupa responsaveis; `link_family_responsible(email)` permite que um responsavel vincule outro responsavel ja cadastrado por email; `sync_student_family_guardians(student_id, seed_guardian_id)` garante que novas criancas sejam vinculadas a todos os responsaveis da rede. A UI fica em `Meus dados > Rede familiar`.
+
 Validacao:
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
 
-Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Revisao em 2026-08-27 confirmou: Jonathan Nery Costa tem um registro da Paula com 1 check-in e um registro do Diego com 0 check-ins; Sophia Nery De Mendonca tem um registro da Paula com 1 check-in e um registro do Diego com 1 check-in. Nao fazer merge/exclusao sem confirmacao do usuario porque ha historico de check-in a preservar.
+Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Revisao em 2026-08-27 confirmou: Jonathan Nery Costa tinha um registro da Paula com 1 check-in e um registro do Diego com 0 check-ins; Sophia Nery De Mendonca tinha um registro da Paula com 1 check-in e um registro do Diego com 1 check-in. Em 2026-08-27, os registros da Paula foram mantidos como canonicos, Diego foi vinculado como responsavel familiar, o check-in de Sophia no registro duplicado foi movido para o canonico e os duplicados foram removidos. Verificacao posterior encontrou 0 grupos duplicados.
 
 Plano sugerido:
 
-1. Duplicidades: confirmar com usuario se Paula e Diego devem ficar vinculados aos mesmos registros canonicos de Jonathan e Sophia.
-2. Se confirmado, fazer merge preservando historico: escolher registro canonico por crianca, mover check-ins/jobs/logs do duplicado, garantir os dois responsaveis em `student_guardians` e remover duplicado vazio/depois de migrado.
+1. Monitorar fluxo de rede familiar em producao.
+2. Corrigir status da impressora para diferenciar impressora instalada de impressora realmente online/pronta.
 3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Confirmar e executar plano de merge das duplicidades antigas sem perder check-ins.
+Corrigir falso positivo do status da impressora desligada.
 
 ---
 
@@ -249,7 +259,7 @@ Impacto:
 Trigger novo bloqueia novos duplicados para o mesmo responsavel, mas nao faz merge automatico de registros legados. Em 2026-08-25, leitura agregada encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`.
 
 Status:
-ABERTO. Relatorio seguro foi gerado em 2026-08-27. A correcao provavel e consolidar Jonathan e Sophia em um registro canonico por crianca, com Paula e Diego vinculados como responsaveis, movendo check-ins antes de remover registros duplicados. Aguardar confirmacao do usuario.
+RESOLVIDO. Em 2026-08-27, Jonathan e Sophia foram consolidados em registros canonicos, Paula e Diego ficaram vinculados por rede familiar, check-ins foram preservados e a verificacao agregada encontrou 0 grupos duplicados.
 
 ### 3. Impressao local indisponivel
 
@@ -258,6 +268,14 @@ Check-ins/reimpressoes nao imprimem enquanto a Brother nao estiver visivel no Wi
 
 Status:
 RESOLVIDO OPERACIONALMENTE. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Executavel local foi recriado. Em 2026-08-27, `/health` retornou `ok: true` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`. `reprint_queue_listener` pode seguir `false` nesse modo porque a fila e processada por polling direto no banco.
+
+### 4. Status da impressora pode falso-positivar
+
+Impacto:
+O painel/status do servico pode indicar impressora pronta mesmo quando a Brother esta desligada, porque a impressora continua registrada no Windows. Isso pode mascarar falha fisica ate alguem tentar imprimir.
+
+Status:
+ABERTO. Corrigir health/status para diferenciar impressora instalada/listada de impressora realmente pronta/online, sem enviar etiquetas de teste desnecessarias.
 
 ---
 
@@ -271,12 +289,14 @@ Prioridade media:
 
 - [x] Validar servico local em `http://localhost:3001/health` com Brother QL-810W, auto-print ativo e fila remota por polling (`postgres_direct`).
 - [ ] Se o problema voltar, testar ponta a ponta com etiqueta real: check-in no PC, reimpressao local, reimpressao via celular/fila e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
+- [ ] Corrigir status do servico de impressao para nao marcar Brother como pronta quando ela estiver desligada/offline.
 - [x] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
 - [x] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual.
 - [x] Configurar credencial local suficiente para usar reimpressao remota por `print_jobs` (`DATABASE_URL` com `supabase_role: postgres_direct`).
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [x] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
-- [ ] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
+- [x] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
+- [x] Aplicar rede familiar de responsaveis e consolidar duplicidades antigas Paula/Diego.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
@@ -289,20 +309,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Confirmar com o usuario se Paula Cristina Nery Da Silva Costa e Diego De Souza Costa devem ficar como responsaveis vinculados aos mesmos registros canonicos de Jonathan Nery Costa e Sophia Nery De Mendonca. Se sim, executar merge preservando check-ins.
+Corrigir falso positivo do status da Brother desligada no servico de impressao, sem gastar etiquetas em testes.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Reimpressao e Familias ajustados. Service worker/cache atualizado para entregar `print.js?v=20260827a`; painel de reimpressao deixa claro que card carrega previa e so depois o botao confirma reimpressao. Aba Familias virou workspace com lista e detalhe lado a lado no desktop e detalhe acima da lista no mobile. Relatorio de duplicidades foi gerado em modo somente leitura.
+Rede familiar implementada e aplicada em producao. Responsaveis podem vincular outro responsavel por email em "Meus dados"; a rede compartilha todas as criancas e novas criancas sao herdadas por todos os membros. `patch_family_network.sql` foi aplicado. Duplicidades antigas de Jonathan/Sophia foram consolidadas mantendo os registros canonicos da Paula, vinculando Diego e preservando check-ins.
 
 Ficou funcionando:
-Reimpressao nao deve mais abrir confirmacao antes da previa depois que o novo service worker ativar. Familias nao exige mais rolar a lista inteira para ver os dados do selecionado. `npm.cmd test` passou com 120 testes.
+Rede familiar testada no mock Playwright; verificacao em producao encontrou 0 grupos duplicados e Paula/Diego no mesmo `family_id`. `npm.cmd test` passou com 122 testes.
 
 Ficou pendente:
-Duplicidades: confirmar merge de Jonathan Nery Costa e Sophia Nery De Mendonca, preservando check-ins e vinculando Paula/Diego aos registros canonicos.
+Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

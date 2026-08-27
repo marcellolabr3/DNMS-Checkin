@@ -133,6 +133,55 @@ test("responsavel cadastra outra crianca diferente", async ({ page }) => {
     .toBe(true);
 });
 
+test("responsavel vincula outro responsavel e compartilha todas as criancas da rede", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-secondary-own",
+      name: "Caio Secundario",
+      birth_date: "2020-03-15",
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Secundario",
+      phone: "11955550000",
+      address: "Rua Secundaria",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.student_guardians.push({ student_id: "student-secondary-own", guardian_id: "parent-2" });
+  });
+
+  await loginAs(page, "responsavel@dnms.test");
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+  await expect(page.locator("#studentList")).not.toContainText("Caio Secundario");
+
+  await page.click("#sessionRole");
+  await expect(page.locator("#myDataDialog")).toBeVisible();
+  await page.fill("#familyLinkEmail", "secundario@dnms.test");
+  await page.click("#btnLinkFamilyResponsible");
+  await expect(page.locator("#familyLinkStatus")).toContainText("Responsavel vinculado");
+  await page.locator("#myDataDialog").press("Escape");
+
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+  await expect(page.locator("#studentList")).toContainText("Caio Secundario");
+
+  const network = await page.evaluate(() => ({
+    parentFamily: window.__mockDnmsDb.profiles.find((item) => item.id === "parent-1")?.family_id,
+    secondaryFamily: window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2")?.family_id,
+    caioLinks: window.__mockDnmsDb.student_guardians
+      .filter((item) => item.student_id === "student-secondary-own")
+      .map((item) => item.guardian_id)
+      .sort(),
+    anaLinks: window.__mockDnmsDb.student_guardians
+      .filter((item) => item.student_id === "student-kids")
+      .map((item) => item.guardian_id)
+      .sort()
+  }));
+  expect(network.parentFamily).toBe(network.secondaryFamily);
+  expect(network.caioLinks).toEqual(["parent-1", "parent-2"]);
+  expect(network.anaLinks).toEqual(["parent-1", "parent-2"]);
+});
+
 test("responsavel cadastra crianca vinculada mesmo quando upload de foto falha", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "responsavel@dnms.test");

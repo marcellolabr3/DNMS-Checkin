@@ -47,6 +47,7 @@ const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "" };
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
+const familyNetworkContext = { members: [], familyId: "" };
 const familyContext = { selectedProfileId: "" };
 const panelRefreshContext = { inProgress: false, pendingPanel: "" };
 const bootContext = { loadingSession: Boolean(supabaseClient) };
@@ -246,6 +247,11 @@ const els = {
   myDataAddress: document.getElementById("myDataAddress"),
   myDataPhoto: document.getElementById("myDataPhoto"),
   myDataPhotoPreview: document.getElementById("myDataPhotoPreview"),
+  familyNetworkPanel: document.getElementById("familyNetworkPanel"),
+  familyNetworkList: document.getElementById("familyNetworkList"),
+  familyLinkEmail: document.getElementById("familyLinkEmail"),
+  btnLinkFamilyResponsible: document.getElementById("btnLinkFamilyResponsible"),
+  familyLinkStatus: document.getElementById("familyLinkStatus"),
   btnSaveMyData: document.getElementById("btnSaveMyData")
 };
 
@@ -355,6 +361,7 @@ function bindEvents() {
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.btnGenerateInviteLink?.addEventListener("click", handleGenerateAccessInviteLink);
   els.btnCopyInviteLink?.addEventListener("click", copyGeneratedAccessInviteLink);
+  els.btnLinkFamilyResponsible?.addEventListener("click", handleLinkFamilyResponsible);
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
@@ -522,13 +529,14 @@ function applyRoleTheme() {
 async function fetchProfile(userId) {
   let primaryResult = await supabaseClient
     .from("profiles")
-    .select("id,name,role,email,phone,address,photo_url")
+    .select("id,name,role,email,phone,address,photo_url,family_id")
     .eq("id", userId)
     .single();
   if (primaryResult.error) {
     const message = String(primaryResult.error.message || "").toLowerCase();
     const missingAddressColumn = message.includes("column") && message.includes("address");
-    if (missingAddressColumn) {
+    const missingFamilyColumn = message.includes("column") && message.includes("family_id");
+    if (missingAddressColumn || missingFamilyColumn) {
       primaryResult = await supabaseClient
         .from("profiles")
         .select("id,name,role,email,phone,photo_url")
@@ -1153,7 +1161,8 @@ async function hydrateFromSupabase() {
       email: profile.email || "",
       phone: formatPhoneForDisplay(profile.phone || ""),
       address: profile.address || "",
-      photoUrl: profile.photo_url || ""
+      photoUrl: profile.photo_url || "",
+      familyId: profile.family_id || ""
     };
     bootContext.loadingSession = false;
     ensureDefaultActivePanel();
@@ -1654,10 +1663,13 @@ async function handleBulkDeleteRooms() {
 async function fetchProfiles() {
   if (!supabaseClient || !state.session || !(canAccessManagementPanel() || isEquipe())) {
     state.profiles = [];
+    familyNetworkContext.members = [];
+    familyNetworkContext.familyId = "";
     return;
   }
   const attempts = [
-    "id,name,nome,role,email,phone,address",
+    "id,name,nome,role,email,phone,address,family_id",
+    "id,name,role,email,phone,address,family_id",
     "id,name,role,email,phone,address",
     "id,nome,role,email,phone,address",
     "id,name,nome,role,email",
@@ -1685,7 +1697,8 @@ async function fetchProfiles() {
     role: normalizeRole(profile.role),
     email: profile.email || "",
     phone: formatPhoneForDisplay(profile.phone || ""),
-    address: profile.address || ""
+    address: profile.address || "",
+    familyId: profile.family_id || ""
   }));
 }
 
@@ -3341,6 +3354,8 @@ async function handleLogout() {
   state.tips = [];
   state.tipReads = [];
   state.dashboardInfo = "";
+  familyNetworkContext.members = [];
+  familyNetworkContext.familyId = "";
   state.activeRoomId = "";
   state.selectedRoomId = "";
   state.ui = {
@@ -3703,6 +3718,14 @@ async function openMyDataDialog() {
     els.myDataPhoto.value = "";
   }
   setPhotoPreviewUrl(els.myDataPhotoPreview, profile.photo_url || getStudentPhotoPlaceholderUrl());
+  if (els.familyLinkStatus) {
+    els.familyLinkStatus.textContent = "";
+  }
+  if (els.familyLinkEmail) {
+    els.familyLinkEmail.value = "";
+  }
+  await loadMyFamilyNetwork();
+  renderMyFamilyNetwork();
   els.myDataDialog?.showModal();
 }
 
@@ -3723,6 +3746,102 @@ function resetMyDataDialogDraft() {
     els.myDataPhoto.value = "";
   }
   setPhotoPreviewUrl(els.myDataPhotoPreview, myDataContext.photoUrl || getStudentPhotoPlaceholderUrl());
+  renderMyFamilyNetwork();
+}
+
+async function loadMyFamilyNetwork() {
+  familyNetworkContext.members = [];
+  familyNetworkContext.familyId = "";
+  if (!supabaseClient || normalizeRole(state.session?.role || "") !== "responsavel") {
+    return;
+  }
+  const { data, error } = await supabaseClient.rpc("get_my_family_network");
+  if (error) {
+    console.warn("Falha ao carregar rede familiar", error);
+    return;
+  }
+  familyNetworkContext.familyId = data?.family_id || "";
+  familyNetworkContext.members = Array.isArray(data?.members) ? data.members : [];
+}
+
+function renderMyFamilyNetwork() {
+  const isResponsavel = normalizeRole(state.session?.role || "") === "responsavel";
+  if (els.familyNetworkPanel) {
+    els.familyNetworkPanel.style.display = isResponsavel ? "grid" : "none";
+  }
+  if (!isResponsavel) {
+    return;
+  }
+  if (els.familyNetworkList) {
+    const members = familyNetworkContext.members || [];
+    if (!members.length) {
+      els.familyNetworkList.textContent = "Voce ainda nao tem outro responsavel vinculado.";
+    } else {
+      els.familyNetworkList.innerHTML = members
+        .map((member) => {
+          const current = member.id === state.session?.id ? " (voce)" : "";
+          return `<div><strong>${escapeHtml(member.name || "Responsavel")}${current}</strong><br /><span>${escapeHtml(member.email || "-")}</span></div>`;
+        })
+        .join("");
+    }
+  }
+}
+
+async function handleLinkFamilyResponsible() {
+  if (!supabaseClient || normalizeRole(state.session?.role || "") !== "responsavel") {
+    alert("Somente responsaveis podem vincular rede familiar.");
+    return;
+  }
+  const email = String(els.familyLinkEmail?.value || "").trim().toLowerCase();
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido do responsavel.");
+    return;
+  }
+  if (email === String(state.session?.email || "").trim().toLowerCase()) {
+    alert("Informe o email de outro responsavel.");
+    return;
+  }
+  if (!confirm(`Vincular ${email} a sua rede familiar? Ele tera acesso as mesmas criancas da familia.`)) {
+    return;
+  }
+
+  const { data, error } = await supabaseClient.rpc("link_family_responsible", { target_email: email });
+  if (error) {
+    const message = String(error.message || "");
+    if (message.includes("family_link_target_not_found")) {
+      alert("Responsavel nao encontrado. Ele precisa ter cadastro ativo antes do vinculo.");
+    } else if (message.includes("family_link_self_not_allowed")) {
+      alert("Informe o email de outro responsavel.");
+    } else {
+      alert(`Falha ao vincular responsavel: ${error.message || "erro inesperado"}`);
+    }
+    return;
+  }
+
+  await recordAuditLog(
+    "family_responsible_linked",
+    "profile",
+    data?.linked_responsible_id || null,
+    data?.linked_responsible_name || email,
+    `Responsavel ${data?.linked_responsible_name || email} vinculado a rede familiar.`,
+    {
+      linkedResponsibleId: data?.linked_responsible_id || "",
+      linkedResponsibleEmail: email,
+      familyId: data?.family_id || "",
+      memberCount: data?.member_count || 0,
+      studentCount: data?.student_count || 0
+    }
+  );
+  if (els.familyLinkEmail) {
+    els.familyLinkEmail.value = "";
+  }
+  if (els.familyLinkStatus) {
+    els.familyLinkStatus.textContent = `Responsavel vinculado. Criancas compartilhadas: ${data?.student_count || 0}.`;
+  }
+  await loadMyFamilyNetwork();
+  await fetchStudents();
+  renderMyFamilyNetwork();
+  render();
 }
 
 async function handleSaveMyData(event) {
@@ -5509,12 +5628,20 @@ function findDuplicateStudentForPayload(payload, currentStudentId = "") {
     guardian: payload.guardian,
     guardianProfileId: payload.guardianProfileId
   });
+  const targetFamilyKey = buildStudentFamilyDuplicateKey({
+    name: payload.name,
+    birth: payload.birth,
+    guardianProfileId: payload.guardianProfileId
+  });
   if (!targetKey) {
     return null;
   }
   return (state.students || []).find((student) => {
     if (!student?.id || student.id === currentStudentId) {
       return false;
+    }
+    if (targetFamilyKey && buildStudentFamilyDuplicateKeys(student).includes(targetFamilyKey)) {
+      return true;
     }
     return buildStudentDuplicateKeys(student).includes(targetKey);
   }) || null;
@@ -5536,6 +5663,46 @@ function buildStudentDuplicateKeys(student) {
   }
   const guardianName = normalizeDuplicateText(student?.guardian || student?.primary_guardian_name || "");
   return guardianName ? [`${name}|${birth}|name:${guardianName}`] : [];
+}
+
+function buildStudentFamilyDuplicateKey(student) {
+  return buildStudentFamilyDuplicateKeys(student)[0] || "";
+}
+
+function buildStudentFamilyDuplicateKeys(student) {
+  const name = normalizeDuplicateText(student?.name || "");
+  const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
+  if (!name || !birth) {
+    return [];
+  }
+  const familyIds = getStudentGuardianFamilyIds(student);
+  return familyIds.map((familyId) => `${name}|${birth}|family:${familyId}`);
+}
+
+function getStudentGuardianFamilyIds(student) {
+  const ids = getStudentGuardianProfileIds(student);
+  const familyIds = ids
+    .map((id) => {
+      const profile = getKnownProfileById(id);
+      return String(profile?.familyId || profile?.family_id || id || "").trim();
+    })
+    .filter(Boolean);
+  const ownProfile = getKnownProfileById(student?.guardianProfileId || "");
+  if (ownProfile?.familyId || ownProfile?.family_id) {
+    familyIds.push(String(ownProfile.familyId || ownProfile.family_id));
+  }
+  return Array.from(new Set(familyIds));
+}
+
+function getKnownProfileById(profileId) {
+  const id = String(profileId || "").trim();
+  if (!id) {
+    return null;
+  }
+  if (state.session?.id === id) {
+    return state.session;
+  }
+  return (state.profiles || []).find((profile) => profile.id === id) || null;
 }
 
 function normalizeDuplicateText(value) {
@@ -5613,7 +5780,7 @@ async function saveStudent(event) {
     return;
   }
   if (findDuplicateStudentForPayload(payload, existing?.id || "")) {
-    alert("Esta crianca ja esta cadastrada para este responsavel.");
+    alert("Esta crianca ja esta cadastrada nesta familia.");
     return;
   }
   if (!confirm("Confirma salvar as alteracoes deste cadastro?")) {
@@ -5652,7 +5819,7 @@ async function saveStudent(event) {
         error = result.error;
       }
       if (error) {
-        alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada para este responsavel." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
+        alert(isDuplicateStudentError(error) ? "Esta crianca ja esta cadastrada nesta familia." : `Falha ao salvar aluno: ${error.message || "erro inesperado"}`);
         return;
       }
       if (!data?.id) {
@@ -5829,10 +5996,32 @@ async function linkGuardianToStudent(studentId, guardianName, guardianProfileId 
   }
   const { error } = await supabaseClient.from("student_guardians").upsert({ student_id: studentId, guardian_id: guardianId });
   if (!error) {
+    await syncStudentFamilyGuardians(studentId, guardianId);
     return true;
   }
   const insertResult = await supabaseClient.from("student_guardians").insert({ student_id: studentId, guardian_id: guardianId });
-  return !insertResult.error;
+  if (insertResult.error) {
+    return false;
+  }
+  await syncStudentFamilyGuardians(studentId, guardianId);
+  return true;
+}
+
+async function syncStudentFamilyGuardians(studentId, guardianId = "") {
+  if (!supabaseClient || !studentId) {
+    return;
+  }
+  const params = { target_student_id: studentId };
+  if (guardianId) {
+    params.seed_guardian_id = guardianId;
+  }
+  const { error } = await supabaseClient.rpc("sync_student_family_guardians", params);
+  if (error) {
+    const message = String(error.message || "");
+    if (!message.includes("Function not found") && error.code !== "42883") {
+      console.warn("Falha ao sincronizar rede familiar da crianca", error);
+    }
+  }
 }
 
 function renderGuardianOptions(query) {
