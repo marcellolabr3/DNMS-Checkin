@@ -4213,15 +4213,24 @@ function renderFamiliesPanel() {
   filtered.forEach((entry) => {
     const item = document.createElement("div");
     item.className = `list-item ${familyContext.selectedProfileId === entry.profile.id ? "is-selected" : ""}`;
-    item.style.cursor = "pointer";
+    item.setAttribute("role", "button");
+    item.setAttribute("tabindex", "0");
     item.innerHTML = `
       <strong>${escapeHtml(entry.profile.name || "Responsavel")}</strong>
       <span class="muted">${escapeHtml(entry.profile.email || "-")}</span>
-      <span class="muted">Filhos: ${entry.children.length}</span>
+      <span class="muted">${escapeHtml(formatPhoneForDisplay(entry.profile.phone || "") || "-")} | Filhos: ${entry.children.length}</span>
+      <span class="muted">${familyContext.selectedProfileId === entry.profile.id ? "Dados abertos" : "Ver dados"}</span>
     `;
-    item.addEventListener("click", () => {
+    const selectFamily = () => {
       familyContext.selectedProfileId = entry.profile.id;
       renderFamiliesPanel();
+    };
+    item.addEventListener("click", selectFamily);
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectFamily();
+      }
     });
     els.familyList.appendChild(item);
   });
@@ -4255,43 +4264,59 @@ function renderFamiliesPanel() {
     : `<div class="summary">Nenhuma crianca vinculada.</div>`;
 
   els.familyEditor.innerHTML = `
-    <strong>Responsavel selecionado</strong>
-    <label class="field">Nome
-      <input id="familyEditName" type="text" value="${escapeAttribute(selected.profile.name || "")}" ${canManageResponsible ? "" : "disabled"} />
-    </label>
-    <label class="field">Email
-      <input id="familyEditEmail" type="email" value="${escapeAttribute(selected.profile.email || "")}" readonly />
-    </label>
-    <label class="field">Telefone
-      <input id="familyEditPhone" type="text" value="${escapeAttribute(formatPhoneForDisplay(selected.profile.phone || ""))}" ${canManageResponsible ? "" : "disabled"} />
-    </label>
-    <label class="field">Endereco
-      <input id="familyEditAddress" type="text" value="${escapeAttribute(selected.profile.address || "")}" ${canManageResponsible ? "" : "disabled"} />
-    </label>
-    <div class="actions">
-      <button id="btnFamilySaveProfile" type="button" class="primary" ${canManageResponsible ? "" : "disabled"}>Salvar responsavel</button>
-      <button id="btnFamilyAddChild" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Adicionar crianca</button>
+    <div class="family-editor-header">
+      <div class="family-editor-title">
+        <strong>${escapeHtml(selected.profile.name || "Responsavel selecionado")}</strong>
+        <span>${escapeHtml(selected.profile.email || "-")}</span>
+        <span>${escapeHtml(formatPhoneForDisplay(selected.profile.phone || "") || "-")}</span>
+      </div>
+      <span class="pill">${selected.children.length} filho(s)</span>
     </div>
-    <label class="field">Vincular crianca existente
-      <select id="familyAssignStudentId" ${canManageResponsible ? "" : "disabled"}>
-        <option value="">Selecione uma crianca</option>
-        ${assignOptions}
-      </select>
-    </label>
-    <div class="actions">
-      <button id="btnFamilyAssignStudent" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Vincular crianca</button>
+    <div class="family-editor-section">
+      <label class="field">Nome
+        <input id="familyEditName" type="text" value="${escapeAttribute(selected.profile.name || "")}" ${canManageResponsible ? "" : "disabled"} />
+      </label>
+      <label class="field">Email
+        <input id="familyEditEmail" type="email" value="${escapeAttribute(selected.profile.email || "")}" readonly />
+      </label>
+      <label class="field">Telefone
+        <input id="familyEditPhone" type="text" value="${escapeAttribute(formatPhoneForDisplay(selected.profile.phone || ""))}" ${canManageResponsible ? "" : "disabled"} />
+      </label>
+      <label class="field">Endereco
+        <input id="familyEditAddress" type="text" value="${escapeAttribute(selected.profile.address || "")}" ${canManageResponsible ? "" : "disabled"} />
+      </label>
+      <div class="actions">
+        <button id="btnFamilySaveProfile" type="button" class="primary" ${canManageResponsible ? "" : "disabled"}>Salvar responsavel</button>
+        <button id="btnFamilyAddChild" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Adicionar crianca</button>
+      </div>
     </div>
-    <div class="list">${childrenHtml}</div>
+    <div class="family-editor-section">
+      <strong>Criancas vinculadas</strong>
+      <div class="family-children-list">${childrenHtml}</div>
+    </div>
+    <div class="family-editor-section">
+      <label class="field">Vincular crianca existente
+        <select id="familyAssignStudentId" ${canManageResponsible ? "" : "disabled"}>
+          <option value="">Selecione uma crianca</option>
+          ${assignOptions}
+        </select>
+      </label>
+      <div class="actions">
+        <button id="btnFamilyAssignStudent" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Vincular crianca</button>
+      </div>
+    </div>
     ${
       canDelete
         ? `
-      <div class="summary" style="margin-top:10px">
+      <div class="family-editor-section">
+        <div class="summary">
         <strong>Excluir usuario</strong><br />
         Digite o nome para confirmar: <strong>${escapeHtml(selected.profile.name || "-")}</strong>
         <label class="field">
           <input id="familyDeleteConfirmName" type="text" placeholder="Digite o nome exatamente" />
         </label>
         <button id="btnFamilyDeleteUser" type="button" class="danger">Excluir usuario</button>
+      </div>
       </div>
     `
         : ""

@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260824e" />
+  <link rel="stylesheet" href="styles.css?v=20260827a" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -302,8 +302,10 @@
         <input id="familySearch" type="text" placeholder="Buscar por nome, email ou telefone" />
         <button id="btnExportFamilies" class="ghost" type="button">Exportar usuarios</button>
       </div>
-      <div id="familyList" class="list"></div>
-      <div id="familyEditor" class="summary"></div>
+      <div class="family-workspace">
+        <div id="familyList" class="list family-list"></div>
+        <div id="familyEditor" class="summary family-editor"></div>
+      </div>
       <details id="familyCreatePanel" class="collapsible-panel">
         <summary>
           <span>Cadastrar Responsavel</span>
@@ -606,6 +608,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260824q"></script>
+  <script src="app.js?v=20260827a"></script>
 </body>
 </html>

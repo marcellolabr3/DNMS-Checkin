@@ -206,7 +206,7 @@ async function fetchStudentsForReprint() {
     checkedInAt: latestByStudent.get(student.id) || ""
   }));
   renderStudentsForReprint();
-  setPrintStatus(`${studentsCache.length} crianca(s) com check-in hoje. Selecione uma para reimprimir.`);
+  setPrintStatus(`${studentsCache.length} crianca(s) com check-in hoje. Clique em uma crianca para carregar a previa antes de reimprimir.`);
 }
 
 function renderStudentsForReprint() {
@@ -240,7 +240,7 @@ function renderStudentsForReprint() {
     meta.textContent = student.checkedInAt ? `Check-in: ${formatDateTime(student.checkedInAt)}` : "Check-in de hoje";
     const action = document.createElement("span");
     action.className = "print-student-action";
-    action.textContent = student.id === reprintContext.studentId ? "Selecionada" : "Selecionar";
+    action.textContent = student.id === reprintContext.studentId ? "Previa aberta" : "Ver previa";
     content.append(name, meta);
     row.append(content, action);
     row.addEventListener("click", () => {
@@ -276,12 +276,12 @@ async function selectStudentForReprint(student) {
   renderLabelPreview(latest, studentData);
   setSelectedSummary(
     reprintContext.studentName,
-    `Check-in: ${formatDateTime(latest.checked_in_at)}. Confira a previa antes de reimprimir.`
+    `Check-in: ${formatDateTime(latest.checked_in_at)}. A reimpressao so sera enviada depois da confirmacao.`
   );
   if (els.btnReprintSelected) {
     els.btnReprintSelected.disabled = false;
   }
-  setPrintStatus(`Previa carregada para ${reprintContext.studentName}.`);
+  setPrintStatus(`Previa carregada para ${reprintContext.studentName}. Confira a etiqueta e use o botao para reimprimir.`);
   renderStudentsForReprint();
 }
 

@@ -13,7 +13,7 @@ Branch atual:
 `main`
 
 Ultimo commit relevante:
-Impressao/reimpressao remota validada e painel de reimpressao ajustado.
+Usabilidade de reimpressao/familias ajustada e duplicidades revisadas.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -149,6 +149,8 @@ Estado do banco:
 - Impressao/reimpressao remota considerada resolvida operacionalmente em 2026-08-27: servico local respondeu `/health` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`.
 - Painel de reimpressao passou a exigir selecao, previa carregada e confirmacao antes de reenviar etiqueta.
 - Funcao `delete_user_account` passou a limpar dependencias relacionadas a logs, mensagens, escalas, convites e fila de impressao antes de remover o usuario.
+- Corrigido cache/versionamento do painel de reimpressao: service worker passou para `checkin-cache-v135` e `print.js?v=20260827a`, evitando navegador usar fluxo antigo que abria confirmacao antes da previa.
+- Aba Familias virou workspace com lista e painel de detalhes lado a lado no desktop; no mobile, detalhes do responsavel selecionado aparecem antes da lista para reduzir rolagem.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -186,18 +188,23 @@ Atualizacao em 2026-08-27: o painel `print.html`/`print.js` passou a selecionar 
 
 Atualizacao em 2026-08-27: `delete_user_account` foi reforcada em `supabase/patch_delete_user_account.sql` e `supabase/setup_dnms_checkin.sql` para remover dependencias do usuario em `print_jobs`, `audit_logs`, `tip_reads`, `tips`, `schedules` e `invites`, alem de preservar a regra de excluir criancas vinculadas ao responsavel alvo.
 
+Atualizacao em 2026-08-27: o service worker foi atualizado para `checkin-cache-v135` e assets `styles.css?v=20260827a`, `app.js?v=20260827a`, `print.js?v=20260827a`; isso corrige navegador preso no `print.js?v=20260826a`, que ainda podia abrir confirmacao antes da previa. O painel de reimpressao agora usa textos "Ver previa" e "Conferir e reimprimir" para deixar a ordem clara.
+
+Atualizacao em 2026-08-27: a aba Familias foi reorganizada para lista + painel de detalhes em duas colunas no desktop, com detalhes fixos ao lado. No mobile, o detalhe selecionado aparece acima da lista. A selecao de responsavel tambem ficou acessivel por teclado.
+
 Validacao:
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
 
-Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Isso sugere registros duplicados reais, nao duplicacao simples por vinculo repetido, mas nao fazer merge/exclusao sem revisar IDs, responsaveis, check-ins e confirmar com o usuario.
+Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Revisao em 2026-08-27 confirmou: Jonathan Nery Costa tem um registro da Paula com 1 check-in e um registro do Diego com 0 check-ins; Sophia Nery De Mendonca tem um registro da Paula com 1 check-in e um registro do Diego com 1 check-in. Nao fazer merge/exclusao sem confirmacao do usuario porque ha historico de check-in a preservar.
 
 Plano sugerido:
 
-1. Duplicidades: gerar relatorio seguro dos grupos duplicados, revisar responsaveis/check-ins, propor plano de merge preservando historico.
-2. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
+1. Duplicidades: confirmar com usuario se Paula e Diego devem ficar vinculados aos mesmos registros canonicos de Jonathan e Sophia.
+2. Se confirmado, fazer merge preservando historico: escolher registro canonico por crianca, mover check-ins/jobs/logs do duplicado, garantir os dois responsaveis em `student_guardians` e remover duplicado vazio/depois de migrado.
+3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Investigar duplicidades antigas com relatorio detalhado antes de qualquer merge/exclusao.
+Confirmar e executar plano de merge das duplicidades antigas sem perder check-ins.
 
 ---
 
@@ -242,7 +249,7 @@ Impacto:
 Trigger novo bloqueia novos duplicados para o mesmo responsavel, mas nao faz merge automatico de registros legados. Em 2026-08-25, leitura agregada encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`.
 
 Status:
-ABERTO. Revisao/merge deve ser manual ou por rotina planejada com backup e confirmacao do usuario.
+ABERTO. Relatorio seguro foi gerado em 2026-08-27. A correcao provavel e consolidar Jonathan e Sophia em um registro canonico por crianca, com Paula e Diego vinculados como responsaveis, movendo check-ins antes de remover registros duplicados. Aguardar confirmacao do usuario.
 
 ### 3. Impressao local indisponivel
 
@@ -268,7 +275,8 @@ Prioridade media:
 - [x] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual.
 - [x] Configurar credencial local suficiente para usar reimpressao remota por `print_jobs` (`DATABASE_URL` com `supabase_role: postgres_direct`).
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
-- [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
+- [x] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
+- [ ] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
@@ -281,20 +289,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Investigar duplicidades antigas com relatorio detalhado antes de qualquer merge/exclusao: listar IDs, responsaveis, vinculos, check-ins e confirmar com o usuario o plano de consolidacao.
+Confirmar com o usuario se Paula Cristina Nery Da Silva Costa e Diego De Souza Costa devem ficar como responsaveis vinculados aos mesmos registros canonicos de Jonathan Nery Costa e Sophia Nery De Mendonca. Se sim, executar merge preservando check-ins.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Impressao/reimpressao concluida operacionalmente. Servico iniciado pelo `DNMS Impressao.cmd`; `/health` confirmou Brother QL-810W, `postgres_direct`, `database_direct: true`, auto-print ativo e fila de reimpressao remota ativa por polling. Painel de reimpressao passou a selecionar a crianca, carregar previa e habilitar reimpressao somente apos dados carregados. `delete_user_account` foi reforcada para limpar dependencias de usuario antes da remocao.
+Reimpressao e Familias ajustados. Service worker/cache atualizado para entregar `print.js?v=20260827a`; painel de reimpressao deixa claro que card carrega previa e so depois o botao confirma reimpressao. Aba Familias virou workspace com lista e detalhe lado a lado no desktop e detalhe acima da lista no mobile. Relatorio de duplicidades foi gerado em modo somente leitura.
 
 Ficou funcionando:
-Erro de schema cache de `print_jobs` resolvido no banco/API. `/health` retorna `ok: true` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`. `npm.cmd test` passou com 120 testes.
+Reimpressao nao deve mais abrir confirmacao antes da previa depois que o novo service worker ativar. Familias nao exige mais rolar a lista inteira para ver os dados do selecionado. `npm.cmd test` passou com 120 testes.
 
 Ficou pendente:
-Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
+Duplicidades: confirmar merge de Jonathan Nery Costa e Sophia Nery De Mendonca, preservando check-ins e vinculando Paula/Diego aos registros canonicos.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
