@@ -10,6 +10,8 @@ const els = {
   printStudentList: document.getElementById("printStudentList"),
   printStudentSearch: document.getElementById("printStudentSearch"),
   btnRefreshReprintList: document.getElementById("btnRefreshReprintList"),
+  printSelectedSummary: document.getElementById("printSelectedSummary"),
+  btnReprintSelected: document.getElementById("btnReprintSelected"),
   reprintDialog: document.getElementById("reprintDialog"),
   reprintDialogText: document.getElementById("reprintDialogText"),
   btnCloseReprintDialog: document.getElementById("btnCloseReprintDialog"),
@@ -19,7 +21,7 @@ const els = {
 const queue = [];
 let isPrinting = false;
 let studentsCache = [];
-const reprintContext = { studentId: "", studentName: "" };
+const reprintContext = { studentId: "", studentName: "", checkin: null };
 
 boot();
 
@@ -45,6 +47,7 @@ function bindEvents() {
   els.btnConfirmReprintDialog?.addEventListener("click", handleConfirmReprintFromDialog);
   els.printStudentSearch?.addEventListener("input", renderStudentsForReprint);
   els.btnRefreshReprintList?.addEventListener("click", fetchStudentsForReprint);
+  els.btnReprintSelected?.addEventListener("click", openReprintDialogForSelected);
 }
 
 async function fetchPendingCheckins() {
@@ -124,19 +127,7 @@ async function processQueue() {
 
 async function printCheckin(checkin) {
   const student = await fetchStudent(checkin.student_id);
-  const name = student?.name || "Aluno";
-  const guardian = student?.primary_guardian_name || "-";
-  const className = checkin.class_name || student?.class_name || "-";
-  const notes = checkin?.notes_snapshot || student?.notes || "-";
-
-  els.printLabel.innerHTML = `
-    <div class="label-name">${escapeHtml(name)}</div>
-    <div class="label-body">
-      <div class="label-line">Turma: ${escapeHtml(className)}</div>
-      <div class="label-line">Responsavel: ${escapeHtml(guardian)}</div>
-      <div class="label-line">Observacao: ${escapeHtml(notes)}</div>
-    </div>
-  `;
+  renderLabelPreview(checkin, student);
 
   const sent = await sendToPrintService({
     checkinId: checkin.id,
@@ -239,6 +230,7 @@ function renderStudentsForReprint() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "print-student-item";
+    row.classList.toggle("is-selected", student.id === reprintContext.studentId);
     const content = document.createElement("span");
     const name = document.createElement("span");
     name.className = "print-student-name";
@@ -248,22 +240,56 @@ function renderStudentsForReprint() {
     meta.textContent = student.checkedInAt ? `Check-in: ${formatDateTime(student.checkedInAt)}` : "Check-in de hoje";
     const action = document.createElement("span");
     action.className = "print-student-action";
-    action.textContent = "Reimprimir";
+    action.textContent = student.id === reprintContext.studentId ? "Selecionada" : "Selecionar";
     content.append(name, meta);
     row.append(content, action);
     row.addEventListener("click", () => {
-      openReprintDialog(student);
+      selectStudentForReprint(student);
     });
     els.printStudentList.appendChild(row);
   });
 }
 
-function openReprintDialog(student) {
-  if (!student?.id) {
+async function selectStudentForReprint(student) {
+  if (!student?.id || isPrinting) {
     return;
   }
   reprintContext.studentId = student.id;
   reprintContext.studentName = student.name || "Aluno";
+  reprintContext.checkin = null;
+  renderStudentsForReprint();
+  setSelectedSummary("Carregando previa...", "Buscando o ultimo check-in de hoje.");
+  if (els.btnReprintSelected) {
+    els.btnReprintSelected.disabled = true;
+  }
+
+  const latest = await fetchLatestCheckinForStudent(student.id);
+  if (!latest) {
+    clearLabelPreview();
+    setSelectedSummary(reprintContext.studentName, "Nenhum check-in encontrado hoje para esta crianca.");
+    setPrintStatus(`Nenhum check-in encontrado para ${reprintContext.studentName}.`, "error");
+    return;
+  }
+
+  const studentData = await fetchStudent(student.id);
+  reprintContext.checkin = latest;
+  renderLabelPreview(latest, studentData);
+  setSelectedSummary(
+    reprintContext.studentName,
+    `Check-in: ${formatDateTime(latest.checked_in_at)}. Confira a previa antes de reimprimir.`
+  );
+  if (els.btnReprintSelected) {
+    els.btnReprintSelected.disabled = false;
+  }
+  setPrintStatus(`Previa carregada para ${reprintContext.studentName}.`);
+  renderStudentsForReprint();
+}
+
+function openReprintDialogForSelected() {
+  if (!reprintContext.studentId || !reprintContext.checkin) {
+    setPrintStatus("Selecione uma crianca antes de reimprimir.", "error");
+    return;
+  }
   if (els.reprintDialogText) {
     els.reprintDialogText.textContent = `Reimprimir etiqueta de ${reprintContext.studentName}?`;
   }
@@ -272,12 +298,7 @@ function openReprintDialog(student) {
 
 async function handleConfirmReprintFromDialog() {
   const studentId = reprintContext.studentId;
-  if (!studentId) {
-    return;
-  }
-  const latest = await fetchLatestCheckinForStudent(studentId);
-  if (!latest) {
-    setPrintStatus(`Nenhum check-in encontrado para ${reprintContext.studentName}.`, "error");
+  if (!studentId || !reprintContext.checkin) {
     return;
   }
   els.reprintDialog?.close();
@@ -288,7 +309,7 @@ async function handleConfirmReprintFromDialog() {
   isPrinting = true;
   let result = false;
   try {
-    result = await printCheckin({ ...latest, markPrinted: false });
+    result = await printCheckin({ ...reprintContext.checkin, markPrinted: false });
   } finally {
     isPrinting = false;
   }
@@ -301,6 +322,40 @@ async function handleConfirmReprintFromDialog() {
         : `Falha ao solicitar reimpressao para ${reprintContext.studentName}.`,
     result ? "ok" : "error"
   );
+}
+
+function renderLabelPreview(checkin, student) {
+  const name = student?.name || "Aluno";
+  const guardian = student?.primary_guardian_name || "-";
+  const className = checkin.class_name || student?.class_name || "-";
+  const notes = checkin?.notes_snapshot || student?.notes || "-";
+
+  els.printLabel.innerHTML = `
+    <div class="label-name">${escapeHtml(name)}</div>
+    <div class="label-body">
+      <div class="label-line">Turma: ${escapeHtml(className)}</div>
+      <div class="label-line">Responsavel: ${escapeHtml(guardian)}</div>
+      <div class="label-line">Observacao: ${escapeHtml(notes)}</div>
+    </div>
+  `;
+}
+
+function clearLabelPreview() {
+  if (els.printLabel) {
+    els.printLabel.innerHTML = "";
+  }
+}
+
+function setSelectedSummary(title, detail) {
+  if (!els.printSelectedSummary) {
+    return;
+  }
+  els.printSelectedSummary.innerHTML = "";
+  const name = document.createElement("strong");
+  name.textContent = title;
+  const description = document.createElement("span");
+  description.textContent = detail;
+  els.printSelectedSummary.append(name, description);
 }
 
 async function sendToPrintService({ checkinId, type, labelHtml }) {

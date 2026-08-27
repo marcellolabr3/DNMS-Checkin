@@ -14,7 +14,7 @@
     }
 
     .print-panel {
-      width: min(1120px, 100%);
+      width: min(1440px, 100%);
       margin: 0 auto;
       display: grid;
       gap: 18px;
@@ -64,8 +64,8 @@
 
     .print-workspace {
       display: grid;
-      grid-template-columns: minmax(360px, 1fr) minmax(340px, 430px);
-      gap: 18px;
+      grid-template-columns: minmax(360px, 430px) minmax(620px, 1fr);
+      gap: 22px;
       align-items: start;
     }
 
@@ -188,13 +188,13 @@
       background: #fff;
       box-shadow: var(--shadow);
       display: grid;
-      gap: 14px;
+      gap: 16px;
       position: sticky;
       top: 18px;
     }
 
     .print-preview-stage {
-      min-height: 230px;
+      min-height: 360px;
       border: 1px dashed #bdcac3;
       border-radius: 8px;
       background:
@@ -208,12 +208,12 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      padding: 22px;
+      padding: 34px;
     }
 
     .print-preview-stage #printLabel {
       flex: 0 0 auto;
-      transform: scale(1.28);
+      transform: scale(1.72);
       transform-origin: center;
       box-shadow: 0 16px 28px rgba(23, 31, 28, 0.18);
     }
@@ -222,6 +222,43 @@
       margin: 0;
       color: var(--muted);
       font-size: 13px;
+    }
+
+    .print-selected {
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px 15px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .print-selected strong {
+      display: block;
+      font-size: 17px;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .print-selected span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .print-preview-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .print-preview-actions button {
+      min-width: 170px;
+      border-radius: 7px;
+    }
+
+    .print-preview-actions button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
 
     @media (max-width: 860px) {
@@ -349,6 +386,13 @@
         <div class="print-preview-stage">
           <div id="printLabel" class="label"></div>
         </div>
+        <div id="printSelectedSummary" class="print-selected">
+          <strong>Nenhuma crianca selecionada</strong>
+          <span>Selecione uma crianca na lista para carregar a previa.</span>
+        </div>
+        <div class="print-preview-actions">
+          <button id="btnReprintSelected" class="primary" type="button" disabled>Reimprimir selecionada</button>
+        </div>
         <p class="print-preview-note">A previa usa o mesmo corpo de etiqueta enviado para impressao.</p>
       </aside>
     </section>
@@ -366,6 +410,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="print.js?v=20260826a"></script>
+  <script src="print.js?v=20260826b"></script>
 </body>
 </html>

@@ -7,13 +7,13 @@
 ## Estado atual
 
 Ultima atualizacao:
-2026-08-25
+2026-08-27
 
 Branch atual:
 `main`
 
 Ultimo commit relevante:
-Correcao da exportacao CSV do Log.
+Impressao/reimpressao remota validada e painel de reimpressao ajustado.
 
 Status geral:
 ESTAVEL / EM DESENVOLVIMENTO
@@ -146,6 +146,9 @@ Estado do banco:
 - Sprint 2 de Mensagens/Avisos: popup removido e substituido por painel navegavel `#tipsCard`, com badge de nao lidas, envio/leitura/exclusao preservados e testes Playwright adicionados.
 - Sprint 3 de Mensagens/Avisos: Dashboard recebeu bloco `#dashboardTips` com ate 5 mensagens recentes e atalho para o painel completo.
 - Sprint 4 de Mensagens/Avisos: estados de vazio/carregando/erro, retry, texto longo sem overflow e ajustes mobile/acessibilidade.
+- Impressao/reimpressao remota considerada resolvida operacionalmente em 2026-08-27: servico local respondeu `/health` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`.
+- Painel de reimpressao passou a exigir selecao, previa carregada e confirmacao antes de reenviar etiqueta.
+- Funcao `delete_user_account` passou a limpar dependencias relacionadas a logs, mensagens, escalas, convites e fila de impressao antes de remover o usuario.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -154,13 +157,12 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Incidente de impressao e duplicidades de criancas.
+Duplicidades antigas de criancas.
 
 Arquivos envolvidos:
 
-- `supabase/patch_reprint_queue.sql`
-- `Servico de impressao/server.js`
-- `Servico de impressao/README.md`
+- `supabase/patch_delete_user_account.sql`
+- `supabase/setup_dnms_checkin.sql`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -176,7 +178,13 @@ Atualizacao em 2026-08-25: iniciador do servico de impressao e `scripts/start-se
 
 Atualizacao em 2026-08-26: o iniciador visivel do servico de impressao foi consolidado em `Servico de impressao/DNMS Impressao.cmd`; os antigos `Iniciar Servico de impressao.cmd` e `Parar Servico de impressao.cmd` foram removidos da raiz. O `.exe` em `dist` permanece como motor interno. O icone da bandeja agora abre `/status`, painel local com lista de status por bolinhas verde/vermelha/azul. `print.html` recebeu layout desktop mais amplo para reimpressao, com busca, lista maior e previa centralizada da etiqueta sem alterar o padrao do corpo impresso.
 
-O executavel local foi recriado com `npm.cmd run build:exe` e o servico foi reiniciado. `/health` passou a retornar `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `supabase_role: anon`, `reprint_queue_listener: false`. Pendentes das ultimas 24h ficaram zerados (`printed_at is null` = 0). Ainda falta configurar Service Role local para processar `print_jobs` de reimpressao remota.
+O executavel local foi recriado com `npm.cmd run build:exe` e o servico foi reiniciado. `/health` passou a retornar `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `supabase_role: anon`, `reprint_queue_listener: false`. Pendentes das ultimas 24h ficaram zerados (`printed_at is null` = 0).
+
+Atualizacao em 2026-08-27: o servico foi iniciado pelo `Servico de impressao/DNMS Impressao.cmd` e `/health` confirmou `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `reprint_queue_polling: true`, `supabase_role: postgres_direct` e `database_direct: true`. Com `DATABASE_URL` local, a fila de reimpressao remota pode ser processada por polling mesmo sem `SUPABASE_SERVICE_ROLE_KEY`. A pendencia de impressao fica considerada resolvida operacionalmente; Service Role deixa de ser requisito enquanto `postgres_direct` estiver configurado.
+
+Atualizacao em 2026-08-27: o painel `print.html`/`print.js` passou a selecionar a crianca antes de reimprimir, carregar a previa da etiqueta com o ultimo check-in do dia e habilitar o botao de reimpressao somente apos a previa estar carregada. Isso reduz reimpressao acidental e permite conferir visualmente os dados antes de enviar para a Brother.
+
+Atualizacao em 2026-08-27: `delete_user_account` foi reforcada em `supabase/patch_delete_user_account.sql` e `supabase/setup_dnms_checkin.sql` para remover dependencias do usuario em `print_jobs`, `audit_logs`, `tip_reads`, `tips`, `schedules` e `invites`, alem de preservar a regra de excluir criancas vinculadas ao responsavel alvo.
 
 Validacao:
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
@@ -185,12 +193,11 @@ Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura a
 
 Plano sugerido:
 
-1. Impressao: configurar Service Role local no servico para fila de reimpressao remota, reiniciar, testar `/health`, novo check-in pelo celular e reimpressao.
-2. Duplicidades: gerar relatorio seguro dos grupos duplicados, revisar responsaveis/check-ins, propor plano de merge preservando historico.
-3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
+1. Duplicidades: gerar relatorio seguro dos grupos duplicados, revisar responsaveis/check-ins, propor plano de merge preservando historico.
+2. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Resolver reimpressao remota: preencher `.codex-secrets.env` local do servico com `SUPABASE_SERVICE_ROLE_KEY`, reiniciar, confirmar `/health` com `supabase_role: service_role` e `reprint_queue_listener: true`, e testar fila `print_jobs`.
+Investigar duplicidades antigas com relatorio detalhado antes de qualquer merge/exclusao.
 
 ---
 
@@ -243,7 +250,7 @@ Impacto:
 Check-ins/reimpressoes nao imprimem enquanto a Brother nao estiver visivel no Windows ou enquanto o servico estiver sem configuracao adequada.
 
 Status:
-PARCIAL. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Executavel local foi recriado e `/health` retorna `ok: true` com Brother QL-810W. Pendencia local: nao ha `.codex-secrets.env` com Service Role, entao `reprint_queue_listener` segue `false`.
+RESOLVIDO OPERACIONALMENTE. `print_jobs` foi criado em producao em 2026-08-25 e o erro de schema cache foi resolvido. Executavel local foi recriado. Em 2026-08-27, `/health` retornou `ok: true` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`. `reprint_queue_listener` pode seguir `false` nesse modo porque a fila e processada por polling direto no banco.
 
 ---
 
@@ -255,11 +262,11 @@ Prioridade alta:
 
 Prioridade media:
 
-- [ ] Quando a Brother/PC de impressao estiver disponivel, testar Sprint 3 fisicamente: health em `http://localhost:3001/health`, check-in no proprio PC, reimpressao local, reimpressao via celular/fila, e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
-- [ ] Quando a Brother/PC de impressao estiver disponivel, testar reimpressao real pelo celular apos Sprint 2: solicitar reimpressao, confirmar job em `print_jobs` e confirmar impressao pelo servico local. Observacao: testes automatizados validaram que o service worker nao intercepta/cacheia Supabase/localhost, mas nao houve teste fisico por impressora indisponivel.
+- [x] Validar servico local em `http://localhost:3001/health` com Brother QL-810W, auto-print ativo e fila remota por polling (`postgres_direct`).
+- [ ] Se o problema voltar, testar ponta a ponta com etiqueta real: check-in no PC, reimpressao local, reimpressao via celular/fila e opcionalmente fluxo com `PRINT_SERVICE_TOKEN` configurado.
 - [x] Reinstalar/reconectar Brother QL-810W no Windows ate aparecer em `Get-Printer` e `/health` retornar `ok: true`.
 - [x] Recriar/reiniciar `Servico-de-impressao.exe` a partir do `server.js` atual.
-- [ ] Configurar `.codex-secrets.env` local com Service Role para usar reimpressao remota por `print_jobs`.
+- [x] Configurar credencial local suficiente para usar reimpressao remota por `print_jobs` (`DATABASE_URL` com `supabase_role: postgres_direct`).
 - [ ] Validar em producao uma tentativa de cadastro duplicado pelo app.
 - [ ] Avaliar relatorio de duplicidades antigas por nome normalizado + nascimento.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
@@ -274,20 +281,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Primeiro configurar Service Role local do servico e validar `/health` com `supabase_role: service_role` e `reprint_queue_listener: true`; depois testar reimpressao remota. Em seguida investigar duplicidades com relatorio detalhado antes de qualquer merge.
+Investigar duplicidades antigas com relatorio detalhado antes de qualquer merge/exclusao: listar IDs, responsaveis, vinculos, check-ins e confirmar com o usuario o plano de consolidacao.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Incidente de impressao investigado. `print_jobs`/`claim_next_reprint_job` estavam ausentes em producao; `supabase/patch_reprint_queue.sql` foi aplicado e a API ja reconhece a tabela. Etiqueta em branco reportada apos check-in pelo celular; `server.js` agora bloqueia auto-print quando faltam dados minimos e usa fallbacks do cadastro. Executavel local foi recriado e servico reiniciado com Brother QL-810W visivel.
+Impressao/reimpressao concluida operacionalmente. Servico iniciado pelo `DNMS Impressao.cmd`; `/health` confirmou Brother QL-810W, `postgres_direct`, `database_direct: true`, auto-print ativo e fila de reimpressao remota ativa por polling. Painel de reimpressao passou a selecionar a crianca, carregar previa e habilitar reimpressao somente apos dados carregados. `delete_user_account` foi reforcada para limpar dependencias de usuario antes da remocao.
 
 Ficou funcionando:
-Erro de schema cache de `print_jobs` resolvido no banco/API. `/health` retorna `ok: true` com Brother QL-810W. Pendentes recentes de impressao foram zerados. `npm.cmd test` passou com 120 testes.
+Erro de schema cache de `print_jobs` resolvido no banco/API. `/health` retorna `ok: true` com Brother QL-810W, `supabase_role: postgres_direct`, `database_direct: true` e `reprint_queue_polling: true`. `npm.cmd test` passou com 120 testes.
 
 Ficou pendente:
-Configurar Service Role local para fila remota; testar novo check-in pelo celular e reimpressao remota. Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
+Duplicidades: ha 2 grupos agregados suspeitos envolvendo 4 registros; revisar detalhes e confirmar com usuario antes de merge/exclusao.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

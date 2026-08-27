@@ -7,7 +7,7 @@ as $$
 declare
   actor_id uuid := auth.uid();
   target_profile record;
-  primary_student_ids uuid[] := array[]::uuid[];
+  owned_student_ids uuid[] := array[]::uuid[];
   deleted_children text[] := array[]::text[];
   deleted_auth_count integer := 0;
 begin
@@ -33,35 +33,75 @@ begin
   end if;
 
   select
-    coalesce(array_agg(s.id), array[]::uuid[]),
-    coalesce(array_agg(s.name), array[]::text[])
-    into primary_student_ids, deleted_children
+    coalesce(array_agg(distinct s.id), array[]::uuid[]),
+    coalesce(array_agg(distinct s.name), array[]::text[])
+    into owned_student_ids, deleted_children
   from public.students s
-  where
-    lower(btrim(coalesce(s.primary_guardian_name, ''))) = lower(btrim(coalesce(target_profile.name, '')))
+  where exists (
+      select 1
+      from public.student_guardians sg
+      where sg.student_id = s.id
+        and sg.guardian_id = target_profile_id
+    )
     or (
-      nullif(btrim(coalesce(s.primary_guardian_name, '')), '') is null
-      and exists (
-        select 1
-        from public.student_guardians sg
-        where sg.student_id = s.id
-          and sg.guardian_id = target_profile_id
-      )
+      lower(coalesce(target_profile.role, '')) = 'responsavel'
+      and public.normalize_student_duplicate_text(s.primary_guardian_name) =
+        public.normalize_student_duplicate_text(target_profile.name)
     );
 
-  if coalesce(array_length(primary_student_ids, 1), 0) > 0 then
+  if coalesce(array_length(owned_student_ids, 1), 0) > 0 then
+    delete from public.print_jobs
+    where checkin_id in (
+      select c.id
+      from public.checkins c
+      where c.student_id = any(owned_student_ids)
+    );
+
     delete from public.checkins
-    where student_id = any(primary_student_ids);
+    where student_id = any(owned_student_ids)
+       or actor_id = target_profile_id;
+
+    delete from public.audit_logs
+    where actor_id = target_profile_id
+       or target_id = target_profile_id
+       or target_id = any(owned_student_ids);
 
     delete from public.student_guardians
-    where student_id = any(primary_student_ids);
+    where student_id = any(owned_student_ids)
+       or guardian_id = target_profile_id;
 
     delete from public.students
-    where id = any(primary_student_ids);
+    where id = any(owned_student_ids);
+  else
+    delete from public.checkins
+    where actor_id = target_profile_id;
+
+    delete from public.audit_logs
+    where actor_id = target_profile_id
+       or target_id = target_profile_id;
+
+    delete from public.student_guardians
+    where guardian_id = target_profile_id;
   end if;
 
-  delete from public.student_guardians
-  where guardian_id = target_profile_id;
+  delete from public.tip_reads
+  where user_id = target_profile_id;
+
+  delete from public.tips
+  where recipient_id = target_profile_id
+     or created_by = target_profile_id;
+
+  delete from public.schedules
+  where profile_id = target_profile_id
+     or created_by = target_profile_id
+     or lower(btrim(coalesce(target_user, ''))) in (
+       lower(btrim(coalesce(target_profile.name, ''))),
+       lower(btrim(coalesce(target_profile.email, '')))
+     );
+
+  delete from public.invites
+  where created_by = target_profile_id
+     or lower(btrim(coalesce(email, ''))) = lower(btrim(coalesce(target_profile.email, '')));
 
   delete from auth.users
   where id = target_profile_id;
@@ -76,7 +116,8 @@ begin
     'ok', true,
     'deleted_auth_user', deleted_auth_count > 0,
     'deleted_children', coalesce(deleted_children, array[]::text[]),
-    'deleted_primary_student_ids', coalesce(primary_student_ids, array[]::uuid[])
+    'deleted_primary_student_ids', coalesce(owned_student_ids, array[]::uuid[]),
+    'deleted_student_ids', coalesce(owned_student_ids, array[]::uuid[])
   );
 end;
 $$;
