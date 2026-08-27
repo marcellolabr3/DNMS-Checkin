@@ -163,7 +163,7 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Rede familiar de responsaveis concluida; acompanhar uso em producao.
+Corrigida duplicidade de etiquetas no check-in feito no PC da Brother; validar em uso real que sai apenas 1 etiqueta por crianca.
 
 Arquivos envolvidos:
 
@@ -175,6 +175,8 @@ Arquivos envolvidos:
 - `index.html`
 - `styles.css`
 - `sw.js`
+- `Servico de impressao/server.js`
+- `tests/print-service.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
@@ -206,7 +208,11 @@ Atualizacao em 2026-08-27: foi implementada rede familiar de responsaveis. `prof
 
 Atualizacao em 2026-08-27: o fluxo de `Meus dados > Rede familiar` passou a usar confirmacao interna. Se o email informado nao existir como `responsavel`, o app mostra erro e nao envia email. Se existir, a RPC `request_family_link` cria uma linha em `family_link_requests` e uma mensagem em `tips` para o responsavel convidado: "Fulano te adicionou a sua familia! Deseja aceitar?". A mensagem mostra botoes Sim/Nao. A RPC `respond_family_link_request` aplica o vinculo somente no aceite, envia mensagens de retorno para os dois responsaveis e expira solicitacoes apos 7 dias.
 
+Atualizacao em 2026-08-27: corrigida duplicidade de etiquetas em check-in feito no PC da Brother. A causa era concorrencia entre a impressao direta `/print` chamada pelo PWA desktop e o auto-print do servico local via listener/polling do mesmo INSERT em `checkins` enquanto `printed_at` ainda estava vazio. `Servico de impressao/server.js` agora coordena os dois caminhos por `checkin_id`: se o auto-print ja reservou o check-in, `/print` retorna sucesso sem imprimir de novo; se `/print` chega primeiro, reserva o mesmo ID para o listener/polling nao duplicar.
+
 Validacao:
+Duplicidade de etiquetas: `npm.cmd test` passou com 124 testes. O executavel `Servico de impressao/dist/Servico-de-impressao.exe` foi recriado com `npm.cmd run build:exe`, o servico foi reiniciado e `/health` retornou `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `reprint_queue_polling: true`, `supabase_role: postgres_direct` e `database_direct: true`.
+
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
 
 Convite familiar interno: `supabase/patch_family_link_requests.sql` foi aplicado em producao em 2026-08-27; verificacao confirmou tabela `family_link_requests`, RPCs `request_family_link` e `respond_family_link_request`, RPCs administrativas `get_invite_meta`/`accept_invite_token` preservadas para convites por URL, e `invites_role_check` sem `responsavel`. `npm.cmd test` passou com 124 testes.
@@ -323,13 +329,13 @@ Corrigir falso positivo do status da Brother desligada no servico de impressao, 
 ## Ultima sessao
 
 Foi feito:
-Rede familiar implementada e aplicada em producao. Responsaveis solicitam vinculo por email ja cadastrado em "Meus dados"; o outro responsavel recebe mensagem interna com Sim/Nao e o vinculo so acontece no aceite, com validade de 7 dias. `patch_family_network.sql` e `patch_family_link_requests.sql` foram aplicados. Duplicidades antigas de Jonathan/Sophia foram consolidadas mantendo os registros canonicos da Paula, vinculando Diego e preservando check-ins.
+Corrigida duplicidade de etiquetas no check-in feito no PC da Brother. A causa era concorrencia entre a impressao direta `/print` chamada pelo PWA desktop e o auto-print do servico local via listener/polling do mesmo check-in com `printed_at is null`. O servico agora coordena os dois caminhos por `checkin_id` para nao imprimir a mesma crianca duas vezes.
 
 Ficou funcionando:
-Rede familiar testada no mock Playwright; solicitacao pendente, aceite interno e erro para email sem cadastro cobertos por teste. Verificacao em producao confirmou `family_link_requests` e RPCs novas. `npm.cmd test` passou com 124 testes.
+`npm.cmd test` passou com 124 testes. O executavel do servico foi recriado e reiniciado; `/health` confirmou Brother QL-810W, auto-print ativo, reimpressao remota por polling e `postgres_direct`.
 
 Ficou pendente:
-Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias.
+Status da impressora ainda pode indicar pronta mesmo com a Brother desligada; corrigir health/status sem imprimir etiquetas desnecessarias. Fazer um check-in real no PC da Brother para confirmar que sai apenas 1 etiqueta.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

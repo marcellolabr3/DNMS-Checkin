@@ -153,6 +153,22 @@ async function handlePrintRequest(req, res, routeType) {
     return;
   }
 
+  if (tipo === "print" && autoPrintSeen.has(checkinId)) {
+    logPrint({
+      checkinId,
+      tipo,
+      date: startedAt,
+      status: "ignorado",
+      details: "Check-in ja reservado pelo auto-print; evitando etiqueta duplicada."
+    });
+    res.json({ ok: true, checkin_id: checkinId, tipo, status: "ja_reservado" });
+    return;
+  }
+
+  if (tipo === "print") {
+    autoPrintSeen.add(checkinId);
+  }
+
   try {
     const printer = await getTargetPrinterOrThrow();
     const pdfPath = await renderHtmlToPdf(conteudo);
@@ -189,6 +205,9 @@ async function handlePrintRequest(req, res, routeType) {
       status: "erro",
       error: error?.message || "Falha ao imprimir."
     });
+    if (tipo === "print") {
+      autoPrintSeen.delete(checkinId);
+    }
   }
 }
 
