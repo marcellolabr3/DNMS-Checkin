@@ -154,6 +154,7 @@ Estado do banco:
 - Criada rede familiar de responsaveis: responsavel pode vincular outro responsavel por email em "Meus dados"; todos da rede compartilham todas as criancas, inclusive novas criancas cadastradas por qualquer membro.
 - Aplicado `supabase/patch_family_network.sql` em producao em 2026-08-27; adiciona `profiles.family_id`, RPCs `get_my_family_network`, `link_family_responsible`, `sync_student_family_guardians` e duplicidade por familia.
 - Duplicidades antigas Paula/Diego foram consolidadas em producao: Jonathan e Sophia ficaram em registros canonicos vinculados a Paula e Diego, com check-ins preservados.
+- Corrigido fluxo de convite de responsavel familiar: se o email ainda nao tem cadastro, "Vincular responsavel" cria convite de `responsavel`, tenta enviar pela Edge Function existente e mostra link de fallback; ao aceitar o convite, o novo responsavel entra na mesma rede familiar. Patch aplicado em producao: `supabase/patch_family_responsible_invites.sql`.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -168,6 +169,7 @@ Arquivos envolvidos:
 
 - `supabase/patch_delete_user_account.sql`
 - `supabase/patch_family_network.sql`
+- `supabase/patch_family_responsible_invites.sql`
 - `supabase/setup_dnms_checkin.sql`
 - `app.js`
 - `index.html`
@@ -202,8 +204,12 @@ Atualizacao em 2026-08-27: a aba Familias foi reorganizada para lista + painel d
 
 Atualizacao em 2026-08-27: foi implementada rede familiar de responsaveis. `profiles.family_id` agrupa responsaveis; `link_family_responsible(email)` permite que um responsavel vincule outro responsavel ja cadastrado por email; `sync_student_family_guardians(student_id, seed_guardian_id)` garante que novas criancas sejam vinculadas a todos os responsaveis da rede. A UI fica em `Meus dados > Rede familiar`.
 
+Atualizacao em 2026-08-27: o fluxo de `Meus dados > Rede familiar` passou a criar convite quando o email informado ainda nao existe em `profiles`. O convite usa role `responsavel`, tenta enviar email pela Edge Function `send-dnms-kids-invite` e, se o envio falhar/nao existir, exibe link manual. O cadastro por convite de responsavel mantem campos obrigatorios de responsavel. A RPC `accept_invite_token` marca o convite aceito e vincula a rede familiar do convidante apos o perfil ser criado.
+
 Validacao:
 Banco: `print_jobs` existe, RLS esta ativo, 3 policies existem, indices existem e `claim_next_reprint_job(text)` existe. API Supabase ja reconhece a tabela. Apos reiniciar servico atualizado, existem 0 check-ins das ultimas 24h com `printed_at is null`. `npm.cmd test` passou com 120 testes.
+
+Convite familiar: `supabase/patch_family_responsible_invites.sql` foi aplicado em producao em 2026-08-27; verificacao confirmou RPCs `get_invite_meta` e `accept_invite_token`, policy `invites_insert_family_responsible` e constraint `invites_role_check` permitindo `responsavel`. `npm.cmd test` passou com 124 testes.
 
 Duplicidades: usuario reportou criancas duplicadas na lista de alunos. Leitura agregada em producao encontrou 2 grupos por nome normalizado + nascimento, envolvendo 4 registros, e 0 vinculos duplicados em `student_guardians`. Revisao em 2026-08-27 confirmou: Jonathan Nery Costa tinha um registro da Paula com 1 check-in e um registro do Diego com 0 check-ins; Sophia Nery De Mendonca tinha um registro da Paula com 1 check-in e um registro do Diego com 1 check-in. Em 2026-08-27, os registros da Paula foram mantidos como canonicos, Diego foi vinculado como responsavel familiar, o check-in de Sophia no registro duplicado foi movido para o canonico e os duplicados foram removidos. Verificacao posterior encontrou 0 grupos duplicados.
 
@@ -298,6 +304,7 @@ Prioridade media:
 - [x] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
 - [x] Aplicar rede familiar de responsaveis e consolidar duplicidades antigas Paula/Diego.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
+- [ ] Confirmar se a Edge Function `send-dnms-kids-invite` esta implantada/configurada para envio real de email; se falhar, o app exibe link manual como fallback.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
 

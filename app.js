@@ -1212,12 +1212,6 @@ async function ensureProfileFromAuthUser(user) {
     phone: formatPhoneForStorage(metadata.phone || ""),
     is_visitor: Boolean(metadata.is_visitor)
   };
-  if (metadata.invite_token) {
-    const inviteResult = await acceptInviteToken(metadata.invite_token, user.email || "", role);
-    if (!inviteResult.ok) {
-      return null;
-    }
-  }
   let { error } = await supabaseClient.from("profiles").upsert(payload);
   if (error) {
     ({ error } = await supabaseClient
@@ -1231,6 +1225,12 @@ async function ensureProfileFromAuthUser(user) {
   }
   if (error) {
     return null;
+  }
+  if (metadata.invite_token) {
+    const inviteResult = await acceptInviteToken(metadata.invite_token, user.email || "", role);
+    if (!inviteResult.ok) {
+      return null;
+    }
   }
   return fetchProfile(user.id);
 }
@@ -3395,7 +3395,16 @@ function openSignupDialog(role, inviteToken = "") {
   signupContext.role = role;
   signupContext.inviteToken = inviteToken || "";
   const isInvite = Boolean(signupContext.inviteToken);
-  const inviteLabel = role === "admin" ? "Admin" : role === "equipe" ? "Equipe" : "DNMS Kids";
+  const normalizedRole = normalizeRole(role);
+  const isResponsibleSignup = normalizedRole === "responsavel";
+  const inviteLabel =
+    normalizedRole === "admin"
+      ? "Admin"
+      : normalizedRole === "equipe"
+        ? "Equipe"
+        : normalizedRole === "responsavel"
+          ? "Responsavel"
+          : "DNMS Kids";
   if (els.signupDialogTitle) {
     els.signupDialogTitle.textContent = isInvite ? `Cadastro por convite (${inviteLabel})` : "Cadastro de Responsavel";
   }
@@ -3403,28 +3412,28 @@ function openSignupDialog(role, inviteToken = "") {
     els.signupInviteToken.value = signupContext.inviteToken;
   }
   if (els.signupBirthField) {
-    els.signupBirthField.style.display = isInvite ? "none" : "flex";
+    els.signupBirthField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
   }
   if (els.signupCivilField) {
-    els.signupCivilField.style.display = isInvite ? "none" : "flex";
+    els.signupCivilField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
   }
   if (els.signupPhoneField) {
-    els.signupPhoneField.style.display = isInvite ? "none" : "flex";
+    els.signupPhoneField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
   }
   if (els.signupVisitorField) {
-    els.signupVisitorField.style.display = isInvite ? "none" : "flex";
+    els.signupVisitorField.style.display = isInvite && !isResponsibleSignup ? "none" : "flex";
   }
   if (els.signupBirth) {
-    els.signupBirth.required = !isInvite;
+    els.signupBirth.required = !isInvite || isResponsibleSignup;
   }
   if (els.signupCivilStatus) {
-    els.signupCivilStatus.required = !isInvite;
+    els.signupCivilStatus.required = !isInvite || isResponsibleSignup;
   }
   if (els.signupPhone) {
-    els.signupPhone.required = !isInvite;
+    els.signupPhone.required = !isInvite || isResponsibleSignup;
   }
   if (els.signupPhoneDdd) {
-    els.signupPhoneDdd.required = !isInvite;
+    els.signupPhoneDdd.required = !isInvite || isResponsibleSignup;
   }
   if (els.signupName) {
     els.signupName.value = "";
@@ -3491,6 +3500,7 @@ async function handleSignupSubmit(event) {
   const password = els.signupPassword.value;
   const responsibleVisitor = Boolean(els.signupIsVisitor?.checked);
   const isInviteFlow = Boolean(signupContext.inviteToken);
+  const isResponsibleSignup = normalizeRole(signupContext.role) === "responsavel";
   const signupPhotoFile = els.signupPhoto?.files?.[0] || null;
   const pendingPhotoData = signupPhotoFile ? await readFileAsDataUrl(signupPhotoFile) : "";
 
@@ -3498,15 +3508,15 @@ async function handleSignupSubmit(event) {
     alert("Preencha os campos obrigatorios.");
     return;
   }
-  if (!isInviteFlow && birthDateRaw && !birthDate) {
+  if ((!isInviteFlow || isResponsibleSignup) && birthDateRaw && !birthDate) {
     alert("Data de nascimento invalida. Use dd/mm/aaaa.");
     return;
   }
-  if (!isInviteFlow && phoneNational.length < 10) {
+  if ((!isInviteFlow || isResponsibleSignup) && phoneNational.length < 10) {
     alert("Informe um celular valido do responsavel.");
     return;
   }
-  if (!isInviteFlow && (!birthDate || !civilStatus || !phone || phoneNational.length < 10)) {
+  if ((!isInviteFlow || isResponsibleSignup) && (!birthDate || !civilStatus || !phone || phoneNational.length < 10)) {
     alert("Preencha todos os campos obrigatorios.");
     return;
   }
@@ -3545,11 +3555,11 @@ async function handleSignupSubmit(event) {
         data: {
           full_name: name,
           desired_role: signupContext.role,
-          birth_date: isInviteFlow ? null : birthDate,
-          marital_status: isInviteFlow ? null : civilStatus,
-          phone: isInviteFlow ? null : phone,
+          birth_date: isInviteFlow && !isResponsibleSignup ? null : birthDate,
+          marital_status: isInviteFlow && !isResponsibleSignup ? null : civilStatus,
+          phone: isInviteFlow && !isResponsibleSignup ? null : phone,
           invite_token: isInviteFlow ? signupContext.inviteToken : null,
-          is_visitor: isInviteFlow ? false : responsibleVisitor
+          is_visitor: isInviteFlow && !isResponsibleSignup ? false : responsibleVisitor
         }
       }
     });
@@ -3809,7 +3819,19 @@ async function handleLinkFamilyResponsible() {
   if (error) {
     const message = String(error.message || "");
     if (message.includes("family_link_target_not_found")) {
-      alert("Responsavel nao encontrado. Ele precisa ter cadastro ativo antes do vinculo.");
+      const inviteResult = await createFamilyResponsibleInvite(email);
+      if (!inviteResult.ok) {
+        alert(inviteResult.message || "Responsavel nao encontrado. Ele precisa ter cadastro ativo antes do vinculo.");
+        return;
+      }
+      if (els.familyLinkEmail) {
+        els.familyLinkEmail.value = "";
+      }
+      if (els.familyLinkStatus) {
+        els.familyLinkStatus.textContent = inviteResult.sentByEmail
+          ? `Responsavel ainda nao cadastrado. Convite enviado por email para ${email}.`
+          : `Responsavel ainda nao cadastrado. Convite salvo. Compartilhe este link: ${inviteResult.inviteUrl}`;
+      }
     } else if (message.includes("family_link_self_not_allowed")) {
       alert("Informe o email de outro responsavel.");
     } else {
@@ -3842,6 +3864,37 @@ async function handleLinkFamilyResponsible() {
   await fetchStudents();
   renderMyFamilyNetwork();
   render();
+}
+
+async function createFamilyResponsibleInvite(email) {
+  const token = uid();
+  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabaseClient.from("invites").insert({
+    email,
+    role: "responsavel",
+    token,
+    status: "pending",
+    expires_at: expiresAt,
+    created_by: state.session?.id || null
+  });
+  if (error) {
+    return { ok: false, message: `Responsavel nao encontrado e nao foi possivel gerar convite: ${error.message || "erro inesperado"}` };
+  }
+
+  const sentByEmail = await trySendInviteEmail(email, inviteUrl);
+  return { ok: true, inviteUrl, sentByEmail };
+}
+
+async function trySendInviteEmail(email, inviteUrl) {
+  try {
+    const result = await supabaseClient.functions.invoke("send-dnms-kids-invite", {
+      body: { email, inviteUrl }
+    });
+    return !result.error;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function handleSaveMyData(event) {
@@ -3950,6 +4003,25 @@ async function getInviteMeta(token) {
   if (!token) {
     return { ok: false, message: "Convite invalido." };
   }
+  try {
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc("get_invite_meta", { invite_token: token });
+    if (!rpcError && rpcData) {
+      if (rpcData.status && rpcData.status !== "pending") {
+        return { ok: false, message: "Convite ja utilizado." };
+      }
+      const rpcRole = normalizeRole(rpcData.role || "");
+      if (!["dnms_kids", "equipe", "admin", "responsavel"].includes(rpcRole)) {
+        return { ok: false, message: "Convite invalido para este cadastro." };
+      }
+      if (rpcData.expires_at && new Date(rpcData.expires_at).getTime() < Date.now()) {
+        return { ok: false, message: "Convite expirado." };
+      }
+      return { ok: true, role: rpcRole, data: rpcData };
+    }
+  } catch (_) {
+    // Ambientes antigos seguem pelo caminho legado abaixo.
+  }
+
   const { data, error } = await supabaseClient
     .from("invites")
     .select("id,email,role,status,expires_at")
@@ -3962,7 +4034,7 @@ async function getInviteMeta(token) {
     return { ok: false, message: "Convite ja utilizado." };
   }
   const inviteRole = normalizeRole(data.role || "");
-  if (!["dnms_kids", "equipe", "admin"].includes(inviteRole)) {
+  if (!["dnms_kids", "equipe", "admin", "responsavel"].includes(inviteRole)) {
     return { ok: false, message: "Convite invalido para este cadastro." };
   }
   if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
@@ -3990,6 +4062,19 @@ async function verifyInviteToken(token, email, expectedRole = "") {
 }
 
 async function acceptInviteToken(token, email, expectedRole = "") {
+  try {
+    const { data, error } = await supabaseClient.rpc("accept_invite_token", {
+      invite_token: token,
+      target_email: email,
+      expected_role: expectedRole || null
+    });
+    if (!error && data?.ok !== false) {
+      return { ok: true, data };
+    }
+  } catch (_) {
+    // Ambientes antigos seguem pelo caminho legado abaixo.
+  }
+
   const meta = await getInviteMeta(token);
   if (!meta.ok) {
     return meta;
@@ -4952,15 +5037,7 @@ async function handleSendInvite(event) {
     return;
   }
 
-  let sentByEmail = false;
-  try {
-    const result = await supabaseClient.functions.invoke("send-dnms-kids-invite", {
-      body: { email, inviteUrl }
-    });
-    sentByEmail = !result.error;
-  } catch (err) {
-    sentByEmail = false;
-  }
+  const sentByEmail = await trySendInviteEmail(email, inviteUrl);
 
   if (els.inviteStatus) {
     const message = sentByEmail

@@ -47,6 +47,7 @@ function createMockSupabaseScript() {
       { student_id: "student-kids", guardian_id: "parent-2" }
     ],
     checkins: [],
+    invites: [],
     schedules: [],
     tips: [],
     tip_reads: [],
@@ -282,6 +283,39 @@ function createMockSupabaseScript() {
     };
   }
 
+  function getInviteMeta(inviteToken) {
+    const invite = db.invites.find((item) => item.token === inviteToken);
+    if (!invite) {
+      return { data: null, error: { message: "invite_not_found" } };
+    }
+    return {
+      data: {
+        id: invite.id,
+        email: invite.email,
+        role: invite.role,
+        status: invite.status,
+        expires_at: invite.expires_at
+      },
+      error: null
+    };
+  }
+
+  function acceptInviteToken(inviteToken, targetEmail, expectedRole) {
+    const invite = db.invites.find((item) => item.token === inviteToken);
+    if (!invite) {
+      return { data: null, error: { message: "invite_not_found" } };
+    }
+    if (invite.email !== String(targetEmail || "").toLowerCase()) {
+      return { data: null, error: { message: "invite_email_mismatch" } };
+    }
+    if (expectedRole && invite.role !== expectedRole) {
+      return { data: null, error: { message: "invite_role_mismatch" } };
+    }
+    invite.status = "accepted";
+    invite.accepted_at = new Date().toISOString();
+    return { data: { ok: true, role: invite.role, family_links_created: 0 }, error: null };
+  }
+
   function deleteUserAccount(targetProfileId) {
     if (!canDeleteProfile(currentUser?.id, targetProfileId)) {
       return { data: null, error: { message: "Sem permissao para excluir este usuario." } };
@@ -491,6 +525,7 @@ function createMockSupabaseScript() {
 
   window.__mockDnmsDb = db;
   window.__mockStorageUploads = [];
+  window.__mockFunctionInvocations = [];
   window.supabase = {
     createClient() {
       return {
@@ -538,10 +573,25 @@ function createMockSupabaseScript() {
           if (name === "link_family_responsible") {
             return linkFamilyResponsible(params?.target_email);
           }
+          if (name === "get_invite_meta") {
+            return getInviteMeta(params?.invite_token);
+          }
+          if (name === "accept_invite_token") {
+            return acceptInviteToken(params?.invite_token, params?.target_email, params?.expected_role);
+          }
           if (name === "sync_student_family_guardians") {
             return syncStudentFamilyGuardians(params?.target_student_id, params?.seed_guardian_id);
           }
           return { data: null, error: { message: "Function not found", code: "42883" } };
+        },
+        functions: {
+          async invoke(name, payload) {
+            window.__mockFunctionInvocations.push({ name, payload });
+            if (window.__mockFunctionError) {
+              return { data: null, error: { message: window.__mockFunctionError } };
+            }
+            return { data: { ok: true }, error: null };
+          }
         },
         storage: {
           from() {
