@@ -11,6 +11,7 @@ const PRINT_SERVICE_URL = "http://localhost:3001";
 const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token";
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const CHECKIN_EARLY_WINDOW_MINUTES = 30;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
@@ -1963,6 +1964,7 @@ function renderStudents() {
     const className = student.className || getClassForBirth(student.birth);
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
+    const checkinWindow = getCheckinWindowValidation(getAvailableCheckinRoomForClass(className) || targetRoom);
     const alreadyInTargetRoom = Boolean(
       targetRoom && state.checkins.find((checkin) => checkin.roomId === targetRoom.id && checkin.studentId === student.id)
     );
@@ -2021,6 +2023,16 @@ function renderStudents() {
 
     if (!canCheckinStudent(student)) {
       btnCheckin.disabled = true;
+    }
+    if (!checkinWindow.ok && !openCheckin && !alreadyInTargetRoom) {
+      btnCheckin.disabled = true;
+      btnCheckin.textContent =
+        checkinWindow.reason === "too_early"
+          ? "Check-in em breve"
+          : checkinWindow.reason === "ended"
+            ? "Check-in encerrado"
+            : "Check-in indisponivel";
+      btnCheckin.title = checkinWindow.message;
     }
     if (alreadyInTargetRoom) {
       btnCheckin.disabled = true;
@@ -6937,12 +6949,17 @@ async function handleManualCheckin(studentId, options = {}) {
 
   const className = student.className || getClassForBirth(student.birth);
   const hasOpenRooms = state.rooms.some((item) => item.status === "Aberta");
-  let room = getOpenRoomForClass(className);
+  const roomForClass = getOpenRoomForClass(className);
+  let room = getAvailableCheckinRoomForClass(className) || roomForClass;
   if (!hasOpenRooms) {
     return fail("Não existem salas abertas!");
   }
   if (!room || room.status !== "Aberta") {
     return fail(`Nao ha sala aberta para a turma ${className}. Abra uma sala com essa turma.`);
+  }
+  const checkinWindow = getCheckinWindowValidation(room);
+  if (!checkinWindow.ok) {
+    return fail(checkinWindow.message);
   }
 
   const activeCheckin = getOpenCheckinForStudent(studentId);
@@ -7001,6 +7018,9 @@ async function handleManualCheckin(studentId, options = {}) {
       }
       if (message.includes("qr") || message.includes("presenca") || message.includes("presence")) {
         return fail("QR Code de check-in invalido.");
+      }
+      if (message.includes("checkin_window_closed") || message.includes("horario de check-in")) {
+        return fail("Horario de check-in encerrado para esta aula.");
       }
       return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
     }
@@ -8421,6 +8441,91 @@ function getOpenRoomForClass(className) {
     return activeRoom;
   }
   return openRooms.find((room) => room.classTarget === className) || null;
+}
+
+function getAvailableCheckinRoomForClass(className) {
+  const openRooms = getOpenRoomsToday().filter((room) => room.classTarget === className);
+  if (!openRooms.length) {
+    return null;
+  }
+  const activeRoom = getActiveRoom();
+  if (activeRoom && activeRoom.classTarget === className && getCheckinWindowValidation(activeRoom).ok) {
+    return activeRoom;
+  }
+  return openRooms.find((room) => getCheckinWindowValidation(room).ok) || null;
+}
+
+function getCheckinWindowValidation(room, now = new Date()) {
+  if (!room || room.status !== "Aberta") {
+    return {
+      ok: false,
+      reason: "no_room",
+      message: "Nao ha sala aberta para check-in."
+    };
+  }
+  const window = getRoomCheckinWindow(room);
+  if (!window) {
+    return {
+      ok: false,
+      reason: "missing_time",
+      message: "Esta sala nao tem horario de inicio e termino completo para check-in."
+    };
+  }
+  if (now < window.opensAt) {
+    return {
+      ok: false,
+      reason: "too_early",
+      message: `Check-in disponivel a partir de ${formatTimeValue(window.opensAt)}.`
+    };
+  }
+  if (now >= window.endsAt) {
+    return {
+      ok: false,
+      reason: "ended",
+      message: "Horario de check-in encerrado para esta aula."
+    };
+  }
+  return { ok: true, reason: "open", message: "" };
+}
+
+function getRoomCheckinWindow(room) {
+  const date = getRoomDateObject(room);
+  const start = parseTimeValue(room?.startTime || room?.time || "");
+  const end = parseTimeValue(room?.endTime || "");
+  if (!date || !start || !end) {
+    return null;
+  }
+  const startsAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), start.hours, start.minutes, 0, 0);
+  const opensAt = new Date(startsAt.getTime() - CHECKIN_EARLY_WINDOW_MINUTES * 60 * 1000);
+  const endsAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), end.hours, end.minutes, 0, 0);
+  return { opensAt, startsAt, endsAt };
+}
+
+function getRoomDateObject(room) {
+  if (!room) {
+    return null;
+  }
+  if (room.dateIso) {
+    return parseInputDate(String(room.dateIso).slice(0, 10));
+  }
+  return parseRoomDate(room.date || "");
+}
+
+function parseTimeValue(value) {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return { hours, minutes };
+}
+
+function formatTimeValue(date) {
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function getActiveRoom() {

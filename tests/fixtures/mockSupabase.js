@@ -15,8 +15,8 @@ function createMockSupabaseScript() {
     const date = new Date(today.getTime() + minutes * 60000);
     return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
   }
-  const startedAt = timeOffset(-120);
-  const endedAt = timeOffset(-60);
+  const startedAt = timeOffset(-10);
+  const endedAt = timeOffset(50);
   const parentCheckinPresenceCode = "DNMS-CHECKIN-PRESENCIAL";
 
   const db = {
@@ -195,6 +195,23 @@ function createMockSupabaseScript() {
     }
   }
 
+  function isRoomCheckinWindowOpen(room, checkedAt = new Date()) {
+    if (!room || room.status !== "Aberta") {
+      return false;
+    }
+    const start = String(room.start_time || room.time || "").match(/^(\\d{1,2}):(\\d{2})$/);
+    const end = String(room.end_time || "").match(/^(\\d{1,2}):(\\d{2})$/);
+    if (!start || !end) {
+      return false;
+    }
+    const startDate = new Date(checkedAt);
+    startDate.setHours(Number(start[1]), Number(start[2]), 0, 0);
+    const opensAt = new Date(startDate.getTime() - 30 * 60000);
+    const endsAt = new Date(checkedAt);
+    endsAt.setHours(Number(end[1]), Number(end[2]), 0, 0);
+    return room.date === localDateIso(checkedAt) && checkedAt >= opensAt && checkedAt < endsAt;
+  }
+
   function syncStudentFamilyGuardians(targetStudentId, seedGuardianId) {
     const familyId = ensureFamilyId(seedGuardianId || currentUser?.id);
     if (!familyId) {
@@ -226,9 +243,14 @@ function createMockSupabaseScript() {
     if (!db.student_guardians.some((item) => item.student_id === student.id && item.guardian_id === actor.id)) {
       return { data: null, error: { message: "Sem permissao para check-in deste aluno." } };
     }
-    const room = db.rooms.find((item) => item.status === "Aberta" && item.class_target === student.class_name);
+    const room = db.rooms
+      .filter((item) => item.status === "Aberta" && item.class_target === student.class_name)
+      .sort((a, b) => (isRoomCheckinWindowOpen(a) === isRoomCheckinWindowOpen(b) ? 0 : isRoomCheckinWindowOpen(a) ? -1 : 1))[0];
     if (!room) {
       return { data: null, error: { message: "Nao ha sala aberta para a turma deste aluno." } };
+    }
+    if (!isRoomCheckinWindowOpen(room)) {
+      return { data: null, error: { message: "Horario de check-in encerrado para esta aula." } };
     }
     if (db.checkins.some((item) => item.student_id === student.id && item.checked_out_at === null)) {
       return { data: null, error: { message: "Este aluno ja possui um check-in ativo." } };
@@ -692,6 +714,15 @@ function createMockSupabaseScript() {
 
       if (this.action === "insert") {
         const entries = Array.isArray(this.payload) ? this.payload : [this.payload];
+        if (this.table === "checkins") {
+          const invalid = entries.find((entry) => {
+            const room = db.rooms.find((item) => item.id === entry.room_id);
+            return !isRoomCheckinWindowOpen(room, entry.checked_in_at ? new Date(entry.checked_in_at) : new Date());
+          });
+          if (invalid) {
+            return { data: null, error: { message: "checkin_window_closed", code: "P0001" } };
+          }
+        }
         const inserted = entries.map((entry) => {
           const row = { ...entry };
           if (!row.id) {

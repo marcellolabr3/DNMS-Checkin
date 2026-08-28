@@ -41,6 +41,11 @@ function pastIso(daysBack) {
   return futureIso(-daysBack);
 }
 
+function timeOffset(minutes) {
+  const date = new Date(Date.now() + minutes * 60000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 test("check-in e checkout manual atualizam o estado da crianca", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -60,6 +65,45 @@ test("check-in e checkout manual atualizam o estado da crianca", async ({ page }
   await expect(page.locator("#checkoutDialog")).toBeHidden();
   await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Checkout" })).toHaveCount(0);
   await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
+});
+
+test("check-in fica bloqueado antes de 30 minutos do inicio da aula", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(
+    ({ start, end }) => {
+      const room = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+      room.start_time = start;
+      room.time = start;
+      room.end_time = end;
+    },
+    { start: timeOffset(31), end: timeOffset(90) }
+  );
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  const button = studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in em breve" });
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveAttribute("title", /Check-in disponivel a partir de/);
+});
+
+test("check-in fica bloqueado no horario de termino mesmo com sala aberta", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(
+    ({ start, end }) => {
+      const room = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+      room.start_time = start;
+      room.time = start;
+      room.end_time = end;
+      room.status = "Aberta";
+    },
+    { start: timeOffset(-90), end: timeOffset(-1) }
+  );
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  const button = studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in encerrado" });
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveAttribute("title", "Horario de check-in encerrado para esta aula.");
 });
 
 test("fechar sala faz checkout automatico dos alunos ativos", async ({ page }) => {
