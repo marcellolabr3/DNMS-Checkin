@@ -221,8 +221,11 @@ Atualizacao em 2026-08-27: criado `qr-checkin-presencial.svg` com o conteudo `DN
 
 Atualizacao em 2026-08-27: mitigado falso positivo do status da Brother no servico local. `/health` e `/status` agora consultam `Win32_Printer`/`Get-Printer`, expõem `printer_ready`/`printer_status_detail` e marcam a impressora em vermelho quando o Windows reportar offline ou erro conhecido, sem imprimir etiqueta de teste. Estados neutros/desconhecidos continuam permitidos para preservar compatibilidade com drivers que nao informam status fisico. O executavel local foi recriado e `/health` confirmou `printer_ready: true`, Brother QL-810W, `supabase_role: postgres_direct` e `database_direct: true`; nesta sessao o motor foi mantido rodando diretamente porque o tray nao persistiu no ambiente de comando.
 
+Atualizacao em 2026-08-27: fluxo do QR presencial ajustado para responsavel. Ao clicar em Check-in no card da crianca, o dialog ja abre tentando a camera automaticamente; o campo manual e o botao de confirmar ficam ocultos no fluxo normal e aparecem apenas como fallback quando o navegador/camera/leitor QR nao estiver disponivel. Corrigida a RPC `parent_checkin_with_presence` para calcular hash com `digest(convert_to(...), 'sha256')` e `search_path = public, extensions`, resolvendo o erro de producao `function digest(text, unknown) does not exist`. Patch aplicado em producao e validado com hash do token `DNMS-CHECKIN-PRESENCIAL`.
+
 Validacao:
 QR fixo de presenca: `supabase/patch_parent_checkin_presence_qr.sql` aplicado em producao em 2026-08-27. Verificacao direta confirmou RPC `parent_checkin_with_presence`, configuracao `app_settings.parent_checkin_presence_sha256`, policy `checkins_insert_staff_only` e ausencia da policy antiga `checkins_insert_staff_or_guardian`. `npm.cmd test` passou com 128 testes. Depois, o QR imprimivel foi adicionado na Gestao; testes direcionados de check-in/responsavel/service worker passaram com 37 testes.
+Correcao do QR presencial: `supabase/patch_parent_checkin_presence_qr.sql` reaplicado em producao em 2026-08-27; verificacao direta confirmou `search_path=public, extensions` na RPC e hash correto para `DNMS-CHECKIN-PRESENCIAL`. Testes direcionados de responsavel/check-in/service worker passaram com 76 testes.
 
 Duplicidade de etiquetas: `npm.cmd test` passou com 124 testes. O executavel `Servico de impressao/dist/Servico-de-impressao.exe` foi recriado com `npm.cmd run build:exe`, o servico foi reiniciado e `/health` retornou `ok: true`, `target_printer: Brother QL-810W`, `auto_print_listener: true`, `auto_print_polling: true`, `reprint_queue_polling: true`, `supabase_role: postgres_direct` e `database_direct: true`.
 
@@ -239,7 +242,7 @@ Plano sugerido:
 3. Depois de qualquer correcao: atualizar contexto, testar e commitar/pushar alteracoes versionadas quando houver.
 
 Proxima sprint:
-Validar QR fixo de presenca com check-in real de responsavel no local.
+Validar QR fixo de presenca com check-in real de responsavel no local usando camera do celular.
 
 ---
 
@@ -335,20 +338,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Abrir `http://localhost:3001/status` e, se possivel, validar visualmente a Brother ligada/desligada. Depois imprimir o QR fixo `DNMS-CHECKIN-PRESENCIAL` e validar um check-in real de responsavel no local.
+Validar no celular: clicar em Check-in no card da crianca, confirmar que a camera abre direto, escanear o QR fixo `DNMS-CHECKIN-PRESENCIAL` e confirmar check-in/impressao real no local.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Implementado QR fixo de presenca para check-in de responsavel. O responsavel nao faz mais check-in direto no card; precisa ler/digitar o QR fixo do local. O banco valida pela RPC `parent_checkin_with_presence`, e a policy antiga de insert direto por responsavel em `checkins` foi removida. A aba Gestao tambem deixou de exibir o gerador antigo de convites por email/tipo de acesso.
+Implementado QR fixo de presenca para check-in de responsavel. O responsavel nao faz mais check-in direto no card; ao clicar em Check-in, o app deve abrir a camera automaticamente para ler o QR fixo do local. O banco valida pela RPC `parent_checkin_with_presence`, e a policy antiga de insert direto por responsavel em `checkins` foi removida. A aba Gestao tambem deixou de exibir o gerador antigo de convites por email/tipo de acesso.
 
 Ficou funcionando:
-Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. `npm.cmd test` passou com 128 testes.
+Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. Depois da correcao de hash, verificacao direta confirmou `search_path=public, extensions` e digest funcionando com `convert_to`. Testes direcionados passaram com 76 testes.
 
 Ficou pendente:
-Imprimir pela aba Gestao e fixar o QR operacional no local. Conteudo atual do QR: `DNMS-CHECKIN-PRESENCIAL`. Validar visualmente no `/status` como o driver reporta Brother ligada/desligada.
+Validar no celular: clicar em Check-in no card da crianca, confirmar que a camera abre direto, escanear o QR fixo `DNMS-CHECKIN-PRESENCIAL` e confirmar check-in/impressao real no local.
 
 Para continuar em uma nova sessao, comecar por:
 Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.

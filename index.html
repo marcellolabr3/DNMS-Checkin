@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260827g" />
+  <link rel="stylesheet" href="styles.css?v=20260827h" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -420,13 +420,13 @@
   <dialog id="qrDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h3>Check-in por QR</h3>
-      <label class="field"><span id="qrDialogLabel">QR Code (simulado)</span>
+      <label class="field" id="qrDialogManualField"><span id="qrDialogLabel">QR Code</span>
         <input id="qrDialogInput" placeholder="Cole o codigo do aluno" />
       </label>
       <video id="qrCameraPreview" class="qr-camera-preview" playsinline muted></video>
       <div id="qrDialogStatus" class="summary"></div>
       <div class="dialog-actions">
-        <button id="btnStartQrCamera" type="button" class="ghost">Abrir camera</button>
+        <button id="btnStartQrCamera" type="button" class="ghost">Tentar camera novamente</button>
         <button value="cancel" class="ghost" formnovalidate>Cancelar</button>
         <button id="btnQrDialogCheckin" value="default" class="primary">Confirmar check-in</button>
       </div>
@@ -619,6 +619,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260827g"></script>
+  <script src="app.js?v=20260827h"></script>
 </body>
 </html>

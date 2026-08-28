@@ -119,6 +119,7 @@ const els = {
   btnBulkCheckin: document.getElementById("btnBulkCheckin"),
   btnBulkCheckout: document.getElementById("btnBulkCheckout"),
   qrDialog: document.getElementById("qrDialog"),
+  qrDialogManualField: document.getElementById("qrDialogManualField"),
   qrDialogInput: document.getElementById("qrDialogInput"),
   qrDialogStatus: document.getElementById("qrDialogStatus"),
   qrDialogLabel: document.getElementById("qrDialogLabel"),
@@ -6337,13 +6338,18 @@ async function startQrCameraScan() {
     return;
   }
   if (!("BarcodeDetector" in window)) {
-    if (els.qrDialogStatus) {
-      els.qrDialogStatus.textContent = "Camera sem leitor QR nativo. Digite ou cole o codigo exibido no local.";
-    }
+    showQrManualFallback("Camera sem leitor QR nativo. Digite ou cole o codigo exibido no local.");
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showQrManualFallback("Camera indisponivel neste navegador. Digite ou cole o codigo exibido no local.");
     return;
   }
   try {
-    stopQrCameraScan();
+    stopQrCameraScan({ keepStatus: true });
+    if (els.qrDialogStatus) {
+      els.qrDialogStatus.textContent = "Aponte a camera para o QR de check-in presencial.";
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
       audio: false
@@ -6372,14 +6378,12 @@ async function startQrCameraScan() {
     };
     scan();
   } catch (_error) {
-    if (els.qrDialogStatus) {
-      els.qrDialogStatus.textContent = "Nao foi possivel abrir a camera. Digite ou cole o codigo exibido no local.";
-    }
-    stopQrCameraScan();
+    stopQrCameraScan({ keepStatus: true });
+    showQrManualFallback("Nao foi possivel abrir a camera. Digite ou cole o codigo exibido no local.");
   }
 }
 
-function stopQrCameraScan() {
+function stopQrCameraScan(options = {}) {
   if (parentCheckinContext.qrScanTimer) {
     window.clearTimeout(parentCheckinContext.qrScanTimer);
     parentCheckinContext.qrScanTimer = null;
@@ -6392,6 +6396,24 @@ function stopQrCameraScan() {
     els.qrCameraPreview.pause();
     els.qrCameraPreview.srcObject = null;
     els.qrCameraPreview.style.display = "none";
+  }
+  if (!options.keepStatus && els.qrDialogStatus) {
+    els.qrDialogStatus.textContent = "";
+  }
+}
+
+function showQrManualFallback(message) {
+  if (els.qrDialogManualField) {
+    els.qrDialogManualField.style.display = "";
+  }
+  if (els.btnQrDialogCheckin) {
+    els.btnQrDialogCheckin.style.display = "";
+  }
+  if (els.btnStartQrCamera) {
+    els.btnStartQrCamera.style.display = "";
+  }
+  if (els.qrDialogStatus) {
+    els.qrDialogStatus.textContent = message;
   }
 }
 
@@ -6407,19 +6429,28 @@ async function openQrDialog(options = {}) {
   if (els.qrDialogStatus) {
     els.qrDialogStatus.textContent = "";
   }
+  const isResponsibleQr = state.session.role === "responsavel";
   if (els.qrDialogLabel) {
-    els.qrDialogLabel.textContent =
-      state.session.role === "responsavel" ? "QR Code de presenca" : "QR Code do aluno";
+    els.qrDialogLabel.textContent = isResponsibleQr ? "Codigo de presenca" : "QR Code do aluno";
   }
   if (els.qrDialogInput) {
     els.qrDialogInput.value = "";
     els.qrDialogInput.placeholder =
-      state.session.role === "responsavel" ? "Escaneie o QR do check-in" : "Cole o codigo do aluno";
+      isResponsibleQr ? "Codigo do QR de check-in" : "Cole o codigo do aluno";
+  }
+  if (els.qrDialogManualField) {
+    els.qrDialogManualField.style.display = isResponsibleQr ? "none" : "";
   }
   if (els.btnStartQrCamera) {
-    els.btnStartQrCamera.style.display = state.session.role === "responsavel" ? "inline-flex" : "none";
+    els.btnStartQrCamera.style.display = "none";
+  }
+  if (els.btnQrDialogCheckin) {
+    els.btnQrDialogCheckin.style.display = isResponsibleQr ? "none" : "";
   }
   els.qrDialog?.showModal();
+  if (isResponsibleQr) {
+    await startQrCameraScan();
+  }
 }
 
 async function handleQrCheckin(inputEl, statusEl, event) {

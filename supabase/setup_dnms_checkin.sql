@@ -1,7 +1,8 @@
 -- DNMS Check-in: schema esperado pelo app (idempotente)
 -- Execute no Supabase SQL Editor do projeto correto.
 
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -1276,7 +1277,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   actor_profile public.profiles%rowtype;
@@ -1302,7 +1303,7 @@ begin
    where key = 'parent_checkin_presence_sha256'
    limit 1;
 
-  token_hash := encode(digest(btrim(coalesce(presence_token, '')), 'sha256'), 'hex');
+  token_hash := encode(digest(convert_to(btrim(coalesce(presence_token, '')), 'UTF8'), 'sha256'), 'hex');
   if expected_hash is null or token_hash <> expected_hash then
     raise exception 'QR Code de presenca invalido.';
   end if;

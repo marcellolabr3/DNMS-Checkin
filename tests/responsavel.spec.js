@@ -17,6 +17,21 @@ test("responsavel visualiza apenas suas criancas e abre detalhes", async ({ page
 });
 
 test("responsavel precisa validar QR fixo antes de fazer check-in", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: async () => document.createElement("canvas").captureStream()
+      }
+    });
+    HTMLMediaElement.prototype.play = async () => {};
+    window.BarcodeDetector = class {
+      async detect() {
+        window.__qrDetectCount = (window.__qrDetectCount || 0) + 1;
+        return window.__qrDetectCount > 1 ? [{ rawValue: "DNMS-CHECKIN-PRESENCIAL" }] : [];
+      }
+    };
+  });
   await openApp(page);
   await loginAs(page, "responsavel@dnms.test");
 
@@ -24,6 +39,30 @@ test("responsavel precisa validar QR fixo antes de fazer check-in", async ({ pag
   await ana.getByRole("button", { name: "Check-in" }).click();
 
   await expect(page.locator("#qrDialog")).toBeVisible();
+  await expect(page.locator("#qrDialogManualField")).toBeHidden();
+  await expect(page.locator("#btnStartQrCamera")).toBeHidden();
+  await expect(page.locator("#btnQrDialogCheckin")).toBeHidden();
+  await expect(page.locator("#qrDialogStatus")).toContainText("Aponte a camera");
+  await expect(page.locator("#qrDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins[0]?.actor_id))
+    .toBe("parent-1");
+});
+
+test("responsavel usa campo manual somente quando camera nao esta disponivel", async ({ page }) => {
+  await page.addInitScript(() => {
+    delete window.BarcodeDetector;
+  });
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+
+  const ana = page.locator("#studentList .list-item").filter({ hasText: "Ana Kids" });
+  await ana.getByRole("button", { name: "Check-in" }).click();
+
+  await expect(page.locator("#qrDialog")).toBeVisible();
+  await expect(page.locator("#qrDialogManualField")).toBeVisible();
+  await expect(page.locator("#btnQrDialogCheckin")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(0);
 
   await page.fill("#qrDialogInput", "QR-INVALIDO");
