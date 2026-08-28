@@ -107,7 +107,7 @@ Estado:
 - Verificacao direta no Supabase confirmou funcao, trigger, RPC e fronteiras: antes de 30 min bloqueia, 30 min antes libera, durante a aula libera, horario final bloqueia.
 - Testes direcionados passaram: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` com 62 testes.
 - Suite completa passou: `npm.cmd test` com 140 testes.
-- Falta commitar/pushar.
+- Commit/push feitos em `d1f8677` (`Bloqueia check-in fora do horario da aula`).
 
 ## Validacoes recentes
 
@@ -117,7 +117,6 @@ Estado:
 
 ## Pendencias
 
-- Commitar e enviar alteracoes da janela de check-in para `origin/main`.
 - Validar com check-in real no celular do responsavel usando QR presencial.
 - Validar em producao uma tentativa de cadastro duplicado pelo app.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
@@ -125,7 +124,4 @@ Estado:
 
 ## Proximo passo recomendado
 
-Continuar pela tarefa da janela de check-in:
-
-1. Revisar diff final.
-2. Commitar e enviar para `origin/main`.
+Validar em producao/celular um check-in real de responsavel usando QR presencial e a nova janela de horario.
