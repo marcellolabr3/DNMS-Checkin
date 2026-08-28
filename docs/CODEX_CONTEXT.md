@@ -10,6 +10,8 @@ Memoria curta para iniciar novas sessoes do Codex. Nao registrar secrets, tokens
 4. Rodar `git status --short`.
 5. Consultar o codigo atual antes de alterar autenticacao, banco, permissoes, check-in, cadastro, impressao ou integracoes.
 
+Regra deste arquivo: manter como bootstrap operacional curto, ate 80 linhas/700 palavras quando possivel. Atualizar por substituicao, removendo estado antigo em vez de acumular historico.
+
 ## Sistema
 
 - App: PWA estatico em HTML/CSS/JS puro (`index.html`, `app.js`, `styles.css`, `sw.js`).

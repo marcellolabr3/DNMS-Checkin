@@ -66,6 +66,15 @@ Nao transforme o arquivo em um historico completo da conversa.
 
 Mantenha apenas informacoes uteis para que uma nova sessao consiga continuar o trabalho.
 
+Regra obrigatoria de manutencao do contexto:
+
+- Trate `docs/CODEX_CONTEXT.md` como um bootstrap operacional curto, nao como diario.
+- Atualize por substituicao: remova estado antigo quando uma tarefa for concluida, em vez de acrescentar historico.
+- Mantenha preferencialmente ate 80 linhas ou 700 palavras.
+- Preserve somente: como iniciar, arquitetura minima, dados operacionais do banco/Supabase, regras criticas, ultimo estado validado e pendencias reais.
+- Nao liste todas as sprints, todos os commits antigos ou detalhes extensos de diagnosticos ja resolvidos.
+- Se o arquivo passar desse limite, enxugue antes de iniciar nova tarefa grande.
+
 ## Controle de contexto
 
 Durante sessoes longas, monitore a quantidade de contexto acumulada.
