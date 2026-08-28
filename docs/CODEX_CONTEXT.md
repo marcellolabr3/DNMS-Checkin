@@ -156,6 +156,7 @@ Estado do banco:
 - Duplicidades antigas Paula/Diego foram consolidadas em producao: Jonathan e Sophia ficaram em registros canonicos vinculados a Paula e Diego, com check-ins preservados.
 - Corrigido fluxo de rede familiar: "Vincular responsavel" aceita apenas email ja cadastrado como `responsavel`, cria solicitacao interna pendente por 7 dias e envia mensagem dentro do app com botoes Sim/Nao. O vinculo so e aplicado quando o responsavel convidado aceita. Patch aplicado em producao: `supabase/patch_family_link_requests.sql`.
 - Aba Familias passou a exibir a rede familiar do responsavel selecionado, criancas compartilhadas por todos os membros da familia, responsavel principal/vinculados por crianca e acoes Admin/SADMIN para adicionar/remover responsavel da rede.
+- Painel de Mensagens recebeu botao de retorno no cabecalho: para responsavel volta para a tela de criancas; para admin/equipe volta para Dashboard. Cache atualizado para `checkin-cache-v144`.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -164,29 +165,23 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-Rede familiar na aba Familias para equipe/admin.
+Retorno do responsavel do painel Mensagens para a tela inicial.
 
 Arquivos envolvidos:
 
-- `supabase/patch_admin_family_network_management.sql`
-- `supabase/setup_dnms_checkin.sql`
 - `app.js`
 - `index.html`
 - `styles.css`
 - `sw.js`
-- `tests/checkin.spec.js`
-- `tests/fixtures/mockSupabase.js`
+- `tests/tips.spec.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
-Em 2026-08-28, a aba Familias foi ajustada para mostrar a rede familiar do responsavel selecionado, membros com mesmo `family_id`, solicitacoes pendentes e criancas compartilhadas da rede, com indicacao de responsavel principal e vinculados. Admin/SADMIN veem acoes para adicionar responsavel por email e remover membro da rede; Equipe visualiza sem alterar vinculos. O frontend usa as novas RPCs `admin_link_family_responsible(anchor_profile_id, target_email)` e `admin_unlink_family_responsible(target_profile_id)`.
-
-Patch SQL:
-`supabase/patch_admin_family_network_management.sql` foi criado, aplicado em producao em 2026-08-28 via cliente Node `pg`, e `supabase/setup_dnms_checkin.sql` foi atualizado para novos ambientes. O schema cache foi recarregado com `pg_notify('pgrst', 'reload schema')`. Verificacao direta confirmou as RPCs `admin_link_family_responsible(anchor_profile_id uuid, target_email text)` e `admin_unlink_family_responsible(target_profile_id uuid)`.
+Em 2026-08-28, o painel Mensagens ganhou o botao `btnTipsBackHome` no cabecalho. Para `responsavel`, o botao mostra "Voltar para criancas" e retorna para `students`, que e a tela inicial do responsavel. Para admin/equipe, mostra "Voltar para dashboard" e retorna para `dashboard`. Nao houve alteracao de SQL nesta etapa.
 
 Validacao:
-`npm.cmd test -- tests/checkin.spec.js` passou com 56 testes. `npm.cmd test` passou com 134 testes.
+`npm.cmd test -- tests/tips.spec.js tests/service-worker.spec.js` passou com 18 testes. `npm.cmd test` passou com 136 testes.
 
 Historico anterior:
 Em 2026-08-25, o app reportou: `Falha ao solicitar reimpressao remota: Could not find the table 'public.print_jobs' in the schema cache`. Verificacao direta no banco mostrou que `public.print_jobs` e `public.claim_next_reprint_job(text)` nao existiam em producao. O patch idempotente `supabase/patch_reprint_queue.sql` foi aplicado diretamente no Supabase e o schema cache foi recarregado com `notify pgrst, 'reload schema'`. Validacao via PostgREST confirmou que `print_jobs` ja e reconhecida pela API.
@@ -343,20 +338,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar na aba Familias publicada: selecionar um responsavel, conferir rede/criancas compartilhadas, adicionar responsavel por email e remover da rede com uma familia de teste.
+Validar no celular do responsavel: abrir Mensagens, tocar em "Voltar para criancas" e confirmar retorno para a lista de criancas sem fechar o PWA.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Implementada a visualizacao da rede familiar na aba Familias. Ao selecionar um responsavel, o painel mostra dados do responsavel, membros da rede com mesmo `family_id`, solicitacoes pendentes, criancas compartilhadas da familia e responsavel principal/vinculados por crianca. Admin/SADMIN tem botoes para adicionar responsavel por email e remover membro da rede; Equipe visualiza sem alterar.
+Adicionado botao de retorno no cabecalho do painel Mensagens. Para responsavel, o botao volta para a tela de criancas; para admin/equipe, volta para Dashboard.
 
 Ficou funcionando:
-Frontend, mock, testes locais e RPCs em producao. `supabase/patch_admin_family_network_management.sql` cria `admin_link_family_responsible` e `admin_unlink_family_responsible`; `setup_dnms_checkin.sql` tambem foi atualizado. `npm.cmd test -- tests/checkin.spec.js` passou com 56 testes e `npm.cmd test` passou com 134 testes.
+Navegacao local validada em desktop/mobile. `npm.cmd test -- tests/tips.spec.js tests/service-worker.spec.js` passou com 18 testes e `npm.cmd test` passou com 136 testes.
 
 Ficou pendente:
-Validar o fluxo na aplicacao publicada com uma familia de teste.
+Validar no celular apos a publicacao/cache atualizar.
 
 Para continuar em uma nova sessao, comecar por:
-Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, rodar `git status --short` e testar uma familia real/de teste na aba Familias publicada.
+Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, rodar `git status --short` e validar o retorno do painel Mensagens no celular.

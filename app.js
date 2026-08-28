@@ -82,6 +82,7 @@ const els = {
   dashboardInfoText: document.getElementById("dashboardInfoText"),
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
   tipsCard: document.getElementById("tipsCard"),
+  btnTipsBackHome: document.getElementById("btnTipsBackHome"),
   scheduleFileInput: document.getElementById("scheduleFileInput"),
   btnImportScheduleFile: document.getElementById("btnImportScheduleFile"),
   scheduleSheetUrl: document.getElementById("scheduleSheetUrl"),
@@ -306,6 +307,9 @@ function bindEvents() {
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
   els.btnFamiliesPanel?.addEventListener("click", () => setActivePanel("families"));
   els.btnTipsInbox?.addEventListener("click", () => setActivePanel("tips"));
+  els.btnTipsBackHome?.addEventListener("click", () => {
+    setActivePanel(state.session?.role === "responsavel" ? "students" : "dashboard");
+  });
   els.btnLogPanel?.addEventListener("click", toggleLogPanel);
   els.btnInvitePanel?.addEventListener("click", toggleInvitePanel);
   els.btnLogout.addEventListener("click", handleLogout);
@@ -825,6 +829,10 @@ async function retryTipsRefresh() {
 function renderTipsPanel() {
   if (!els.tipsList) {
     return;
+  }
+  if (els.btnTipsBackHome) {
+    els.btnTipsBackHome.textContent =
+      state.session?.role === "responsavel" ? "Voltar para criancas" : "Voltar para dashboard";
   }
   renderTipsComposerControls();
   const tips = getVisibleTipsForCurrentUser();

@@ -19,6 +19,22 @@ test("responsavel abre painel de mensagens e marca aviso como lido ao expandir",
   await expect(page.locator("#btnTipsInbox")).toContainText("1");
 });
 
+test("responsavel volta das mensagens para a tela de criancas", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=messages-panel" });
+  await loginAs(page, "responsavel@dnms.test");
+
+  await page.click("#btnTipsInbox");
+  await expect(page.locator("#tipsCard")).toBeVisible();
+  await expect(page.locator("#studentCard")).toBeHidden();
+  await expect(page.locator("#btnTipsBackHome")).toHaveText("Voltar para criancas");
+
+  await page.click("#btnTipsBackHome");
+
+  await expect(page.locator("#tipsCard")).toBeHidden();
+  await expect(page.locator("#studentCard")).toBeVisible();
+  await expect(page.locator("#studentList")).toContainText("Ana Kids");
+});
+
 test("admin envia mensagem pelo painel navegavel", async ({ page }) => {
   await openApp(page, { path: "/index.html?scenario=messages-panel" });
   await loginAs(page, "admin@dnms.test");

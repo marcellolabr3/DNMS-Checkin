@@ -1178,6 +1178,11 @@ button:disabled,
   justify-content: flex-end;
 }
 
+.tips-header-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .tips-status {
   overflow-wrap: anywhere;
 }
@@ -1795,12 +1800,14 @@ button:disabled,
     grid-template-columns: repeat(auto-fill, minmax(132px, 156px));
   }
 
+  .tips-header-actions,
   .tips-panel-actions,
   #tipsCard #tipsComposer .actions {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .tips-header-actions button,
   .tips-panel-actions button,
   #tipsCard #tipsComposer button {
     width: 100%;
