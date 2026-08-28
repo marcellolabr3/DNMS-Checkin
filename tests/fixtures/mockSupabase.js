@@ -312,6 +312,67 @@ function createMockSupabaseScript() {
     };
   }
 
+  function canManageFamilyNetwork() {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    return actor?.role === "admin" || String(actor?.email || "").toLowerCase() === "marvinlabre@gmail.com";
+  }
+
+  function adminLinkFamilyResponsible(anchorProfileId, targetEmail) {
+    if (!canManageFamilyNetwork()) {
+      return { data: null, error: { message: "admin_family_network_not_allowed" } };
+    }
+    const anchor = db.profiles.find((item) => item.id === anchorProfileId && item.role === "responsavel");
+    const target = db.profiles.find(
+      (item) => item.role === "responsavel" && String(item.email || "").toLowerCase() === String(targetEmail || "").toLowerCase()
+    );
+    if (!anchor) {
+      return { data: null, error: { message: "admin_family_anchor_not_found" } };
+    }
+    if (!target) {
+      return { data: null, error: { message: "admin_family_target_not_found" } };
+    }
+    return applyFamilyLinkBetweenResponsibles(anchor.id, target.id);
+  }
+
+  function adminUnlinkFamilyResponsible(targetProfileId) {
+    if (!canManageFamilyNetwork()) {
+      return { data: null, error: { message: "admin_family_network_not_allowed" } };
+    }
+    const target = db.profiles.find((item) => item.id === targetProfileId && item.role === "responsavel");
+    if (!target) {
+      return { data: null, error: { message: "admin_family_target_not_found" } };
+    }
+    const previousFamilyId = ensureFamilyId(target.id);
+    const targetName = String(target.name || "").trim().toLowerCase();
+    const remainingMembers = db.profiles.filter(
+      (item) => item.id !== target.id && item.role === "responsavel" && item.family_id === previousFamilyId
+    );
+    const remainingIds = new Set(remainingMembers.map((item) => item.id));
+    const remainingNames = new Set(remainingMembers.map((item) => String(item.name || "").trim().toLowerCase()));
+    target.family_id = target.id;
+    for (let index = db.student_guardians.length - 1; index >= 0; index -= 1) {
+      const link = db.student_guardians[index];
+      const student = db.students.find((item) => item.id === link.student_id);
+      const primaryName = String(student?.primary_guardian_name || "").trim().toLowerCase();
+      const removesTargetFromRemainingChild = link.guardian_id === target.id && remainingNames.has(primaryName);
+      const removesRemainingFromTargetChild = remainingIds.has(link.guardian_id) && primaryName === targetName;
+      if (removesTargetFromRemainingChild || removesRemainingFromTargetChild) {
+        db.student_guardians.splice(index, 1);
+      }
+    }
+    db.students
+      .filter((student) => String(student.primary_guardian_name || "").trim().toLowerCase() === targetName)
+      .forEach((student) => addStudentGuardianLink(student.id, target.id));
+    return {
+      data: {
+        ok: true,
+        previous_family_id: previousFamilyId,
+        new_family_id: target.id
+      },
+      error: null
+    };
+  }
+
   function requestFamilyLink(targetEmail) {
     const actor = db.profiles.find((item) => item.id === currentUser?.id);
     const target = db.profiles.find(
@@ -750,6 +811,12 @@ function createMockSupabaseScript() {
           }
           if (name === "respond_family_link_request") {
             return respondFamilyLinkRequest(params?.request_id, params?.accept);
+          }
+          if (name === "admin_link_family_responsible") {
+            return adminLinkFamilyResponsible(params?.anchor_profile_id, params?.target_email);
+          }
+          if (name === "admin_unlink_family_responsible") {
+            return adminUnlinkFamilyResponsible(params?.target_profile_id);
           }
           if (name === "parent_checkin_with_presence") {
             return parentCheckinWithPresence(params?.target_student_id, params?.presence_token);

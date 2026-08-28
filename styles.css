@@ -1043,6 +1043,26 @@ button:disabled,
   gap: 8px;
 }
 
+.family-network-list {
+  display: grid;
+  gap: 8px;
+}
+
+.family-network-member {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.compact-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .family-network-panel {
   display: grid;
   gap: 10px;

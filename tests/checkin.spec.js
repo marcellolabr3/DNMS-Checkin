@@ -516,6 +516,109 @@ test("familias mostra crianca vinculada a responsavel secundario", async ({ page
   await expect(page.locator("#familyEditor")).toContainText("Ana Kids");
 });
 
+test("familias mostra rede familiar e criancas compartilhadas da familia", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2").family_id = "parent-1";
+    window.__mockDnmsDb.students.push({
+      id: "student-secondary-family",
+      name: "Filho Secundario",
+      birth_date: "2020-06-20",
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Secundario",
+      phone: "11955550000",
+      address: "Rua Secundaria",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.student_guardians.push({
+      student_id: "student-secondary-family",
+      guardian_id: "parent-2"
+    });
+  });
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Teste");
+
+  await expect(page.locator("#familyEditor")).toContainText("Rede familiar");
+  await expect(page.locator("#familyEditor")).toContainText("Responsavel Teste (selecionado)");
+  await expect(page.locator("#familyEditor")).toContainText("Responsavel Secundario");
+  await expect(page.locator("#familyEditor")).toContainText("Criancas da familia");
+  await expect(page.locator("#familyEditor")).toContainText("Ana Kids");
+  await expect(page.locator("#familyEditor")).toContainText("Filho Secundario");
+  await expect(page.locator("#familyEditor")).toContainText("Responsavel principal: Responsavel Secundario");
+});
+
+test("admin adiciona e remove responsavel da rede familiar pela aba familias", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-secondary-family",
+      name: "Filho Secundario",
+      birth_date: "2020-06-20",
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Secundario",
+      phone: "11955550000",
+      address: "Rua Secundaria",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.student_guardians.push({
+      student_id: "student-secondary-family",
+      guardian_id: "parent-2"
+    });
+  });
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Teste");
+  await page.fill("#familyNetworkAddEmail", "secundario@dnms.test");
+  await page.click("#btnFamilyNetworkAddResponsible");
+
+  await expect(page.locator("#familyEditor")).toContainText("Responsavel Secundario");
+  await expect(page.locator("#familyEditor")).toContainText("Filho Secundario");
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        secondaryFamily: window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2")?.family_id,
+        secondaryChildLinks: window.__mockDnmsDb.student_guardians
+          .filter((item) => item.student_id === "student-secondary-family")
+          .map((item) => item.guardian_id)
+          .sort()
+      }))
+    )
+    .toEqual({
+      secondaryFamily: "parent-1",
+      secondaryChildLinks: ["parent-1", "parent-2"]
+    });
+
+  await page.getByRole("button", { name: "Remover da rede" }).click();
+
+  await expect(page.locator("#familyEditor .family-children-list")).not.toContainText("Filho Secundario");
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        secondaryFamily: window.__mockDnmsDb.profiles.find((item) => item.id === "parent-2")?.family_id,
+        anaLinks: window.__mockDnmsDb.student_guardians
+          .filter((item) => item.student_id === "student-kids")
+          .map((item) => item.guardian_id)
+          .sort(),
+        secondaryChildLinks: window.__mockDnmsDb.student_guardians
+          .filter((item) => item.student_id === "student-secondary-family")
+          .map((item) => item.guardian_id)
+          .sort()
+      }))
+    )
+    .toEqual({
+      secondaryFamily: "parent-2",
+      anaLinks: ["parent-1"],
+      secondaryChildLinks: ["parent-2"]
+    });
+});
+
 test("vincular crianca existente adiciona segundo responsavel sem trocar o principal", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {

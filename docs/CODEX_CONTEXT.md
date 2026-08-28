@@ -155,6 +155,7 @@ Estado do banco:
 - Aplicado `supabase/patch_family_network.sql` em producao em 2026-08-27; adiciona `profiles.family_id`, RPCs `get_my_family_network`, `link_family_responsible`, `sync_student_family_guardians` e duplicidade por familia.
 - Duplicidades antigas Paula/Diego foram consolidadas em producao: Jonathan e Sophia ficaram em registros canonicos vinculados a Paula e Diego, com check-ins preservados.
 - Corrigido fluxo de rede familiar: "Vincular responsavel" aceita apenas email ja cadastrado como `responsavel`, cria solicitacao interna pendente por 7 dias e envia mensagem dentro do app com botoes Sim/Nao. O vinculo so e aplicado quando o responsavel convidado aceita. Patch aplicado em producao: `supabase/patch_family_link_requests.sql`.
+- Aba Familias passou a exibir a rede familiar do responsavel selecionado, criancas compartilhadas por todos os membros da familia, responsavel principal/vinculados por crianca e acoes Admin/SADMIN para adicionar/remover responsavel da rede.
 - Criados `AGENTS.md` e `docs/CODEX_CONTEXT.md`.
 - Commits enviados ao GitHub: `a4962aa` e `5a947e8`.
 
@@ -163,28 +164,31 @@ Estado do banco:
 ## O que esta sendo desenvolvido agora
 
 Objetivo atual:
-QR fixo de presenca implementado para check-in de responsavel; Gestao nao gera mais convites antigos por tipo de acesso.
+Rede familiar na aba Familias para equipe/admin.
 
 Arquivos envolvidos:
 
-- `supabase/patch_delete_user_account.sql`
-- `supabase/patch_family_network.sql`
-- `supabase/patch_family_link_requests.sql`
-- `supabase/patch_parent_checkin_presence_qr.sql`
+- `supabase/patch_admin_family_network_management.sql`
 - `supabase/setup_dnms_checkin.sql`
 - `app.js`
 - `index.html`
 - `styles.css`
 - `sw.js`
-- `Servico de impressao/server.js`
-- `tests/print-service.spec.js`
-- `tests/responsavel.spec.js`
 - `tests/checkin.spec.js`
 - `tests/fixtures/mockSupabase.js`
 - `tests/service-worker.spec.js`
 - `docs/CODEX_CONTEXT.md`
 
 Estado:
+Em 2026-08-28, a aba Familias foi ajustada para mostrar a rede familiar do responsavel selecionado, membros com mesmo `family_id`, solicitacoes pendentes e criancas compartilhadas da rede, com indicacao de responsavel principal e vinculados. Admin/SADMIN veem acoes para adicionar responsavel por email e remover membro da rede; Equipe visualiza sem alterar vinculos. O frontend usa as novas RPCs `admin_link_family_responsible(anchor_profile_id, target_email)` e `admin_unlink_family_responsible(target_profile_id)`.
+
+Patch SQL:
+`supabase/patch_admin_family_network_management.sql` foi criado, aplicado em producao em 2026-08-28 via cliente Node `pg`, e `supabase/setup_dnms_checkin.sql` foi atualizado para novos ambientes. O schema cache foi recarregado com `pg_notify('pgrst', 'reload schema')`. Verificacao direta confirmou as RPCs `admin_link_family_responsible(anchor_profile_id uuid, target_email text)` e `admin_unlink_family_responsible(target_profile_id uuid)`.
+
+Validacao:
+`npm.cmd test -- tests/checkin.spec.js` passou com 56 testes. `npm.cmd test` passou com 134 testes.
+
+Historico anterior:
 Em 2026-08-25, o app reportou: `Falha ao solicitar reimpressao remota: Could not find the table 'public.print_jobs' in the schema cache`. Verificacao direta no banco mostrou que `public.print_jobs` e `public.claim_next_reprint_job(text)` nao existiam em producao. O patch idempotente `supabase/patch_reprint_queue.sql` foi aplicado diretamente no Supabase e o schema cache foi recarregado com `notify pgrst, 'reload schema'`. Validacao via PostgREST confirmou que `print_jobs` ja e reconhecida pela API.
 
 Diagnostico local da impressao: ha processo `Servico-de-impressao.exe` rodando em `127.0.0.1:3001`, mas `/health` retorna 503 porque o Windows nao lista nenhuma impressora com nome contendo `BROTHER QL-810W`. Impressoras visiveis no momento eram HP/OneNote/XPS/PDF/Fax. O executavel em `Servico de impressao/dist/Servico-de-impressao.exe` e de 2026-08-21, anterior ao `server.js` atual de 2026-08-24; para usar fila de reimpressao remota pelo servico, recriar/reiniciar pacote atualizado. Nao foi encontrado `.codex-secrets.env` do servico com `SUPABASE_SERVICE_ROLE_KEY`; sem Service Role o auto-print de check-ins feitos em celular/outro computador nao opera corretamente.
@@ -326,6 +330,7 @@ Prioridade media:
 - [x] Confirmar com o usuario plano de merge para Jonathan Nery Costa e Sophia Nery De Mendonca.
 - [x] Aplicar rede familiar de responsaveis e consolidar duplicidades antigas Paula/Diego.
 - [ ] Documentar fluxo futuro para equipe/admin tratar possiveis homonimos e vinculos de responsaveis.
+- [x] Aplicar em producao `supabase/patch_admin_family_network_management.sql` antes de usar as acoes Admin/SADMIN de adicionar/remover responsavel pela aba Familias.
 - [x] Corrigir fluxo de rede familiar para usar mensagem interna com aceite/recusa em vez de convite por email.
 - [ ] Avaliar se os filtros do Log devem ser renomeados/expandidos: "Exclusoes de usuarios" hoje nao inclui `child_deleted`, e "Alteracoes de dados" inclui abertura/fechamento de sala alem de alteracoes cadastrais.
 - [ ] Confirmar com o usuario os nomes corretos das criancas ja gravadas como `De An ...` antes de qualquer ajuste manual no banco.
@@ -338,20 +343,20 @@ Prioridade baixa:
 
 ## Proximo passo recomendado
 
-Validar no celular: clicar em Check-in no card da crianca, confirmar que a camera abre direto, escanear o QR fixo `DNMS-CHECKIN-PRESENCIAL` e confirmar check-in/impressao real no local.
+Validar na aba Familias publicada: selecionar um responsavel, conferir rede/criancas compartilhadas, adicionar responsavel por email e remover da rede com uma familia de teste.
 
 ---
 
 ## Ultima sessao
 
 Foi feito:
-Implementado QR fixo de presenca para check-in de responsavel. O responsavel nao faz mais check-in direto no card; ao clicar em Check-in, o app deve abrir a camera automaticamente para ler o QR fixo do local. O banco valida pela RPC `parent_checkin_with_presence`, e a policy antiga de insert direto por responsavel em `checkins` foi removida. A aba Gestao tambem deixou de exibir o gerador antigo de convites por email/tipo de acesso.
+Implementada a visualizacao da rede familiar na aba Familias. Ao selecionar um responsavel, o painel mostra dados do responsavel, membros da rede com mesmo `family_id`, solicitacoes pendentes, criancas compartilhadas da familia e responsavel principal/vinculados por crianca. Admin/SADMIN tem botoes para adicionar responsavel por email e remover membro da rede; Equipe visualiza sem alterar.
 
 Ficou funcionando:
-Patch aplicado em producao. Verificacao direta confirmou RPC/configuracao/policy nova. Depois da correcao de hash, verificacao direta confirmou `search_path=public, extensions` e digest funcionando com `convert_to`. Testes direcionados passaram com 76 testes.
+Frontend, mock, testes locais e RPCs em producao. `supabase/patch_admin_family_network_management.sql` cria `admin_link_family_responsible` e `admin_unlink_family_responsible`; `setup_dnms_checkin.sql` tambem foi atualizado. `npm.cmd test -- tests/checkin.spec.js` passou com 56 testes e `npm.cmd test` passou com 134 testes.
 
 Ficou pendente:
-Validar no celular: clicar em Check-in no card da crianca, confirmar que a camera abre direto, escanear o QR fixo `DNMS-CHECKIN-PRESENCIAL` e confirmar check-in/impressao real no local.
+Validar o fluxo na aplicacao publicada com uma familia de teste.
 
 Para continuar em uma nova sessao, comecar por:
-Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, e rodar `git status --short`.
+Ler `AGENTS.md`, ler este arquivo, ler `docs/CODEX_CONTEXT.local.md` se existir, rodar `git status --short` e testar uma familia real/de teste na aba Familias publicada.

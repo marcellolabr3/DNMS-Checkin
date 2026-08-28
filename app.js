@@ -4452,7 +4452,11 @@ function renderFamiliesPanel() {
   }
 
   if (!filtered.some((entry) => entry.profile.id === familyContext.selectedProfileId)) {
-    familyContext.selectedProfileId = filtered[0].profile.id;
+    const directMatch =
+      filtered.find((entry) =>
+        normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`).includes(search)
+      ) || filtered[0];
+    familyContext.selectedProfileId = directMatch.profile.id;
   }
 
   els.familyList.innerHTML = "";
@@ -4488,23 +4492,73 @@ function renderFamiliesPanel() {
   }
   const canManageResponsible = canManageResponsibleProfile(selected.profile);
   const canDelete = canManageResponsible;
-  const assignableStudents = getFamilyAssignableStudents(selected.profile.id, selected.children);
+  const canManageNetwork = canManageFamilyNetwork(selected.profile);
+  const networkMembers = selected.networkMembers || [selected.profile];
+  const pendingRequests = selected.pendingRequests || [];
+  const networkChildren = selected.networkChildren || selected.children || [];
+  const assignableStudents = getFamilyAssignableStudents(
+    networkMembers.map((member) => member.id),
+    networkChildren
+  );
   const assignOptions = assignableStudents
     .map((student) => `<option value="${escapeAttribute(student.id)}">${escapeHtml(student.name)} - ${escapeHtml(student.className || getClassForBirth(student.birth))}</option>`)
     .join("");
-  const childrenHtml = selected.children.length
-    ? selected.children
+  const networkHtml = networkMembers.length
+    ? networkMembers
+        .map((member) => {
+          const isSelected = member.id === selected.profile.id;
+          const canRemoveMember = canManageNetwork && member.id !== selected.profile.id;
+          return `
+      <div class="list-item family-network-member">
+        <div>
+          <strong>${escapeHtml(member.name || "Responsavel")}${isSelected ? " (selecionado)" : ""}</strong>
+          <span class="muted">${escapeHtml(member.email || "-")}</span>
+          <span class="muted">${escapeHtml(formatPhoneForDisplay(member.phone || "") || "-")}</span>
+        </div>
+        ${
+          canRemoveMember
+            ? `<button type="button" class="danger" data-family-remove-member="${escapeAttribute(member.id)}">Remover da rede</button>`
+            : ""
+        }
+      </div>
+    `;
+        })
+        .join("")
+    : `<div class="summary">Nenhum responsavel vinculado.</div>`;
+  const pendingHtml = pendingRequests.length
+    ? pendingRequests
         .map(
-          (child) => `
+          (request) => `
+      <div class="list-item">
+        <strong>${escapeHtml(request.targetName || request.requesterName || "Responsavel pendente")}</strong>
+        <span class="muted">Solicitacao pendente ate ${escapeHtml(formatDateTimeFromIso(request.expiresAt))}</span>
+      </div>
+    `
+        )
+        .join("")
+    : `<div class="summary">Nenhuma solicitacao pendente.</div>`;
+  const childrenHtml = networkChildren.length
+    ? networkChildren
+        .map(
+          (child) => {
+            const childGuardianNames = getStudentGuardianNames(child);
+            const primaryGuardianName = child.guardian || child.owner || "-";
+            const linkedGuardianNames = childGuardianNames.filter(
+              (name) => normalizeMatchText(name) !== normalizeMatchText(primaryGuardianName)
+            );
+            return `
       <div class="list-item">
         <strong>${escapeHtml(child.name)}</strong>
         <span class="muted">Turma: ${escapeHtml(child.className || getClassForBirth(child.birth))}</span>
+        <span class="muted">Responsavel principal: ${escapeHtml(primaryGuardianName)}</span>
+        <span class="muted">Vinculados: ${escapeHtml(linkedGuardianNames.join(", ") || "-")}</span>
         <div class="actions">
           ${canEditStudent(child) ? `<button type="button" class="ghost" data-family-edit-child="${escapeAttribute(child.id)}">Editar crianca</button>` : ""}
           <button type="button" class="primary" data-family-checkin-child="${escapeAttribute(child.id)}">Check-in</button>
         </div>
       </div>
-    `
+    `;
+          }
         )
         .join("")
     : `<div class="summary">Nenhuma crianca vinculada.</div>`;
@@ -4516,9 +4570,10 @@ function renderFamiliesPanel() {
         <span>${escapeHtml(selected.profile.email || "-")}</span>
         <span>${escapeHtml(formatPhoneForDisplay(selected.profile.phone || "") || "-")}</span>
       </div>
-      <span class="pill">${selected.children.length} filho(s)</span>
+      <span class="pill">${networkChildren.length} crianca(s) na familia</span>
     </div>
     <div class="family-editor-section">
+      <strong>Dados do responsavel</strong>
       <label class="field">Nome
         <input id="familyEditName" type="text" value="${escapeAttribute(selected.profile.name || "")}" ${canManageResponsible ? "" : "disabled"} />
       </label>
@@ -4537,7 +4592,27 @@ function renderFamiliesPanel() {
       </div>
     </div>
     <div class="family-editor-section">
-      <strong>Criancas vinculadas</strong>
+      <strong>Rede familiar</strong>
+      <div class="family-network-list">${networkHtml}</div>
+      <details class="compact-panel">
+        <summary>Solicitacoes pendentes</summary>
+        <div class="family-network-list">${pendingHtml}</div>
+      </details>
+      ${
+        canManageNetwork
+          ? `
+        <label class="field">Adicionar responsavel a rede
+          <input id="familyNetworkAddEmail" type="email" placeholder="email@exemplo.com" />
+        </label>
+        <div class="actions">
+          <button id="btnFamilyNetworkAddResponsible" type="button" class="ghost">Adicionar responsavel</button>
+        </div>
+      `
+          : `<div class="summary">Equipe pode visualizar a rede familiar, sem alterar vinculos.</div>`
+      }
+    </div>
+    <div class="family-editor-section">
+      <strong>Criancas da familia</strong>
       <div class="family-children-list">${childrenHtml}</div>
     </div>
     <div class="family-editor-section">
@@ -4583,6 +4658,17 @@ function renderFamiliesPanel() {
     }
     await assignStudentToFamily(studentId, selected.profile);
   });
+  document.getElementById("btnFamilyNetworkAddResponsible")?.addEventListener("click", async () => {
+    const email = String(document.getElementById("familyNetworkAddEmail")?.value || "").trim().toLowerCase();
+    await adminAddResponsibleToFamilyNetwork(selected.profile, email);
+  });
+  document.querySelectorAll("[data-family-remove-member]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const profileId = button.getAttribute("data-family-remove-member");
+      const profile = (state.profiles || []).find((item) => item.id === profileId);
+      await adminRemoveResponsibleFromFamilyNetwork(selected.profile, profile);
+    });
+  });
   document.querySelectorAll("[data-family-edit-child]").forEach((button) => {
     button.addEventListener("click", () => {
       const childId = button.getAttribute("data-family-edit-child");
@@ -4619,6 +4705,16 @@ function getFamiliesWithChildren() {
       childrenByGuardian.get(key).push(student);
     });
   });
+  const responsibleProfiles = (state.profiles || []).filter((profile) => normalizeRole(profile.role) === "responsavel");
+  const membersByFamily = new Map();
+  responsibleProfiles.forEach((profile) => {
+    const familyId = getProfileFamilyId(profile);
+    if (!membersByFamily.has(familyId)) {
+      membersByFamily.set(familyId, []);
+    }
+    membersByFamily.get(familyId).push(profile);
+  });
+  membersByFamily.forEach((members) => members.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
   const result = [];
   (state.profiles || []).forEach((profile) => {
     const role = normalizeRole(profile.role);
@@ -4627,7 +4723,11 @@ function getFamiliesWithChildren() {
     if (!shouldInclude) {
       return;
     }
-    result.push({ profile, children });
+    const familyId = role === "responsavel" ? getProfileFamilyId(profile) : "";
+    const networkMembers = role === "responsavel" ? membersByFamily.get(familyId) || [profile] : [profile];
+    const networkChildren = role === "responsavel" ? getChildrenForFamilyNetwork(networkMembers) : children;
+    const pendingRequests = role === "responsavel" ? getPendingFamilyRequestsForMembers(networkMembers) : [];
+    result.push({ profile, children, familyId, networkMembers, networkChildren, pendingRequests });
   });
   result.sort((a, b) => (a.profile.name || "").localeCompare(b.profile.name || ""));
   return result;
@@ -4640,16 +4740,118 @@ function getFilteredFamiliesForCurrentSearch() {
     return { search: "", filtered: [] };
   }
   const filtered = families.filter((entry) => {
-    const blob = normalizeMatchText(`${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""}`);
+    const memberBlob = (entry.networkMembers || [])
+      .map((member) => `${member.name || ""} ${member.email || ""} ${member.phone || ""}`)
+      .join(" ");
+    const childBlob = (entry.networkChildren || entry.children || []).map((child) => child.name || "").join(" ");
+    const blob = normalizeMatchText(
+      `${entry.profile.name || ""} ${entry.profile.email || ""} ${entry.profile.phone || ""} ${memberBlob} ${childBlob}`
+    );
     return blob.includes(search);
   });
   return { search, filtered };
 }
 
-function getFamilyAssignableStudents(profileId, selectedChildren = []) {
+function getProfileFamilyId(profile) {
+  if (!profile) {
+    return "";
+  }
+  return String(profile.familyId || profile.family_id || profile.id || "").trim();
+}
+
+function getChildrenForFamilyNetwork(members = []) {
+  const memberIds = new Set(members.map((member) => member.id).filter(Boolean));
+  const memberNames = new Set(members.map((member) => normalizeMatchText(member.name || "")).filter(Boolean));
+  return (state.students || [])
+    .filter((student) => {
+      const guardianIds = getStudentGuardianProfileIds(student);
+      if (guardianIds.some((id) => memberIds.has(id))) {
+        return true;
+      }
+      const primaryName = normalizeMatchText(student.guardian || student.owner || "");
+      return primaryName && memberNames.has(primaryName);
+    })
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+function getPendingFamilyRequestsForMembers(members = []) {
+  const memberIds = new Set(members.map((member) => member.id).filter(Boolean));
+  return (state.familyLinkRequests || [])
+    .filter(
+      (request) =>
+        request.status === "pending" && (memberIds.has(request.requesterId) || memberIds.has(request.targetId))
+    )
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function getStudentGuardianNames(student) {
+  const names = getStudentGuardianProfileIds(student)
+    .map((id) => (state.profiles || []).find((profile) => profile.id === id)?.name || "")
+    .filter(Boolean);
+  const primaryName = student?.guardian || student?.owner || "";
+  if (primaryName && !names.some((name) => normalizeMatchText(name) === normalizeMatchText(primaryName))) {
+    names.unshift(primaryName);
+  }
+  return Array.from(new Set(names));
+}
+
+function syncFamilyLinksInMemory(familyId) {
+  const members = (state.profiles || []).filter(
+    (profile) => normalizeRole(profile.role) === "responsavel" && getProfileFamilyId(profile) === familyId
+  );
+  const children = getChildrenForFamilyNetwork(members);
+  children.forEach((student) => {
+    const index = state.students.findIndex((item) => item.id === student.id);
+    if (index < 0) {
+      return;
+    }
+    const guardianProfileIds = getStudentGuardianProfileIds(state.students[index]);
+    members.forEach((member) => {
+      if (!guardianProfileIds.includes(member.id)) {
+        guardianProfileIds.push(member.id);
+      }
+    });
+    state.students[index] = { ...state.students[index], guardianProfileIds };
+  });
+}
+
+function splitResponsibleFromFamilyInMemory(targetProfile) {
+  const previousFamilyId = getProfileFamilyId(targetProfile);
+  const targetName = normalizeMatchText(targetProfile.name || "");
+  const remainingMembers = (state.profiles || []).filter(
+    (profile) =>
+      profile.id !== targetProfile.id &&
+      normalizeRole(profile.role) === "responsavel" &&
+      getProfileFamilyId(profile) === previousFamilyId
+  );
+  const remainingNames = new Set(remainingMembers.map((member) => normalizeMatchText(member.name || "")).filter(Boolean));
+  state.profiles = (state.profiles || []).map((profile) =>
+    profile.id === targetProfile.id ? { ...profile, familyId: profile.id } : profile
+  );
+  state.students = (state.students || []).map((student) => {
+    const primaryName = normalizeMatchText(student.guardian || student.owner || "");
+    let guardianProfileIds = getStudentGuardianProfileIds(student);
+    if (primaryName === targetName) {
+      guardianProfileIds = guardianProfileIds.filter((id) => id === targetProfile.id);
+    } else if (remainingNames.has(primaryName)) {
+      guardianProfileIds = guardianProfileIds.filter((id) => id !== targetProfile.id);
+    }
+    return { ...student, guardianProfileIds };
+  });
+}
+
+function getFamilyAssignableStudents(profileIds, selectedChildren = []) {
+  const ids = Array.isArray(profileIds) ? profileIds : [profileIds];
+  const profileIdSet = new Set(ids.map((id) => String(id || "").trim()).filter(Boolean));
   const selectedIds = new Set((selectedChildren || []).map((child) => child.id));
   return (state.students || [])
-    .filter((student) => !selectedIds.has(student.id) && !getStudentGuardianProfileIds(student).includes(profileId))
+    .filter((student) => {
+      if (selectedIds.has(student.id)) {
+        return false;
+      }
+      const guardianIds = getStudentGuardianProfileIds(student);
+      return !guardianIds.some((id) => profileIdSet.has(id));
+    })
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
 
@@ -4813,6 +5015,14 @@ async function assignStudentToFamily(studentId, profile) {
       alert("Falha ao vincular crianca ao responsavel selecionado.");
       return;
     }
+    try {
+      await supabaseClient.rpc("sync_student_family_guardians", {
+        target_student_id: student.id,
+        seed_guardian_id: profile.id
+      });
+    } catch (_) {
+      // Ambientes sem a RPC seguem com o vinculo individual acima.
+    }
     await recordAuditLog(
       "child_updated",
       "student",
@@ -4973,6 +5183,121 @@ async function updateUserAccess(profile, nextRole) {
     nextRole
   });
   await fetchProfiles();
+  render();
+}
+
+function canManageFamilyNetwork(profile) {
+  return normalizeRole(profile?.role || "") === "responsavel" && (isSadmin() || isAdmin());
+}
+
+async function adminAddResponsibleToFamilyNetwork(anchorProfile, email) {
+  if (!canManageFamilyNetwork(anchorProfile)) {
+    alert("Somente SADMIN/Admin podem alterar a rede familiar nesta aba.");
+    return;
+  }
+  if (!email || !isValidEmail(email)) {
+    alert("Informe um email valido do responsavel.");
+    return;
+  }
+  const target = (state.profiles || []).find(
+    (profile) => String(profile.email || "").trim().toLowerCase() === email && normalizeRole(profile.role) === "responsavel"
+  );
+  if (!target) {
+    alert("Responsavel nao encontrado. O email precisa estar cadastrado como responsavel.");
+    return;
+  }
+  if (target.id === anchorProfile.id) {
+    alert("Este responsavel ja e o responsavel selecionado.");
+    return;
+  }
+  if (getProfileFamilyId(target) === getProfileFamilyId(anchorProfile)) {
+    alert("Este responsavel ja esta na rede familiar selecionada.");
+    return;
+  }
+  if (!confirm(`Adicionar ${target.name || email} a rede familiar de ${anchorProfile.name}?`)) {
+    return;
+  }
+
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.rpc("admin_link_family_responsible", {
+      anchor_profile_id: anchorProfile.id,
+      target_email: email
+    });
+    if (error) {
+      alert(`Falha ao adicionar responsavel a rede: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await recordAuditLog(
+      "user_updated",
+      "profile",
+      target.id,
+      target.name || target.email || target.id,
+      `Responsavel ${target.name || target.email} adicionado a rede familiar de ${anchorProfile.name}.`,
+      {
+        anchorGuardianId: anchorProfile.id,
+        linkedGuardianId: target.id,
+        familyId: data?.family_id || getProfileFamilyId(anchorProfile)
+      }
+    );
+    await fetchProfiles();
+    await fetchStudents();
+    await fetchDashboardData();
+  } else {
+    const familyId = getProfileFamilyId(anchorProfile);
+    state.profiles = (state.profiles || []).map((profile) =>
+      getProfileFamilyId(profile) === getProfileFamilyId(target) || profile.id === target.id
+        ? { ...profile, familyId }
+        : profile
+    );
+    syncFamilyLinksInMemory(familyId);
+  }
+  familyContext.selectedProfileId = anchorProfile.id;
+  render();
+}
+
+async function adminRemoveResponsibleFromFamilyNetwork(anchorProfile, targetProfile) {
+  if (!canManageFamilyNetwork(anchorProfile)) {
+    alert("Somente SADMIN/Admin podem alterar a rede familiar nesta aba.");
+    return;
+  }
+  if (!targetProfile?.id) {
+    alert("Responsavel nao encontrado.");
+    return;
+  }
+  if (targetProfile.id === anchorProfile.id) {
+    alert("Selecione outro responsavel da rede para remover.");
+    return;
+  }
+  if (!confirm(`Remover ${targetProfile.name || targetProfile.email} desta rede familiar?`)) {
+    return;
+  }
+
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.rpc("admin_unlink_family_responsible", {
+      target_profile_id: targetProfile.id
+    });
+    if (error) {
+      alert(`Falha ao remover responsavel da rede: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await recordAuditLog(
+      "user_updated",
+      "profile",
+      targetProfile.id,
+      targetProfile.name || targetProfile.email || targetProfile.id,
+      `Responsavel ${targetProfile.name || targetProfile.email} removido da rede familiar.`,
+      {
+        removedGuardianId: targetProfile.id,
+        previousFamilyId: data?.previous_family_id || getProfileFamilyId(anchorProfile)
+      }
+    );
+    await fetchProfiles();
+    await fetchStudents();
+    await fetchDashboardData();
+  } else {
+    splitResponsibleFromFamilyInMemory(targetProfile);
+  }
+  familyContext.selectedProfileId = anchorProfile.id;
   render();
 }
 
