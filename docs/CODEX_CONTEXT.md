@@ -55,13 +55,13 @@ Credenciais:
 
 ## Estado Validado
 
-- Ultimo commit enviado: `95623bf Atualiza contexto apos janela de check-in`.
-- Correcao da janela de check-in enviada em `d1f8677 Bloqueia check-in fora do horario da aula`.
+- Janela de check-in por horario aplicada no app e no Supabase em 2026-08-28.
 - `npm.cmd test` passou com 140 testes em 2026-08-28.
 - Supabase confirmou `is_room_checkin_window_open`, trigger `prevent_checkin_outside_room_window_trigger` e RPC `parent_checkin_with_presence`.
 - Teste de fronteira no Supabase: antes de 30 min bloqueia, 30 min antes libera, durante a aula libera, horario final bloqueia.
 - Impressao local validada: o app mostra Brother offline quando a impressora esta desligada e online quando ligada.
 - Check-in real de responsavel com QR presencial funcionou em producao.
+- Em 2026-08-29, corrigida inconsistencia visual: crianca com check-in ativo nao deve manter botao "Check-in" clicavel quando a janela da sala ainda nao abriu.
 
 ## Pendencias
 

@@ -136,11 +136,7 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
 
   const ana = studentItem(page, "Ana Kids");
   await expect(ana.getByRole("button", { name: "Checkout" })).toBeVisible();
-  await ana.getByRole("button", { name: "Check-in" }).click();
-
-  await expect
-    .poll(() => getAlerts(page))
-    .toContainEqual(expect.stringContaining("ja possui um check-in ativo"));
+  await expect(ana.getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
 });
 
 test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ page }) => {

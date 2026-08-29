@@ -2024,7 +2024,10 @@ function renderStudents() {
     if (!canCheckinStudent(student)) {
       btnCheckin.disabled = true;
     }
-    if (!checkinWindow.ok && !openCheckin && !alreadyInTargetRoom) {
+    if (openCheckin || alreadyInTargetRoom) {
+      btnCheckin.disabled = true;
+      btnCheckin.textContent = "Check-in realizado";
+    } else if (!checkinWindow.ok) {
       btnCheckin.disabled = true;
       btnCheckin.textContent =
         checkinWindow.reason === "too_early"
@@ -2033,10 +2036,6 @@ function renderStudents() {
             ? "Check-in encerrado"
             : "Check-in indisponivel";
       btnCheckin.title = checkinWindow.message;
-    }
-    if (alreadyInTargetRoom) {
-      btnCheckin.disabled = true;
-      btnCheckin.textContent = "Check-in realizado";
     }
 
     if (btnCheckout && (!openCheckin || !canCheckinStudent(student))) {
