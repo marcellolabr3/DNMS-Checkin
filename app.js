@@ -1439,6 +1439,15 @@ async function fetchRooms() {
     .filter(Boolean);
   if (expiredOpenIds.length) {
     const closedAtIso = new Date().toISOString();
+    const { error: checkoutError } = await supabaseClient
+      .from("checkins")
+      .update({ checked_out_at: closedAtIso })
+      .in("room_id", expiredOpenIds)
+      .is("checked_out_at", null);
+    if (checkoutError) {
+      console.warn("Falha ao fazer checkout automatico de salas vencidas", checkoutError);
+      return;
+    }
     const { error: closeError } = await supabaseClient
       .from("rooms")
       .update({ status: "Fechada", closed_at: closedAtIso })
@@ -1451,6 +1460,11 @@ async function fetchRooms() {
           ? { ...room, status: "Fechada", closed_at: closedAtIso }
           : room
       );
+      state.checkins.forEach((checkin) => {
+        if (expiredOpenIds.includes(checkin.roomId) && !checkin.checkedOutAt) {
+          checkin.checkedOutAt = formatTimeFromIso(closedAtIso);
+        }
+      });
     }
   }
   state.rooms = rows.map((room) => {

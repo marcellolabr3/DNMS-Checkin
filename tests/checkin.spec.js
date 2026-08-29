@@ -139,6 +139,49 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
   await expect(ana.getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
 });
 
+test("sala vencida aberta faz checkout automatico antes de novo check-in", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(
+    ({ pastDate, todayDate }) => {
+      const oldRoom = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+      oldRoom.date = pastDate;
+      oldRoom.status = "Aberta";
+      oldRoom.closed_at = null;
+      window.__mockDnmsDb.checkins.push({
+        id: "checkin-stale-active",
+        student_id: "student-kids",
+        room_id: oldRoom.id,
+        room_name_snapshot: oldRoom.name,
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${pastDate}T12:00:00.000Z`,
+        checked_out_at: null
+      });
+      window.__mockDnmsDb.rooms.push({
+        id: "room-kids-current",
+        name: "Culto Kids Atual",
+        date: todayDate,
+        start_time: oldRoom.start_time,
+        end_time: oldRoom.end_time,
+        class_target: "Kids",
+        status: "Aberta",
+        opened_at: `${todayDate}T12:00:00.000Z`,
+        closed_at: null
+      });
+    },
+    { pastDate: pastIso(1), todayDate: todayIso() }
+  );
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.id === "checkin-stale-active")?.checked_out_at))
+    .not.toBeNull();
+  await expect(page.locator("#studentList .list-item").filter({ hasText: "Ana Kids" }).getByRole("button", { name: "Checkout" })).toHaveCount(0);
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
+});
+
 test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

@@ -62,6 +62,7 @@ Credenciais:
 - Impressao local validada: o app mostra Brother offline quando a impressora esta desligada e online quando ligada.
 - Check-in real de responsavel com QR presencial funcionou em producao.
 - Em 2026-08-29, corrigida inconsistencia visual: crianca com check-in ativo nao deve manter botao "Check-in" clicavel quando a janela da sala ainda nao abriu.
+- Em 2026-08-29, saneados 11 check-ins antigos sem checkout de salas fechadas de 2026-08-27; `fetchRooms` agora faz checkout automatico antes de fechar salas vencidas.
 
 ## Pendencias
 
