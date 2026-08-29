@@ -31,6 +31,7 @@ Arquivos SQL importantes:
 - `supabase/patch_checkin_time_window.sql` - aplicado em producao em 2026-08-28; bloqueia check-in fora da janela da aula.
 - `supabase/patch_parent_checkin_presence_qr.sql` - QR presencial para responsavel.
 - `supabase/patch_checkin_active_guard.sql` - um check-in ativo por crianca.
+- `supabase/patch_student_age_eligibility.sql` - aplicado em producao em 2026-08-29; permite participacao ate o fim do ano em que a crianca completa 15 anos e bloqueia a partir do ano seguinte.
 - `supabase/patch_reprint_queue.sql` - fila de reimpressao remota.
 - `supabase/patch_family_network.sql`, `supabase/patch_family_link_requests.sql`, `supabase/patch_admin_family_network_management.sql` - rede familiar.
 
@@ -45,6 +46,7 @@ Credenciais:
 
 - Regras sensiveis devem existir no frontend e no banco.
 - Check-in permitido somente de 30 min antes do inicio da aula ate antes do horario de termino.
+- Crianca participa/check-in ate 31/12 do ano em que completa 15; no ano em que completa 16 fica fora da faixa. A turma deve ser calculada pelo ano da aula, nao pelo aniversario exato.
 - Responsavel faz check-in somente via QR presencial usando RPC `parent_checkin_with_presence`.
 - Admin/equipe fazem check-in direto em `checkins`, mas a trigger do banco tambem valida horario.
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
@@ -56,9 +58,11 @@ Credenciais:
 ## Estado Validado
 
 - Janela de check-in por horario aplicada no app e no Supabase em 2026-08-28.
-- `npm.cmd test` passou com 140 testes em 2026-08-28.
+- `npm.cmd test` passou com 144 testes em 2026-08-29.
 - Supabase confirmou `is_room_checkin_window_open`, trigger `prevent_checkin_outside_room_window_trigger` e RPC `parent_checkin_with_presence`.
 - Teste de fronteira no Supabase: antes de 30 min bloqueia, 30 min antes libera, durante a aula libera, horario final bloqueia.
+- Supabase confirmou `get_student_class_for_birth_year`, trigger `prevent_checkin_outside_student_age_range_trigger` e RPC `parent_checkin_with_presence` usando a regra anual de idade.
+- Teste transacional em producao confirmou: crianca que completa 15 no ano faz check-in; crianca que completa 16 no ano bloqueia; rollback executado.
 - Impressao local validada: o app mostra Brother offline quando a impressora esta desligada e online quando ligada.
 - Check-in real de responsavel com QR presencial funcionou em producao.
 - Em 2026-08-29, corrigida inconsistencia visual: crianca com check-in ativo nao deve manter botao "Check-in" clicavel quando a janela da sala ainda nao abriu.

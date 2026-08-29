@@ -72,6 +72,24 @@ create table if not exists public.checkins (
   printed_at timestamptz null
 );
 
+create or replace function public.get_student_class_for_birth_year(
+  birth_date date,
+  reference_date date default current_date
+)
+returns text
+language sql
+stable
+as $$
+  select case
+    when birth_date is null or reference_date is null then 'Indefinida'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int between 2 and 3 then 'Maternal'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int between 4 and 6 then 'Kids'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int between 7 and 10 then 'Juniors'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int between 11 and 15 then 'Teens'
+    else 'Fora da faixa'
+  end
+$$;
+
 alter table public.rooms
   add column if not exists start_time text null,
   add column if not exists end_time text null;
@@ -1331,7 +1349,7 @@ begin
     into target_room
     from public.rooms
    where rooms.status = 'Aberta'
-     and rooms.class_target = target_student.class_name
+     and rooms.class_target = public.get_student_class_for_birth_year(target_student.birth_date, rooms.date)
    order by rooms.date asc, coalesce(rooms.start_time, rooms.time) asc nulls last, rooms.opened_at asc nulls last
    limit 1;
 
@@ -1369,7 +1387,7 @@ begin
     target_student.id,
     target_room.id,
     target_room.name,
-    target_student.class_name,
+    public.get_student_class_for_birth_year(target_student.birth_date, target_room.date),
     actor_profile.id,
     coalesce(target_student.notes, '')
   )
@@ -2093,6 +2111,54 @@ create trigger prevent_checkin_outside_room_window_trigger
 before insert on public.checkins
 for each row execute function public.prevent_checkin_outside_room_window();
 
+create or replace function public.prevent_checkin_outside_student_age_range()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  student_birth date;
+  room_date date;
+  room_class text;
+  expected_class text;
+begin
+  select s.birth_date
+    into student_birth
+    from public.students s
+   where s.id = new.student_id
+   limit 1;
+
+  select r.date, r.class_target
+    into room_date, room_class
+    from public.rooms r
+   where r.id = new.room_id
+   limit 1;
+
+  if student_birth is null or room_date is null then
+    return new;
+  end if;
+
+  expected_class := public.get_student_class_for_birth_year(student_birth, room_date);
+
+  if expected_class = 'Fora da faixa' then
+    raise exception 'student_age_out_of_range';
+  end if;
+
+  if room_class is distinct from expected_class then
+    raise exception 'student_class_mismatch_for_age';
+  end if;
+
+  new.class_name := expected_class;
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_checkin_outside_student_age_range_trigger on public.checkins;
+create trigger prevent_checkin_outside_student_age_range_trigger
+before insert or update of student_id, room_id on public.checkins
+for each row execute function public.prevent_checkin_outside_student_age_range();
+
 create or replace function public.parent_checkin_with_presence(
   target_student_id uuid,
   presence_token text
@@ -2163,7 +2229,7 @@ begin
     into target_room
     from public.rooms
    where rooms.status = 'Aberta'
-     and rooms.class_target = target_student.class_name
+     and rooms.class_target = public.get_student_class_for_birth_year(target_student.birth_date, rooms.date)
    order by
      case when public.is_room_checkin_window_open(rooms.id, now()) then 0 else 1 end,
      rooms.date asc,
@@ -2209,7 +2275,7 @@ begin
     target_student.id,
     target_room.id,
     target_room.name,
-    target_student.class_name,
+    public.get_student_class_for_birth_year(target_student.birth_date, target_room.date),
     actor_profile.id,
     coalesce(target_student.notes, '')
   )
@@ -2230,6 +2296,7 @@ $$;
 
 revoke all on function public.is_room_checkin_window_open(uuid, timestamptz) from public;
 revoke all on function public.prevent_checkin_outside_room_window() from public;
+revoke all on function public.prevent_checkin_outside_student_age_range() from public;
 revoke all on function public.parent_checkin_with_presence(uuid, text) from public;
 
 grant execute on function public.is_room_checkin_window_open(uuid, timestamptz) to authenticated;

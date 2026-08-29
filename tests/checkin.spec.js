@@ -139,6 +139,72 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
   await expect(ana.getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
 });
 
+test("crianca pode fazer check-in ate o fim do ano em que completa 15", async ({ page }) => {
+  const year = new Date().getFullYear();
+  await openApp(page);
+  await page.evaluate(
+    ({ turns15Birth, turns16Birth, startedAt, endedAt, today }) => {
+      window.__mockDnmsDb.rooms.push({
+        id: "room-teens-age-rule",
+        name: "Culto Teens",
+        date: today,
+        start_time: startedAt,
+        end_time: endedAt,
+        class_target: "Teens",
+        status: "Aberta",
+        opened_at: today + "T09:00:00.000Z",
+        closed_at: null
+      });
+      window.__mockDnmsDb.students.push(
+        {
+          id: "student-turns-15",
+          name: "Clara Quinze",
+          birth_date: turns15Birth,
+          class_name: "Fora da faixa",
+          primary_guardian_name: "Responsavel Teste",
+          phone: "11988880000",
+          address: "Rua Familia",
+          notes: "",
+          is_visitor: false,
+          photo_url: ""
+        },
+        {
+          id: "student-turns-16",
+          name: "Davi Dezesseis",
+          birth_date: turns16Birth,
+          class_name: "Teens",
+          primary_guardian_name: "Responsavel Teste",
+          phone: "11988880000",
+          address: "Rua Familia",
+          notes: "",
+          is_visitor: false,
+          photo_url: ""
+        }
+      );
+    },
+    {
+      turns15Birth: `${year - 15}-12-31`,
+      turns16Birth: `${year - 16}-12-31`,
+      startedAt: timeOffset(-10),
+      endedAt: timeOffset(50),
+      today: todayIso()
+    }
+  );
+
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await expect(studentItem(page, "Clara Quinze")).toContainText("Turma: Teens");
+  await expect(studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await expect(studentItem(page, "Davi Dezesseis")).toContainText("Turma: Fora da faixa");
+  await expect(studentItem(page, "Davi Dezesseis").getByRole("button", { name: "Fora da faixa" })).toBeDisabled();
+
+  await studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-15")?.class_name))
+    .toBe("Teens");
+});
+
 test("sala vencida aberta faz checkout automatico antes de novo check-in", async ({ page }) => {
   await openApp(page);
   await page.evaluate(

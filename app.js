@@ -1412,7 +1412,7 @@ async function fetchStudents() {
     id: student.id,
     name: student.name,
     birth: student.birth_date,
-    className: student.class_name,
+    className: getClassForBirth(student.birth_date),
     guardian: student.primary_guardian_name,
     otherGuardians: "",
     phone: formatPhoneForDisplay(student.phone),
@@ -1976,6 +1976,7 @@ function renderStudents() {
     const contact = getResponsibleContactForStudent(student);
     const birthLabel = formatBirthDateShort(student.birth) || "-";
     const className = student.className || getClassForBirth(student.birth);
+    const ageEligibility = getStudentAgeEligibility(student);
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
     const checkinWindow = getCheckinWindowValidation(getAvailableCheckinRoomForClass(className) || targetRoom);
@@ -2035,12 +2036,15 @@ function renderStudents() {
       btnEdit.disabled = true;
     }
 
-    if (!canCheckinStudent(student)) {
-      btnCheckin.disabled = true;
-    }
     if (openCheckin || alreadyInTargetRoom) {
       btnCheckin.disabled = true;
       btnCheckin.textContent = "Check-in realizado";
+    } else if (!ageEligibility.ok) {
+      btnCheckin.disabled = true;
+      btnCheckin.textContent = "Fora da faixa";
+      btnCheckin.title = ageEligibility.message;
+    } else if (!canCheckinStudent(student)) {
+      btnCheckin.disabled = true;
     } else if (!checkinWindow.ok) {
       btnCheckin.disabled = true;
       btnCheckin.textContent =
@@ -2052,7 +2056,8 @@ function renderStudents() {
       btnCheckin.title = checkinWindow.message;
     }
 
-    if (btnCheckout && (!openCheckin || !canCheckinStudent(student))) {
+    const canCheckoutStudent = isEquipe() || isAdmin() || isStudentOwnedBySession(student);
+    if (btnCheckout && (!openCheckin || !canCheckoutStudent)) {
       btnCheckout.disabled = true;
     }
 
@@ -6956,6 +6961,10 @@ async function handleManualCheckin(studentId, options = {}) {
   if (!student) {
     return fail("Aluno nao encontrado.");
   }
+  const ageEligibility = getStudentAgeEligibility(student);
+  if (!ageEligibility.ok) {
+    return fail(ageEligibility.message);
+  }
   if (!canCheckinStudent(student)) {
     return fail("Sem permissao para check-in deste aluno.");
   }
@@ -7034,6 +7043,9 @@ async function handleManualCheckin(studentId, options = {}) {
       }
       if (message.includes("checkin_window_closed") || message.includes("horario de check-in")) {
         return fail("Horario de check-in encerrado para esta aula.");
+      }
+      if (message.includes("student_age_out_of_range") || message.includes("student_class_mismatch_for_age")) {
+        return fail("Crianca fora da faixa de idade para participacao neste ano.");
       }
       return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
     }
@@ -7384,6 +7396,9 @@ function canDeleteStudent(student) {
 
 function canCheckinStudent(student) {
   if (!state.session) {
+    return false;
+  }
+  if (!getStudentAgeEligibility(student).ok) {
     return false;
   }
   if (isEquipe() || isAdmin()) {
@@ -8077,15 +8092,41 @@ function getAgeFromBirth(birth) {
   return age;
 }
 
+function getMinistryYearAgeFromBirth(birth, referenceDate = new Date()) {
+  if (!birth) {
+    return null;
+  }
+  const [year, month, day] = birth.split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return null;
+  }
+  return referenceDate.getFullYear() - year;
+}
+
+function getStudentAgeEligibility(student, referenceDate = new Date()) {
+  const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
+  const ministryYearAge = getMinistryYearAgeFromBirth(birth, referenceDate);
+  if (ministryYearAge === null) {
+    return { ok: false, message: "Data de nascimento invalida para check-in." };
+  }
+  if (ministryYearAge < 2 || ministryYearAge > 15) {
+    return {
+      ok: false,
+      message: "Crianca fora da faixa de idade para participacao neste ano."
+    };
+  }
+  return { ok: true, message: "" };
+}
+
 function getClassForBirth(birth) {
-  const age = getAgeFromBirth(birth);
+  const age = getMinistryYearAgeFromBirth(birth);
   if (age === null) {
     return "Indefinida";
   }
   if (age >= 2 && age <= 3) return "Maternal";
   if (age >= 4 && age <= 6) return "Kids";
   if (age >= 7 && age <= 10) return "Juniors";
-  if (age >= 11 && age <= 14) return "Teens";
+  if (age >= 11 && age <= 15) return "Teens";
   return "Fora da faixa";
 }
 
