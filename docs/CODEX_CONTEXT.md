@@ -60,12 +60,11 @@ Credenciais:
 - `npm.cmd test` passou com 140 testes em 2026-08-28.
 - Supabase confirmou `is_room_checkin_window_open`, trigger `prevent_checkin_outside_room_window_trigger` e RPC `parent_checkin_with_presence`.
 - Teste de fronteira no Supabase: antes de 30 min bloqueia, 30 min antes libera, durante a aula libera, horario final bloqueia.
-- Em 2026-08-28, `/health` do servico local encontrou Brother QL-810W instalada, mas offline no Windows (`WorkOffline: true`, `printer_ready: false`).
+- Impressao local validada: o app mostra Brother offline quando a impressora esta desligada e online quando ligada.
+- Check-in real de responsavel com QR presencial funcionou em producao.
 
 ## Pendencias
 
-- Colocar a Brother QL-810W online no Windows antes de depender de impressao local.
-- Validar em producao/celular um check-in real de responsavel usando QR presencial e janela de horario.
 - Validar em producao uma tentativa de cadastro duplicado pelo app.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
 - Confirmar periodicamente se credenciais administrativas devem permanecer no arquivo local.
