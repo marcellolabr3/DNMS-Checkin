@@ -46,6 +46,7 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
 - `supabase/patch_responsavel_delete_own_student.sql`
 - `supabase/patch_delete_user_account.sql`
 - `supabase/patch_prevent_duplicate_students.sql`
+- `supabase/patch_checkout_on_room_delete.sql`
 - `supabase/patch_student_age_eligibility.sql`
 
 ### Exclusao completa de usuario (atual)
@@ -59,6 +60,8 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
   - fecha check-ins legados ativos em salas fechadas ou inexistentes;
   - fecha duplicidades antigas, preservando o check-in ativo mais recente por criança;
   - cria índice único parcial `checkins_one_active_per_student`.
+- O patch `patch_checkout_on_room_delete.sql` cria trigger em `rooms` para fazer checkout automatico
+  de check-ins ativos antes de excluir uma sala e saneia check-ins ativos que ja ficaram orfaos.
 
 ### Faixa etaria para participacao e check-in (atual)
 - Regra: a crianca permanece na mesma turma durante todo o ano em que faz aniversario.

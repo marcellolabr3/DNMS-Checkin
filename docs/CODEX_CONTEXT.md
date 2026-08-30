@@ -76,7 +76,8 @@ Credenciais:
 - Em 2026-08-30, regra de nome de evento/sala: o nome sempre inclui a data curta da propria ocorrencia (`dd/mm`). Se o nome for vazio, usa apenas `dd/mm`; em recorrencia, cada sala recebe sua respectiva data no nome.
 - Em 2026-08-30, painel de impressao/reimpressao lista somente check-ins ativos do dia (`checked_out_at is null`); ao fechar sala e fazer checkout automatico, a lista fica limpa. Cache atual: `checkin-cache-v157`, `app.js?v=20260830h`, `print.js?v=20260830a`.
 - Em 2026-08-30, diagnostico do notebook: check-in pelo celular depende do listener/polling do `DNMS Impressao` no notebook, nao de `localhost` no celular. `Servico de impressao/server.js` combina WMI + spooler; se WMI marcar offline mas spooler estiver Normal, tenta imprimir e confirma pela fila antes de marcar `printed_at`. Autoimpressao agora busca somente check-ins ativos nao impressos (`printed_at is null` e `checked_out_at is null`), prioriza os recentes e expõe no `/health`/`/status` status do Realtime, ultima varredura, pendentes ativos e fila local.
-- `npm.cmd test` passou com 150 testes em 2026-08-30.
+- Em 2026-08-30, corrigida exclusao de sala com check-in ativo: `deleteRoom` preserva historico local com checkout, `supabase/patch_checkout_on_room_delete.sql` cria trigger `checkout_open_checkins_before_room_delete_trigger` para fazer checkout antes de deletar sala e saneia check-ins ativos orfaos. Patch aplicado em producao; verificacao retornou trigger instalada e 0 check-ins ativos orfaos. Cache atual: `checkin-cache-v158`, `app.js?v=20260830i`.
+- `npm.cmd test` passou com 152 testes em 2026-08-30.
 
 ## Pendencias
 

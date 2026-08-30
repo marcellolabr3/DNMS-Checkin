@@ -134,6 +134,58 @@ test("fechar sala faz checkout automatico dos alunos ativos", async ({ page }) =
     .toBe("Fechada");
 });
 
+test("excluir sala com check-in ativo libera novo check-in em sala recriada", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  const originalCheckinId = await page.evaluate(() => window.__mockDnmsDb.checkins[0]?.id);
+
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await page.locator("#roomList .list-item").filter({ hasText: "Culto Kids" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+  await page.click("#btnRoomDialogEdit");
+  await expect(page.locator("#btnDeleteRoomFromEdit")).toBeVisible();
+  await page.click("#btnDeleteRoomFromEdit");
+
+  await expect
+    .poll(() => page.evaluate((id) => window.__mockDnmsDb.checkins.find((item) => item.id === id)?.checked_out_at, originalCheckinId))
+    .not.toBeNull();
+  await expect
+    .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids"))))
+    .toBe(false);
+
+  await page.fill("#roomName", "Culto Recriado");
+  await page.fill("#roomDate", todayIso());
+  await page.fill("#roomStartTime", "00:00");
+  await page.fill("#roomEndTime", "23:59");
+  await page.locator('#roomClass input[value="Kids"]').check();
+  await page.click("#btnCreateRoom");
+  await page.locator("#roomList .list-item").filter({ hasText: "Culto Recriado" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+  await page.click("#btnRoomDialogOpen");
+  await expect(page.locator("#roomDetailsDialog")).toBeHidden();
+
+  await openStudentsPanel(page);
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__mockDnmsDb.checkins.filter((item) => item.student_id === "student-kids").length)
+    )
+    .toBe(2);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__mockDnmsDb.checkins.filter((item) => item.student_id === "student-kids" && item.checked_out_at === null).length
+      )
+    )
+    .toBe(1);
+});
+
 test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", async ({ page }) => {
   await openApp(page, { path: "/index.html?scenario=duplicate-active-checkin" });
   await loginAs(page, "admin@dnms.test");

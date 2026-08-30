@@ -249,6 +249,29 @@ create unique index if not exists print_jobs_one_open_reprint_per_checkin
 on public.print_jobs (checkin_id)
 where job_type = 'reprint' and status in ('pending', 'processing');
 
+create or replace function public.checkout_open_checkins_before_room_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.checkins
+     set checked_out_at = coalesce(old.closed_at, now())
+   where room_id = old.id
+     and checked_out_at is null;
+
+  return old;
+end;
+$$;
+
+revoke all on function public.checkout_open_checkins_before_room_delete() from public;
+
+drop trigger if exists checkout_open_checkins_before_room_delete_trigger on public.rooms;
+create trigger checkout_open_checkins_before_room_delete_trigger
+before delete on public.rooms
+for each row execute function public.checkout_open_checkins_before_room_delete();
+
 alter table public.profiles enable row level security;
 alter table public.students enable row level security;
 alter table public.rooms enable row level security;

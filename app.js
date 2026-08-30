@@ -5927,7 +5927,6 @@ async function deleteRoom(roomId, options = {}) {
     await fetchCheckins();
   } else {
     state.rooms = state.rooms.filter((room) => room.id !== roomId);
-    state.checkins = state.checkins.filter((checkin) => checkin.roomId !== roomId);
   }
   if (state.activeRoomId === roomId) {
     const openRooms = getOpenRoomsToday();

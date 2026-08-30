@@ -751,6 +751,9 @@ function createMockSupabaseScript() {
           if (this.table === "checkins" && !row.checked_in_at) {
             row.checked_in_at = new Date().toISOString();
           }
+          if (this.table === "checkins" && !Object.prototype.hasOwnProperty.call(row, "checked_out_at")) {
+            row.checked_out_at = null;
+          }
           if (this.table === "audit_logs" && !row.created_at) {
             row.created_at = new Date().toISOString();
           }
