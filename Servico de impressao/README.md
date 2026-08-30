@@ -175,6 +175,8 @@ cmd /c npm run package:portable
 O servico esta operacional quando o painel mostrar bolinha verde para servico local, impressora Brother e acesso aos dados.
 Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role` ou `postgres_direct`.
 
+Se o painel mostrar etiquetas pendentes na fila da Brother, limpe ou libere a fila pelo Windows antes de continuar. O servico bloqueia novas impressoes enquanto houver jobs pendentes e so marca `printed_at` depois que o Windows confirma que a etiqueta saiu da fila.
+
 ## Requisito para o executavel
 
 O executavel usa Chrome/Edge instalado no Windows para renderizar o HTML em modo invisivel.

@@ -23,6 +23,11 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain("getTargetPrinterStatus");
   expect(server).toContain("readWindowsPrinterStatus");
   expect(server).toContain("evaluateWindowsPrinterReadiness");
+  expect(server).toContain("assertPrinterQueueReady(printer.name)");
+  expect(server).toContain("waitForPrinterQueueToSettle(printer.name, pdfPath)");
+  expect(server).toContain("readWindowsPrintJobs");
+  expect(server).toContain("printer_queue_length");
+  expect(server).toContain("Etiqueta enviada para a fila da Brother, mas o Windows nao confirmou a saida da fila.");
   expect(server).toContain("printer_ready");
   expect(server).toContain("printer_status_detail");
   expect(server).toContain("Brother encontrada, mas a fila esta offline ou com erro no Windows.");

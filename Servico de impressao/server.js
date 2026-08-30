@@ -16,6 +16,8 @@ const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
 const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
 const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
 const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 4000);
+const PRINT_JOB_SETTLE_TIMEOUT_MS = Number(process.env.PRINT_JOB_SETTLE_TIMEOUT_MS || 20000);
+const PRINT_JOB_SETTLE_POLL_MS = Number(process.env.PRINT_JOB_SETTLE_POLL_MS || 750);
 const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY_DEFAULT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
@@ -174,13 +176,18 @@ async function handlePrintRequest(req, res, routeType) {
 
   try {
     const printer = await getTargetPrinterOrThrow();
+    await assertPrinterQueueReady(printer.name);
     const pdfPath = await renderHtmlToPdf(conteudo);
-    await print(pdfPath, {
-      printer: printer.name,
-      sumatraPdfPath: resolveSumatraPdfPath(),
-      pages: "1"
-    });
-    await safeUnlink(pdfPath);
+    try {
+      await print(pdfPath, {
+        printer: printer.name,
+        sumatraPdfPath: resolveSumatraPdfPath(),
+        pages: "1"
+      });
+      await waitForPrinterQueueToSettle(printer.name, pdfPath);
+    } finally {
+      await safeUnlink(pdfPath);
+    }
     if (tipo === "print") {
       await markCheckinPrinted(checkinId);
     }
@@ -296,6 +303,71 @@ if ($printer) { $printer | ConvertTo-Json -Compress -Depth 3 }
       status_error: error?.message || String(error)
     };
   }
+}
+
+async function assertPrinterQueueReady(printerName) {
+  const jobs = await readWindowsPrintJobs(printerName);
+  if (!jobs.length) {
+    return;
+  }
+  throw new Error(
+    `Fila da Brother possui ${jobs.length} etiqueta(s) pendente(s). Limpe ou libere a fila no Windows antes de imprimir novos check-ins.`
+  );
+}
+
+async function waitForPrinterQueueToSettle(printerName, documentPath) {
+  const startedAt = Date.now();
+  const documentName = path.basename(documentPath || "");
+  while (Date.now() - startedAt < PRINT_JOB_SETTLE_TIMEOUT_MS) {
+    const jobs = await readWindowsPrintJobs(printerName);
+    const matchingJobs = jobs.filter((job) => isPrintJobForDocument(job, documentPath, documentName));
+    if (!matchingJobs.length) {
+      return;
+    }
+    await delay(PRINT_JOB_SETTLE_POLL_MS);
+  }
+  throw new Error(
+    "Etiqueta enviada para a fila da Brother, mas o Windows nao confirmou a saida da fila. O check-in continuara pendente para impressao."
+  );
+}
+
+async function readWindowsPrintJobs(printerName) {
+  if (process.platform !== "win32" || !printerName) {
+    return [];
+  }
+  const psCommand = `
+$name = ${JSON.stringify(printerName)}
+$jobs = Get-PrintJob -PrinterName $name -ErrorAction Stop | Select-Object ID,DocumentName,JobStatus,SubmittedTime,Size,UserName
+if ($jobs) { $jobs | ConvertTo-Json -Compress -Depth 3 }
+`;
+  try {
+    const { stdout } = await execFileAsync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
+      { windowsHide: true, timeout: 3500, maxBuffer: 1024 * 64 }
+    );
+    const raw = String(stdout || "").trim();
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (error) {
+    console.warn("[Servico de impressao] falha ao consultar fila da Brother:", error?.message || error);
+    return [];
+  }
+}
+
+function isPrintJobForDocument(job, documentPath, documentName) {
+  const value = String(job?.DocumentName || "");
+  if (!value) {
+    return false;
+  }
+  return (documentPath && value === documentPath) || (documentName && value.endsWith(documentName));
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function evaluateWindowsPrinterReadiness(status) {
@@ -560,13 +632,18 @@ async function printCheckinById(checkinId, options = {}) {
   const html = buildLabelDocumentHtml(labelData);
 
   const printer = await getTargetPrinterOrThrow();
+  await assertPrinterQueueReady(printer.name);
   const pdfPath = await renderHtmlToPdf(html);
-  await print(pdfPath, {
-    printer: printer.name,
-    sumatraPdfPath: resolveSumatraPdfPath(),
-    pages: "1"
-  });
-  await safeUnlink(pdfPath);
+  try {
+    await print(pdfPath, {
+      printer: printer.name,
+      sumatraPdfPath: resolveSumatraPdfPath(),
+      pages: "1"
+    });
+    await waitForPrinterQueueToSettle(printer.name, pdfPath);
+  } finally {
+    await safeUnlink(pdfPath);
+  }
   if (!isReprint) {
     await markCheckinPrinted(checkinId);
   }
@@ -581,6 +658,7 @@ async function printCheckinById(checkinId, options = {}) {
 
 async function buildHealthPayload() {
   const printerStatus = await getTargetPrinterStatus();
+  const printerQueue = printerStatus.name ? await readWindowsPrintJobs(printerStatus.name) : [];
   return {
     ok: Boolean(printerStatus.installed && printerStatus.ready),
     status: printerStatus.ready ? "online" : printerStatus.status,
@@ -590,6 +668,7 @@ async function buildHealthPayload() {
     printer_status: printerStatus.status,
     printer_status_detail: printerStatus.detail,
     printer_windows_status: printerStatus.windows_status || null,
+    printer_queue_length: printerQueue.length,
     auto_print_listener: Boolean(supabaseClient),
     auto_print_polling: Boolean(autoPrintPollTimer),
     auto_print_processing: Boolean(autoPrintProcessing || autoPrintQueue.length),
@@ -857,10 +936,11 @@ function buildStatusPageHtml() {
             detail: "Online e recebendo pedidos neste computador."
           },
           {
-            state: health.printer_ready ? "ok" : "off",
+            state: health.printer_ready && !health.printer_queue_length ? "ok" : "off",
             label: "Impressora Brother",
             detail: health.target_printer
-              ? health.target_printer + " - " + (health.printer_status_detail || "estado nao confirmado")
+              ? health.target_printer + " - " + (health.printer_status_detail || "estado nao confirmado") +
+                (health.printer_queue_length ? " Fila: " + health.printer_queue_length + " etiqueta(s) pendente(s)." : "")
               : (health.printer_status_detail || "Brother QL-810W nao encontrada no Windows.")
           },
           {
