@@ -235,9 +235,11 @@ const els = {
   signupIsVisitor: document.getElementById("signupIsVisitor"),
   btnSubmitSignup: document.getElementById("btnSubmitSignup"),
   forgotPasswordDialog: document.getElementById("forgotPasswordDialog"),
+  forgotPasswordForm: document.getElementById("forgotPasswordForm"),
   forgotPasswordEmail: document.getElementById("forgotPasswordEmail"),
   btnSendPasswordReset: document.getElementById("btnSendPasswordReset"),
   resetPasswordDialog: document.getElementById("resetPasswordDialog"),
+  resetPasswordForm: document.getElementById("resetPasswordForm"),
   resetPasswordNew: document.getElementById("resetPasswordNew"),
   resetPasswordConfirm: document.getElementById("resetPasswordConfirm"),
   btnSubmitPasswordReset: document.getElementById("btnSubmitPasswordReset"),
@@ -266,6 +268,14 @@ async function boot() {
   renderRoleVisibility();
   if (authStorageBlocked) {
     console.warn("Armazenamento bloqueado pelo navegador. Sessao pode nao persistir.");
+  }
+  if (supabaseClient && isPasswordRecoveryUrl()) {
+    bootContext.loadingSession = false;
+    state.session = null;
+    render();
+    await maybeOpenPasswordResetDialog();
+    registerServiceWorker();
+    return;
   }
   if (supabaseClient) {
     await hydrateFromSupabase();
@@ -300,8 +310,16 @@ function bindEvents() {
   els.btnForgotPassword?.addEventListener("click", openForgotPasswordDialog);
   els.btnOpenSignup?.addEventListener("click", () => openSignupDialog("responsavel"));
   els.btnSubmitSignup?.addEventListener("click", handleSignupSubmit);
-  els.btnSendPasswordReset?.addEventListener("click", handleSendPasswordResetEmail);
-  els.btnSubmitPasswordReset?.addEventListener("click", handleSubmitPasswordReset);
+  if (els.forgotPasswordForm) {
+    els.forgotPasswordForm.addEventListener("submit", handleSendPasswordResetEmail);
+  } else {
+    els.btnSendPasswordReset?.addEventListener("click", handleSendPasswordResetEmail);
+  }
+  if (els.resetPasswordForm) {
+    els.resetPasswordForm.addEventListener("submit", handleSubmitPasswordReset);
+  } else {
+    els.btnSubmitPasswordReset?.addEventListener("click", handleSubmitPasswordReset);
+  }
   els.btnSaveMyData?.addEventListener("click", handleSaveMyData);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
@@ -3797,11 +3815,7 @@ async function maybeOpenPasswordResetDialog() {
   if (!supabaseClient) {
     return;
   }
-  const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
-  const hashParams = new URLSearchParams(hashValue || "");
-  const queryParams = new URLSearchParams(window.location.search || "");
-  const type = (hashParams.get("type") || queryParams.get("type") || "").toLowerCase();
-  if (type !== "recovery") {
+  if (!isPasswordRecoveryUrl()) {
     return;
   }
   if (els.resetPasswordNew) {
@@ -3811,6 +3825,14 @@ async function maybeOpenPasswordResetDialog() {
     els.resetPasswordConfirm.value = "";
   }
   els.resetPasswordDialog?.showModal();
+}
+
+function isPasswordRecoveryUrl() {
+  const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hashParams = new URLSearchParams(hashValue || "");
+  const queryParams = new URLSearchParams(window.location.search || "");
+  const type = (hashParams.get("type") || queryParams.get("type") || "").toLowerCase();
+  return type === "recovery";
 }
 
 async function handleSubmitPasswordReset(event) {
@@ -3835,10 +3857,24 @@ async function handleSubmitPasswordReset(event) {
     return;
   }
   els.resetPasswordDialog?.close();
+  await supabaseClient.auth.signOut();
+  state.session = null;
+  state.students = [];
+  state.rooms = [];
+  state.checkins = [];
+  state.profiles = [];
+  state.auditLogs = [];
+  state.schedules = [];
+  state.tips = [];
+  state.tipReads = [];
+  state.familyLinkRequests = [];
+  state.dashboardInfo = "";
+  stopGoogleSheetWatcher();
   try {
     const cleanUrl = `${window.location.origin}${window.location.pathname}`;
     window.history.replaceState({}, document.title, cleanUrl);
   } catch (_) {}
+  render();
   alert("Senha atualizada com sucesso. Faça login com a nova senha.");
 }
 

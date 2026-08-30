@@ -133,12 +133,18 @@ function createMockSupabaseScript() {
   }
 
   let currentUser = null;
-  if (["restore-session", "slow-restore-session"].includes(new URLSearchParams(window.location.search).get("scenario"))) {
+  const urlSearchParams = new URLSearchParams(window.location.search);
+  const urlHashParams = new URLSearchParams(window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash);
+  if (["restore-session", "slow-restore-session"].includes(urlSearchParams.get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };
   }
-  if (new URLSearchParams(window.location.search).get("scenario") === "missing-profile-session") {
+  if (urlSearchParams.get("scenario") === "missing-profile-session") {
     currentUser = { id: "deleted-auth-1", email: "excluido@dnms.test" };
   }
+  if ((urlSearchParams.get("type") || urlHashParams.get("type")) === "recovery") {
+    currentUser = { id: "parent-1", email: "responsavel@dnms.test" };
+  }
+  window.__mockSignOutCount = 0;
   let idCounter = 1;
 
   function clone(value) {
@@ -815,6 +821,7 @@ function createMockSupabaseScript() {
             return { data: { user: currentUser, session: { user: currentUser } }, error: null };
           },
           async signOut() {
+            window.__mockSignOutCount += 1;
             currentUser = null;
             return { error: null };
           },

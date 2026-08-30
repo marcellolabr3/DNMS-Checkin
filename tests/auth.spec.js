@@ -110,7 +110,7 @@ test("recuperacao de senha envia email e fecha a janela", async ({ page }) => {
   await page.fill("#loginEmail", "responsavel@dnms.test");
   await page.click("#btnForgotPassword");
   await expect(page.locator("#forgotPasswordDialog")).toBeVisible();
-  await page.click("#btnSendPasswordReset");
+  await page.press("#forgotPasswordEmail", "Enter");
 
   await expect(page.locator("#forgotPasswordDialog")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__lastPasswordResetEmail)).toBe("responsavel@dnms.test");
@@ -121,6 +121,8 @@ test("redefinicao de senha valida confirmacao antes de atualizar", async ({ page
   await openApp(page, { path: "/index.html#type=recovery" });
 
   await expect(page.locator("#resetPasswordDialog")).toBeVisible();
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect(page.locator("#studentsCard")).toBeHidden();
   await page.fill("#resetPasswordNew", "senha123");
   await page.fill("#resetPasswordConfirm", "senha456");
   await page.click("#btnSubmitPasswordReset");
@@ -131,4 +133,7 @@ test("redefinicao de senha valida confirmacao antes de atualizar", async ({ page
 
   await expect(page.locator("#resetPasswordDialog")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__lastUpdatedPassword)).toBe("senha123");
+  await expect(page.locator("#authCard")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__mockSignOutCount)).toBe(1);
+  await expect(page).toHaveURL(/\/index\.html$/);
 });
