@@ -61,18 +61,20 @@ Este documento descreve o estado atual do Supabase para este projeto e como mant
   - cria índice único parcial `checkins_one_active_per_student`.
 
 ### Faixa etaria para participacao e check-in (atual)
-- Regra: a crianca pode participar e fazer check-in ate 31/12 do ano em que completa 15 anos.
-- A partir do ano em que completa 16 anos, o check-in deve ser bloqueado como fora da faixa.
-- A turma e calculada pelo ano da aula, nao pela data exata do aniversario:
+- Regra: a crianca permanece na mesma turma durante todo o ano em que faz aniversario.
+- A troca de turma ocorre somente em 1 de janeiro do ano seguinte ao aniversario.
+- A turma e calculada pela idade completada ate 31/12 do ano anterior a aula:
   - 2 a 3 anos: `Maternal`;
   - 4 a 6 anos: `Kids`;
   - 7 a 10 anos: `Juniors`;
-  - 11 a 15 anos: `Teens`.
+  - 11 a 14 anos: `Teens`.
+- Ex.: quem faz 7 anos em 27/12/2026 continua `Kids` em 2026 e vira `Juniors` em 2027.
+- Ex.: quem faz 15 anos em 2026 continua `Teens` ate 31/12/2026 e fica fora da faixa em 2027.
 - O patch `patch_student_age_eligibility.sql`:
   - cria `get_student_class_for_birth_year(birth_date, reference_date)`;
   - cria trigger `prevent_checkin_outside_student_age_range_trigger` em `checkins`;
-  - atualiza `parent_checkin_with_presence` para selecionar sala pela turma calculada no ano da aula;
-  - impede check-in em turma incompativel com a idade anual da crianca.
+  - atualiza `parent_checkin_with_presence` para selecionar sala pela turma calculada com a regra de virada anual;
+  - impede check-in em turma incompativel com a turma vigente da crianca.
 
 ### Protecao contra cadastro duplicado de crianca (atual)
 - Regra: uma crianca nao deve ser cadastrada novamente quando ja existir outra ficha com mesmo nome normalizado e mesma data de nascimento.

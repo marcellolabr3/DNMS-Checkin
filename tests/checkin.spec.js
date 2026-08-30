@@ -139,23 +139,48 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
   await expect(ana.getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
 });
 
-test("crianca pode fazer check-in ate o fim do ano em que completa 15", async ({ page }) => {
+test("turma muda somente no ano seguinte ao aniversario", async ({ page }) => {
   const year = new Date().getFullYear();
   await openApp(page);
   await page.evaluate(
-    ({ turns15Birth, turns16Birth, startedAt, endedAt, today }) => {
-      window.__mockDnmsDb.rooms.push({
-        id: "room-teens-age-rule",
-        name: "Culto Teens",
-        date: today,
-        start_time: startedAt,
-        end_time: endedAt,
-        class_target: "Teens",
-        status: "Aberta",
-        opened_at: today + "T09:00:00.000Z",
-        closed_at: null
-      });
+    ({ turns7Birth, turns15Birth, turned15LastYearBirth, startedAt, endedAt, today }) => {
+      window.__mockDnmsDb.rooms.push(
+        {
+          id: "room-kids-age-rule",
+          name: "Culto Kids",
+          date: today,
+          start_time: startedAt,
+          end_time: endedAt,
+          class_target: "Kids",
+          status: "Aberta",
+          opened_at: today + "T09:00:00.000Z",
+          closed_at: null
+        },
+        {
+          id: "room-teens-age-rule",
+          name: "Culto Teens",
+          date: today,
+          start_time: startedAt,
+          end_time: endedAt,
+          class_target: "Teens",
+          status: "Aberta",
+          opened_at: today + "T09:00:00.000Z",
+          closed_at: null
+        }
+      );
       window.__mockDnmsDb.students.push(
+        {
+          id: "student-turns-7",
+          name: "Arthur Labre",
+          birth_date: turns7Birth,
+          class_name: "Juniors",
+          primary_guardian_name: "Responsavel Teste",
+          phone: "11988880000",
+          address: "Rua Familia",
+          notes: "",
+          is_visitor: false,
+          photo_url: ""
+        },
         {
           id: "student-turns-15",
           name: "Clara Quinze",
@@ -169,9 +194,9 @@ test("crianca pode fazer check-in ate o fim do ano em que completa 15", async ({
           photo_url: ""
         },
         {
-          id: "student-turns-16",
-          name: "Davi Dezesseis",
-          birth_date: turns16Birth,
+          id: "student-turned-15-last-year",
+          name: "Davi Fora",
+          birth_date: turned15LastYearBirth,
           class_name: "Teens",
           primary_guardian_name: "Responsavel Teste",
           phone: "11988880000",
@@ -183,8 +208,9 @@ test("crianca pode fazer check-in ate o fim do ano em que completa 15", async ({
       );
     },
     {
+      turns7Birth: `${year - 7}-12-27`,
       turns15Birth: `${year - 15}-12-31`,
-      turns16Birth: `${year - 16}-12-31`,
+      turned15LastYearBirth: `${year - 16}-12-31`,
       startedAt: timeOffset(-10),
       endedAt: timeOffset(50),
       today: todayIso()
@@ -194,11 +220,17 @@ test("crianca pode fazer check-in ate o fim do ano em que completa 15", async ({
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
 
+  await expect(studentItem(page, "Arthur Labre")).toContainText("Turma: Kids");
+  await expect(studentItem(page, "Arthur Labre").getByRole("button", { name: "Check-in" })).toBeEnabled();
   await expect(studentItem(page, "Clara Quinze")).toContainText("Turma: Teens");
   await expect(studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" })).toBeEnabled();
-  await expect(studentItem(page, "Davi Dezesseis")).toContainText("Turma: Fora da faixa");
-  await expect(studentItem(page, "Davi Dezesseis").getByRole("button", { name: "Fora da faixa" })).toBeDisabled();
+  await expect(studentItem(page, "Davi Fora")).toContainText("Turma: Fora da faixa");
+  await expect(studentItem(page, "Davi Fora").getByRole("button", { name: "Fora da faixa" })).toBeDisabled();
 
+  await studentItem(page, "Arthur Labre").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-7")?.class_name))
+    .toBe("Kids");
   await studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" }).click();
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-15")?.class_name))

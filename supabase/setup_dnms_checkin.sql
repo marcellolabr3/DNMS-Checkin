@@ -82,10 +82,10 @@ stable
 as $$
   select case
     when birth_date is null or reference_date is null then 'Indefinida'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int between 2 and 3 then 'Maternal'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int between 4 and 6 then 'Kids'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int between 7 and 10 then 'Juniors'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int between 11 and 15 then 'Teens'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 2 and 3 then 'Maternal'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 4 and 6 then 'Kids'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 7 and 10 then 'Juniors'
+    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 11 and 14 then 'Teens'
     else 'Fora da faixa'
   end
 $$;

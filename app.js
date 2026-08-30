@@ -8241,7 +8241,7 @@ function getMinistryYearAgeFromBirth(birth, referenceDate = new Date()) {
   if (!year || !month || !day) {
     return null;
   }
-  return referenceDate.getFullYear() - year;
+  return referenceDate.getFullYear() - year - 1;
 }
 
 function getStudentAgeEligibility(student, referenceDate = new Date()) {
@@ -8250,7 +8250,7 @@ function getStudentAgeEligibility(student, referenceDate = new Date()) {
   if (ministryYearAge === null) {
     return { ok: false, message: "Data de nascimento invalida para check-in." };
   }
-  if (ministryYearAge < 2 || ministryYearAge > 15) {
+  if (ministryYearAge < 2 || ministryYearAge > 14) {
     return {
       ok: false,
       message: "Crianca fora da faixa de idade para participacao neste ano."
@@ -8267,7 +8267,7 @@ function getClassForBirth(birth) {
   if (age >= 2 && age <= 3) return "Maternal";
   if (age >= 4 && age <= 6) return "Kids";
   if (age >= 7 && age <= 10) return "Juniors";
-  if (age >= 11 && age <= 15) return "Teens";
+  if (age >= 11 && age <= 14) return "Teens";
   return "Fora da faixa";
 }
 
