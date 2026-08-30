@@ -41,6 +41,11 @@ function pastIso(daysBack) {
   return futureIso(-daysBack);
 }
 
+function shortDateLabel(isoDate) {
+  const [, month, day] = isoDate.split("-");
+  return `${day}/${month}`;
+}
+
 function timeOffset(minutes) {
   const date = new Date(Date.now() + minutes * 60000);
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -440,8 +445,10 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
   await page.click("#btnRoomsPanel");
   await expect(page.locator("#roomCard")).toBeVisible();
 
+  const firstDate = futureIso(3);
+  const firstDateLabel = shortDateLabel(firstDate);
   await page.fill("#roomName", "Culto Multiplo");
-  await page.fill("#roomDate", futureIso(3));
+  await page.fill("#roomDate", firstDate);
   await page.fill("#roomStartTime", "10:00");
   await page.fill("#roomEndTime", "11:00");
   await page.locator('#roomClass input[value="Maternal"]').check();
@@ -451,19 +458,41 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
 
   await expect
     .poll(() =>
-      page.evaluate(() => window.__mockDnmsDb.rooms.filter((room) => room.name === "Culto Multiplo").length)
+      page.evaluate(() => window.__mockDnmsDb.rooms.filter((room) => room.name.startsWith("Culto Multiplo ")).length)
     )
     .toBe(16);
   await expect
     .poll(() =>
       page.evaluate(() =>
         Array.from(new Set(window.__mockDnmsDb.rooms
-          .filter((room) => room.name === "Culto Multiplo")
+          .filter((room) => room.name.startsWith("Culto Multiplo "))
           .map((room) => room.class_target)))
           .sort()
       )
     )
     .toEqual(["Maternal", "Teens"]);
+  await expect
+    .poll(() => page.evaluate((name) => window.__mockDnmsDb.rooms.some((room) => room.name === name), `Culto Multiplo ${firstDateLabel}`))
+    .toBe(true);
+});
+
+test("evento sem nome usa a data da sala como nome", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  const date = futureIso(2);
+  await page.fill("#roomName", "");
+  await page.fill("#roomDate", date);
+  await page.fill("#roomStartTime", "10:00");
+  await page.fill("#roomEndTime", "11:00");
+  await page.locator('#roomClass input[value="Kids"]').check();
+  await page.click("#btnCreateRoom");
+
+  await expect
+    .poll(() => page.evaluate((name) => window.__mockDnmsDb.rooms.some((room) => room.name === name), shortDateLabel(date)))
+    .toBe(true);
 });
 
 test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", async ({ page }) => {

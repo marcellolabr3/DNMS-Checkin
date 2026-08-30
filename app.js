@@ -5572,8 +5572,8 @@ async function createRooms() {
   const recurrence = els.roomRecurrence.value;
   const isEditing = Boolean(roomFormContext.editingId);
 
-  if (!name || !dateValue || !startTimeValue || !endTimeValue || !classTargets.length) {
-    alert("Informe nome, data, horario de inicio, horario de termino e ao menos uma turma do evento.");
+  if (!dateValue || !startTimeValue || !endTimeValue || !classTargets.length) {
+    alert("Informe data, horario de inicio, horario de termino e ao menos uma turma do evento.");
     return;
   }
   if (isEditing && classTargets.length !== 1) {
@@ -5592,11 +5592,12 @@ async function createRooms() {
   }
 
   if (isEditing) {
+    const roomName = buildRoomNameForDate(name, baseDate);
     if (supabaseClient) {
       const { error } = await supabaseClient
         .from("rooms")
         .update({
-          name,
+          name: roomName,
           date: dateValue,
           time: startTimeValue,
           start_time: startTimeValue,
@@ -5612,7 +5613,7 @@ async function createRooms() {
     } else {
       const room = state.rooms.find((item) => item.id === roomFormContext.editingId);
       if (room) {
-        room.name = name;
+        room.name = roomName;
         room.dateIso = dateValue;
         room.date = formatDate(baseDate);
         room.time = startTimeValue;
@@ -5646,10 +5647,11 @@ async function createRooms() {
       date.getDate()
     ).padStart(2, "0")}`;
     for (const targetClass of classTargets) {
+      const roomName = buildRoomNameForDate(name, date);
       const exists = state.rooms.some(
         (room) =>
           room.date === dateLabel &&
-          room.name === name &&
+          room.name === roomName &&
           room.startTime === startTimeValue &&
           room.classTarget === targetClass
       );
@@ -5659,7 +5661,7 @@ async function createRooms() {
       }
       if (supabaseClient) {
         const { error } = await supabaseClient.from("rooms").insert({
-          name,
+          name: roomName,
           date: dateIso,
           time: startTimeValue,
           start_time: startTimeValue,
@@ -8048,6 +8050,21 @@ function formatDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function formatRoomNameDate(date) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
+}
+
+function buildRoomNameForDate(name, date) {
+  const dateLabel = formatRoomNameDate(date);
+  const baseName = String(name || "").trim().replace(/\s*\d{2}\/\d{2}$/, "").trim();
+  if (!baseName) {
+    return dateLabel;
+  }
+  return `${baseName} ${dateLabel}`;
 }
 
 function isIsoDateBeforeToday(value) {
