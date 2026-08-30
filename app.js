@@ -24,6 +24,7 @@ const TIP_READ_SELECT_COLUMNS = "tip_id,user_id,read_at";
 const FAMILY_LINK_REQUEST_SELECT_COLUMNS = "id,requester_id,target_id,requester_name_snapshot,target_name_snapshot,tip_id,status,expires_at,responded_at,created_at";
 const CSV_DELIMITER = ";";
 const CSV_BOM = "\uFEFF";
+const INITIAL_PASSWORD_RECOVERY_URL = readPasswordRecoveryUrlFromLocation();
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -3828,6 +3829,10 @@ async function maybeOpenPasswordResetDialog() {
 }
 
 function isPasswordRecoveryUrl() {
+  return INITIAL_PASSWORD_RECOVERY_URL || readPasswordRecoveryUrlFromLocation();
+}
+
+function readPasswordRecoveryUrlFromLocation() {
   const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
   const hashParams = new URLSearchParams(hashValue || "");
   const queryParams = new URLSearchParams(window.location.search || "");

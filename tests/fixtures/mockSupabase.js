@@ -801,6 +801,9 @@ function createMockSupabaseScript() {
   window.__mockFunctionInvocations = [];
   window.supabase = {
     createClient() {
+      if ((urlSearchParams.get("type") || urlHashParams.get("type")) === "recovery") {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
       return {
         auth: {
           async getSession() {

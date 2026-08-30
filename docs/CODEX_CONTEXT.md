@@ -67,7 +67,7 @@ Credenciais:
 - Check-in real de responsavel com QR presencial funcionou em producao.
 - Em 2026-08-29, corrigida inconsistencia visual: crianca com check-in ativo nao deve manter botao "Check-in" clicavel quando a janela da sala ainda nao abriu.
 - Em 2026-08-29, saneados 11 check-ins antigos sem checkout de salas fechadas de 2026-08-27; `fetchRooms` agora faz checkout automatico antes de fechar salas vencidas.
-- Em 2026-08-30, revisada recuperacao de senha: URL `type=recovery` e priorizada antes da hidratacao para nao abrir o app, forms respondem a submit/Enter e, apos `updateUser({ password })`, o app faz logout, limpa URL de recovery e volta para login.
+- Em 2026-08-30, revisada recuperacao de senha: URL `type=recovery` e capturada antes do `createClient`/`detectSessionInUrl`, evitando que o Supabase consuma a URL e abra o app; forms respondem a submit/Enter e, apos `updateUser({ password })`, o app faz logout, limpa URL de recovery e volta para login.
 
 ## Pendencias
 
