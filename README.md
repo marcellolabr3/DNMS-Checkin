@@ -121,20 +121,16 @@ npm test
   * [x] Testar bloqueio de mais de um check-in ativo por criança
   * [x] Testar fluxo do responsável ao visualizar crianças
   * [x] Testar regressões visuais básicas em desktop e celular
-* [ ] CI para validação automática
-  * [ ] Criar workflow no GitHub Actions
-  * [ ] Rodar validações a cada push e pull request
-  * [ ] Bloquear merge/publicação quando testes críticos falharem
-* [ ] Backup automatizado e versionado de dados (não só estrutura)
-  * [ ] Definir rotina de exportação do banco Supabase/Postgres
-  * [ ] Salvar backups com data e retenção definida
-  * [ ] Documentar processo de restauração
-  * [ ] Validar restauração em ambiente seguro
-* [ ] Observabilidade de erros em produção
-  * [ ] Registrar erros importantes de Supabase e autenticação
-  * [x] Registrar eventos críticos de check-in, checkout e fechamento de sala
-  * [ ] Criar padrão de logs sem expor dados sensíveis
-  * [ ] Definir rotina de análise dos erros em produção
+* [x] Keepalive do Supabase via GitHub Actions (`.github/workflows/keepalive.yml`)
+* [ ] CI de testes automatizados no GitHub Actions
+  * [ ] Rodar `npm test` a cada push e pull request
+* [ ] Portabilidade e migração do banco
+  * [x] Manter schema consolidado em `supabase/setup_dnms_checkin.sql`
+  * [x] Manter patches incrementais em `supabase/patch_*.sql`
+  * [ ] Documentar rotina de exportação dos dados reais do Supabase/Postgres
+  * [ ] Validar restauração do schema e dos dados em ambiente seguro
+* [x] Auditoria operacional de ações críticas
+  * [x] Registrar check-in, checkout, abertura/fechamento de sala e ações administrativas em `audit_logs`
 
 ---
 
