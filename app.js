@@ -592,6 +592,23 @@ async function fetchProfile(userId) {
   };
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function fetchProfileWithRetry(userId, attempts = 6, intervalMs = 500) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const profile = await fetchProfile(userId);
+    if (profile) {
+      return profile;
+    }
+    if (attempt < attempts) {
+      await wait(intervalMs);
+    }
+  }
+  return null;
+}
+
 function goHomePanel() {
   if (!state.session) {
     return;
@@ -1278,7 +1295,7 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
-    const profile = await fetchProfile(session.user.id);
+    const profile = await fetchProfileWithRetry(session.user.id);
     if (!profile) {
       await supabaseClient.auth.signOut();
       state.session = null;

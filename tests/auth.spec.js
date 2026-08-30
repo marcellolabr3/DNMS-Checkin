@@ -78,6 +78,18 @@ test("login com auth sem perfil e bloqueado sem recriar usuario", async ({ page 
     .toBe(false);
 });
 
+test("login aguarda perfil ficar disponivel apos troca recente de senha", async ({ page }) => {
+  await openApp(page, { path: "/index.html?scenario=profile-read-delay" });
+
+  await page.fill("#loginEmail", "responsavel@dnms.test");
+  await page.fill("#loginPassword", "senha123");
+  await page.click("#btnLogin");
+
+  await expect(page.locator("#authCard")).toBeHidden();
+  await expect(page.locator("#sessionRole")).toContainText("Responsavel");
+  await expect.poll(() => getAlerts(page)).not.toContainEqual(expect.stringContaining("Perfil nao encontrado"));
+});
+
 test("nome do usuario e salvo com iniciais maiusculas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

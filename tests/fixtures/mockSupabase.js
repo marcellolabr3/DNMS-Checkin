@@ -722,6 +722,15 @@ function createMockSupabaseScript() {
       ) {
         return { data: null, error: { message: "Erro simulado ao buscar mensagens." } };
       }
+      if (
+        this.action === "select" &&
+        this.table === "profiles" &&
+        new URLSearchParams(window.location.search).get("scenario") === "profile-read-delay" &&
+        !window.__mockProfileReadDelayCleared
+      ) {
+        window.__mockProfileReadDelayCleared = true;
+        return { data: this._single ? null : [], error: null };
+      }
 
       if (this.action === "insert") {
         const entries = Array.isArray(this.payload) ? this.payload : [this.payload];
