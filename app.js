@@ -265,17 +265,17 @@ boot();
 
 async function boot() {
   bindEvents();
+  if (supabaseClient && await waitForPasswordRecoverySignal()) {
+    showPasswordRecoveryMode();
+    registerServiceWorker();
+    return;
+  }
   await handleInviteQueryParams();
   seedRoomDefaults();
   renderSession();
   renderRoleVisibility();
   if (authStorageBlocked) {
     console.warn("Armazenamento bloqueado pelo navegador. Sessao pode nao persistir.");
-  }
-  if (supabaseClient && await waitForPasswordRecoverySignal()) {
-    showPasswordRecoveryMode();
-    registerServiceWorker();
-    return;
   }
   if (supabaseClient) {
     await hydrateFromSupabase();
@@ -1250,9 +1250,17 @@ async function respondFamilyLinkRequest(requestId, accept, requesterName = "resp
 
 async function hydrateFromSupabase() {
   try {
+    if (isPasswordRecoveryUrl()) {
+      showPasswordRecoveryMode();
+      return;
+    }
     const { data, error } = await supabaseClient.auth.getSession();
     if (error) {
       console.warn("Falha na sessao", error);
+    }
+    if (isPasswordRecoveryUrl()) {
+      showPasswordRecoveryMode();
+      return;
     }
     const session = data?.session;
     if (!session) {
