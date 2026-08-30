@@ -125,9 +125,10 @@ npm test
 * [ ] CI de testes automatizados no GitHub Actions
   * [ ] Rodar `npm test` a cada push e pull request
 * [ ] Portabilidade e migração do banco
-  * [x] Manter schema consolidado em `supabase/setup_dnms_checkin.sql`
+  * [ ] Auditar e consolidar `supabase/setup_dnms_checkin.sql` contra o Supabase de produção
   * [x] Manter patches incrementais em `supabase/patch_*.sql`
   * [ ] Documentar rotina de exportação dos dados reais do Supabase/Postgres
+  * [ ] Documentar estratégia segura para migrar usuários, perfis e vínculos sem expor senhas/secrets
   * [ ] Validar restauração do schema e dos dados em ambiente seguro
 * [x] Auditoria operacional de ações críticas
   * [x] Registrar check-in, checkout, abertura/fechamento de sala e ações administrativas em `audit_logs`

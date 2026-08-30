@@ -74,6 +74,8 @@ Credenciais:
 
 ## Pendencias
 
+- Prioridade da proxima tarefa: auditar o Supabase de producao e reconstruir/validar `supabase/setup_dnms_checkin.sql` como arquivo canônico detalhado para recriar o banco em outro servico, incluindo tabelas, constraints, indices, RLS, policies, triggers, funcoes/RPCs e dependencias.
+- Definir rotina de exportacao/restauracao dos dados reais, incluindo usuarios/perfis/vinculos. Nao expor senhas, tokens ou secrets; para Auth, documentar estrategia segura de migracao compatível com as limitacoes do provedor.
 - Validar em producao uma tentativa de cadastro duplicado pelo app.
 - Validar recuperacao de senha em producao com link novo e janela anonima; links antigos podem continuar abrindo sessao direto.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
