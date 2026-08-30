@@ -135,13 +135,18 @@ function createMockSupabaseScript() {
   let currentUser = null;
   const urlSearchParams = new URLSearchParams(window.location.search);
   const urlHashParams = new URLSearchParams(window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash);
+  const isRecoveryCallback =
+    (urlSearchParams.get("type") || urlHashParams.get("type")) === "recovery" ||
+    urlSearchParams.get("password_recovery") === "1" ||
+    urlHashParams.get("password_recovery") === "1" ||
+    urlSearchParams.get("scenario") === "password-recovery-event";
   if (["restore-session", "slow-restore-session"].includes(urlSearchParams.get("scenario"))) {
     currentUser = { id: "admin-1", email: "admin@dnms.test" };
   }
   if (urlSearchParams.get("scenario") === "missing-profile-session") {
     currentUser = { id: "deleted-auth-1", email: "excluido@dnms.test" };
   }
-  if ((urlSearchParams.get("type") || urlHashParams.get("type")) === "recovery") {
+  if (isRecoveryCallback) {
     currentUser = { id: "parent-1", email: "responsavel@dnms.test" };
   }
   window.__mockSignOutCount = 0;
@@ -801,7 +806,7 @@ function createMockSupabaseScript() {
   window.__mockFunctionInvocations = [];
   window.supabase = {
     createClient() {
-      if ((urlSearchParams.get("type") || urlHashParams.get("type")) === "recovery") {
+      if (isRecoveryCallback) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       return {
@@ -828,8 +833,15 @@ function createMockSupabaseScript() {
             currentUser = null;
             return { error: null };
           },
-          async resetPasswordForEmail(email) {
+          onAuthStateChange(callback) {
+            if (urlSearchParams.get("scenario") === "password-recovery-event") {
+              window.setTimeout(() => callback("PASSWORD_RECOVERY", currentUser ? { user: currentUser } : null), 0);
+            }
+            return { data: { subscription: { unsubscribe() {} } } };
+          },
+          async resetPasswordForEmail(email, options) {
             window.__lastPasswordResetEmail = email;
+            window.__lastPasswordResetRedirectTo = options?.redirectTo || "";
             return { data: {}, error: null };
           },
           async updateUser(payload) {

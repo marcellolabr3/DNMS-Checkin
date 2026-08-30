@@ -25,6 +25,7 @@ const FAMILY_LINK_REQUEST_SELECT_COLUMNS = "id,requester_id,target_id,requester_
 const CSV_DELIMITER = ";";
 const CSV_BOM = "\uFEFF";
 const INITIAL_PASSWORD_RECOVERY_URL = readPasswordRecoveryUrlFromLocation();
+const INITIAL_AUTH_CALLBACK_URL = readAuthCallbackUrlFromLocation();
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -54,6 +55,7 @@ const familyNetworkContext = { members: [], familyId: "" };
 const familyContext = { selectedProfileId: "" };
 const panelRefreshContext = { inProgress: false, pendingPanel: "" };
 const bootContext = { loadingSession: Boolean(supabaseClient) };
+const passwordRecoveryContext = { detected: INITIAL_PASSWORD_RECOVERY_URL, listenerStarted: false, signalPromise: null };
 
 const els = {
   bootCard: document.getElementById("bootCard"),
@@ -270,11 +272,8 @@ async function boot() {
   if (authStorageBlocked) {
     console.warn("Armazenamento bloqueado pelo navegador. Sessao pode nao persistir.");
   }
-  if (supabaseClient && isPasswordRecoveryUrl()) {
-    bootContext.loadingSession = false;
-    state.session = null;
-    render();
-    await maybeOpenPasswordResetDialog();
+  if (supabaseClient && await waitForPasswordRecoverySignal()) {
+    showPasswordRecoveryMode();
     registerServiceWorker();
     return;
   }
@@ -3802,7 +3801,7 @@ async function handleSendPasswordResetEmail(event) {
     alert("Informe um email valido.");
     return;
   }
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = getPasswordRecoveryRedirectUrl();
   const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) {
     alert(`Falha ao enviar link de redefinicao: ${error.message || "erro inesperado"}`);
@@ -3829,7 +3828,70 @@ async function maybeOpenPasswordResetDialog() {
 }
 
 function isPasswordRecoveryUrl() {
-  return INITIAL_PASSWORD_RECOVERY_URL || readPasswordRecoveryUrlFromLocation();
+  return passwordRecoveryContext.detected || readPasswordRecoveryUrlFromLocation();
+}
+
+function getPasswordRecoveryRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}?password_recovery=1`;
+}
+
+async function waitForPasswordRecoverySignal() {
+  startPasswordRecoveryListener();
+  if (isPasswordRecoveryUrl()) {
+    return true;
+  }
+  if (!INITIAL_AUTH_CALLBACK_URL || !passwordRecoveryContext.signalPromise) {
+    return false;
+  }
+  return passwordRecoveryContext.signalPromise;
+}
+
+function startPasswordRecoveryListener() {
+  if (passwordRecoveryContext.listenerStarted) {
+    return;
+  }
+  passwordRecoveryContext.listenerStarted = true;
+  passwordRecoveryContext.signalPromise = new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (!settled) {
+        settled = true;
+        resolve(Boolean(value));
+      }
+    };
+    try {
+      supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") {
+          passwordRecoveryContext.detected = true;
+          finish(true);
+          showPasswordRecoveryMode();
+        }
+      });
+    } catch (err) {
+      console.warn("Falha ao observar recuperacao de senha", err);
+      finish(false);
+      return;
+    }
+    window.setTimeout(() => finish(passwordRecoveryContext.detected), 1000);
+  });
+}
+
+function showPasswordRecoveryMode() {
+  bootContext.loadingSession = false;
+  state.session = null;
+  state.students = [];
+  state.rooms = [];
+  state.checkins = [];
+  state.profiles = [];
+  state.auditLogs = [];
+  state.schedules = [];
+  state.tips = [];
+  state.tipReads = [];
+  state.familyLinkRequests = [];
+  state.dashboardInfo = "";
+  stopGoogleSheetWatcher();
+  render();
+  maybeOpenPasswordResetDialog();
 }
 
 function readPasswordRecoveryUrlFromLocation() {
@@ -3837,7 +3899,20 @@ function readPasswordRecoveryUrlFromLocation() {
   const hashParams = new URLSearchParams(hashValue || "");
   const queryParams = new URLSearchParams(window.location.search || "");
   const type = (hashParams.get("type") || queryParams.get("type") || "").toLowerCase();
-  return type === "recovery";
+  return type === "recovery" || queryParams.get("password_recovery") === "1" || hashParams.get("password_recovery") === "1";
+}
+
+function readAuthCallbackUrlFromLocation() {
+  const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hashParams = new URLSearchParams(hashValue || "");
+  const queryParams = new URLSearchParams(window.location.search || "");
+  return Boolean(
+    hashParams.get("access_token") ||
+      hashParams.get("refresh_token") ||
+      queryParams.get("code") ||
+      queryParams.get("error") ||
+      queryParams.get("error_code")
+  );
 }
 
 async function handleSubmitPasswordReset(event) {
@@ -5216,7 +5291,7 @@ async function handleCreateFamilyResponsible() {
     alert(`Falha ao salvar perfil do responsavel: ${profileError.message || "erro inesperado"}`);
     return;
   }
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = getPasswordRecoveryRedirectUrl();
   const reset = await tempClient.auth.resetPasswordForEmail(email, { redirectTo });
   if (reset.error) {
     alert(`Responsavel criado, mas falhou o envio de email de senha: ${reset.error.message || "erro inesperado"}`);

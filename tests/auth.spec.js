@@ -114,11 +114,12 @@ test("recuperacao de senha envia email e fecha a janela", async ({ page }) => {
 
   await expect(page.locator("#forgotPasswordDialog")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__lastPasswordResetEmail)).toBe("responsavel@dnms.test");
+  await expect.poll(() => page.evaluate(() => window.__lastPasswordResetRedirectTo)).toContain("password_recovery=1");
   await expect.poll(() => getAlerts(page)).toContainEqual(expect.stringContaining("Link de redefinicao enviado"));
 });
 
 test("redefinicao de senha valida confirmacao antes de atualizar", async ({ page }) => {
-  await openApp(page, { path: "/index.html#type=recovery" });
+  await openApp(page, { path: "/index.html?scenario=password-recovery-event&code=mock-code" });
 
   await expect(page.locator("#resetPasswordDialog")).toBeVisible();
   await expect(page.locator("#authCard")).toBeVisible();
