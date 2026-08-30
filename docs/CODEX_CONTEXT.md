@@ -69,6 +69,7 @@ Credenciais:
 - Em 2026-08-29, saneados 11 check-ins antigos sem checkout de salas fechadas de 2026-08-27; `fetchRooms` agora faz checkout automatico antes de fechar salas vencidas.
 - Em 2026-08-30, revisada recuperacao de senha: emails usam redirect com `password_recovery=1`; o app captura recovery antes do `createClient`/`detectSessionInUrl`, escuta `PASSWORD_RECOVERY` e checa recovery antes/depois de `getSession`, evitando abrir o app quando o Supabase consome a URL; forms respondem a submit/Enter e, apos `updateUser({ password })`, o app faz logout, limpa URL de recovery e volta para login.
 - Em 2026-08-30, adicionada tolerancia para login logo apos redefinir senha: `hydrateFromSupabase` usa retry na leitura de `profiles` por cerca de 3s antes de acusar perfil ausente, evitando falso "Usuario nao encontrado" enquanto Auth/RLS estabiliza. Cache atual: `checkin-cache-v153`, `app.js?v=20260830e`.
+- README revisado em 2026-08-30: em Melhorias Futuras, marcado como resolvido apenas o subitem de eventos criticos de check-in/checkout/fechamento de sala em `audit_logs`; CI de validacao, backup automatizado e observabilidade de erros continuam pendentes.
 - `npm.cmd test` passou com 146 testes em 2026-08-30.
 
 ## Pendencias

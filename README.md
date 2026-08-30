@@ -132,7 +132,7 @@ npm test
   * [ ] Validar restauração em ambiente seguro
 * [ ] Observabilidade de erros em produção
   * [ ] Registrar erros importantes de Supabase e autenticação
-  * [ ] Registrar eventos críticos de check-in, checkout e fechamento de sala
+  * [x] Registrar eventos críticos de check-in, checkout e fechamento de sala
   * [ ] Criar padrão de logs sem expor dados sensíveis
   * [ ] Definir rotina de análise dos erros em produção
 
