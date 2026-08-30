@@ -33,7 +33,7 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const pgPool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } }) : null;
 const canUseDirectDatabase = Boolean(pgPool);
 const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY || pgPool);
-const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at";
+const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at";
 const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
 
 const autoPrintQueue = [];
@@ -46,6 +46,13 @@ let realtimeChannel = null;
 let reprintJobsChannel = null;
 let autoPrintPollTimer = null;
 let reprintJobPollTimer = null;
+let lastAutoPrintPoll = {
+  checked_at: null,
+  pending_count: 0,
+  enqueued_count: 0,
+  error: ""
+};
+let realtimeStatus = "not_started";
 
 const app = express();
 
@@ -284,11 +291,24 @@ async function readWindowsPrinterStatus(printerName) {
   }
   const psCommand = `
 $name = ${JSON.stringify(printerName)}
-$printer = Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1 Name,WorkOffline,PrinterStatus,DetectedErrorState,ExtendedPrinterStatus,PrinterState,Availability
-if (-not $printer) {
-  $printer = Get-Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1 Name,PrinterStatus,WorkOffline,PrinterState,DetectedErrorState
+$win32 = Get-CimInstance Win32_Printer | Where-Object { $_.Name -eq $name } | Select-Object -First 1 Name,WorkOffline,PrinterStatus,DetectedErrorState,ExtendedPrinterStatus,PrinterState,Availability,PortName,DriverName
+$spooler = Get-Printer -Name $name -ErrorAction SilentlyContinue | Select-Object -First 1 Name,PrinterStatus,Type,PortName,DriverName,JobCount
+if ($win32 -or $spooler) {
+  [pscustomobject]@{
+    Name = if ($win32) { $win32.Name } else { $spooler.Name }
+    WorkOffline = if ($win32) { $win32.WorkOffline } else { $null }
+    PrinterStatus = if ($win32) { $win32.PrinterStatus } else { $spooler.PrinterStatus }
+    DetectedErrorState = if ($win32) { $win32.DetectedErrorState } else { $null }
+    ExtendedPrinterStatus = if ($win32) { $win32.ExtendedPrinterStatus } else { $null }
+    PrinterState = if ($win32) { $win32.PrinterState } else { $null }
+    Availability = if ($win32) { $win32.Availability } else { $null }
+    PortName = if ($spooler) { $spooler.PortName } elseif ($win32) { $win32.PortName } else { $null }
+    DriverName = if ($spooler) { $spooler.DriverName } elseif ($win32) { $win32.DriverName } else { $null }
+    SpoolerPrinterStatus = if ($spooler) { [string]$spooler.PrinterStatus } else { $null }
+    SpoolerType = if ($spooler) { [string]$spooler.Type } else { $null }
+    SpoolerJobCount = if ($spooler) { $spooler.JobCount } else { $null }
+  } | ConvertTo-Json -Compress -Depth 3
 }
-if ($printer) { $printer | ConvertTo-Json -Compress -Depth 3 }
 `;
   try {
     const { stdout } = await execFileAsync(
@@ -405,12 +425,22 @@ function evaluateWindowsPrinterReadiness(status) {
     (code) => Number(status.DetectedErrorState) === code
   );
   const isMarkedOffline = status.WorkOffline === true || String(status.WorkOffline).toLowerCase() === "true";
+  const spoolerStatus = String(status.SpoolerPrinterStatus || "").toLowerCase();
+  const spoolerLooksReady = spoolerStatus === "normal" || spoolerStatus === "idle";
 
-  if (isMarkedOffline || hasKnownOfflineState || hasKnownErrorCode) {
+  if ((isMarkedOffline && !spoolerLooksReady) || hasKnownOfflineState || hasKnownErrorCode) {
     return {
       ready: false,
       status: "offline",
       detail: "Brother encontrada, mas a fila esta offline ou com erro no Windows."
+    };
+  }
+
+  if (isMarkedOffline && spoolerLooksReady) {
+    return {
+      ready: true,
+      status: "online",
+      detail: "Brother encontrada; Win32 marca offline, mas o spooler do Windows esta Normal. O servico tentara imprimir e confirmara pela fila."
     };
   }
 
@@ -624,6 +654,16 @@ async function printCheckinById(checkinId, options = {}) {
   if (checkin.printed_at && !isReprint) {
     return;
   }
+  if (checkin.checked_out_at && !isReprint) {
+    logPrint({
+      checkinId,
+      tipo: "print",
+      date: new Date(),
+      status: "ignorado",
+      details: "Check-in ja recebeu checkout; autoimpressao ignorada."
+    });
+    return;
+  }
 
   const student = await fetchStudentForPrint(checkin.student_id, checkinId);
 
@@ -670,7 +710,9 @@ async function buildHealthPayload() {
     printer_windows_status: printerStatus.windows_status || null,
     printer_queue_length: printerQueue.length,
     auto_print_listener: Boolean(supabaseClient),
+    auto_print_realtime_status: realtimeStatus,
     auto_print_polling: Boolean(autoPrintPollTimer),
+    auto_print_last_poll: lastAutoPrintPoll,
     auto_print_processing: Boolean(autoPrintProcessing || autoPrintQueue.length),
     auto_print_queue_length: autoPrintQueue.length,
     reprint_queue_listener: Boolean(supabaseClient && SUPABASE_SERVICE_ROLE_KEY),
@@ -684,7 +726,7 @@ async function buildHealthPayload() {
 async function fetchCheckinForPrint(checkinId) {
   if (pgPool) {
     const { rows } = await pgPool.query(
-      `select id, student_id, class_name, notes_snapshot, room_name_snapshot, printed_at
+      `select id, student_id, class_name, notes_snapshot, room_name_snapshot, printed_at, checked_out_at
        from public.checkins
        where id = $1
        limit 1`,
@@ -944,11 +986,9 @@ function buildStatusPageHtml() {
               : (health.printer_status_detail || "Brother QL-810W nao encontrada no Windows.")
           },
           {
-            state: printingBusy ? "busy" : "ok",
-            label: "Autoimpressao",
-            detail: printingBusy
-              ? "Processando etiqueta ou fila de impressao."
-              : "Aguardando novos check-ins."
+            state: getAutoPrintState(health, printingBusy),
+            label: "Escuta e autoimpressao",
+            detail: buildAutoPrintDetail(health, printingBusy)
           },
           {
             state: health.reprint_queue_polling || health.reprint_queue_listener ? "ok" : "off",
@@ -978,6 +1018,29 @@ function buildStatusPageHtml() {
       }
     }
 
+    function buildAutoPrintDetail(health, printingBusy) {
+      const poll = health.auto_print_last_poll || {};
+      const lastPoll = poll.checked_at ? new Date(poll.checked_at).toLocaleString("pt-BR") : "ainda nao executada";
+      const realtime = health.auto_print_realtime_status || "desconhecido";
+      const base = printingBusy ? "Processando etiqueta ou fila de impressao." : "Aguardando novos check-ins.";
+      return base +
+        " Realtime: " + realtime +
+        ". Ultima varredura: " + lastPoll +
+        ". Pendentes ativos: " + (poll.pending_count || 0) +
+        ". Fila local: " + (health.auto_print_queue_length || 0) +
+        (poll.error ? ". Erro da varredura: " + poll.error : ".");
+    }
+
+    function getAutoPrintState(health, printingBusy) {
+      if (printingBusy) {
+        return "busy";
+      }
+      if (health.auto_print_realtime_status === "SUBSCRIBED" || health.auto_print_polling) {
+        return "ok";
+      }
+      return "off";
+    }
+
     refreshButton.addEventListener("click", refreshStatus);
     refreshStatus();
     setInterval(refreshStatus, 5000);
@@ -1004,28 +1067,47 @@ async function processPendingCheckins() {
   if (!supabaseClient && !pgPool) {
     return;
   }
+  lastAutoPrintPoll = {
+    checked_at: new Date().toISOString(),
+    pending_count: 0,
+    enqueued_count: 0,
+    error: ""
+  };
   if (pgPool) {
-    const { rows } = await pgPool.query(
-      `select id, printed_at
+    try {
+      const { rows } = await pgPool.query(
+        `select id, printed_at
        from public.checkins
        where printed_at is null
-       order by checked_in_at asc
+         and checked_out_at is null
+       order by checked_in_at desc
        limit 300`
-    );
-    rows.forEach((item) => enqueueAutoPrint(item.id));
+      );
+      rows.forEach((item) => enqueueAutoPrint(item.id));
+      lastAutoPrintPoll.pending_count = rows.length;
+      lastAutoPrintPoll.enqueued_count = rows.length;
+    } catch (error) {
+      lastAutoPrintPoll.error = error?.message || String(error);
+      throw error;
+    }
     return;
   }
   const { data, error } = await supabaseClient
     .from("checkins")
     .select("id,printed_at")
     .is("printed_at", null)
-    .order("checked_in_at", { ascending: true })
+    .is("checked_out_at", null)
+    .order("checked_in_at", { ascending: false })
     .limit(300);
   if (error) {
+    lastAutoPrintPoll.error = error.message || String(error);
     console.warn("[Servico de impressao] falha ao buscar pendencias:", error.message || error);
     return;
   }
-  (data || []).forEach((item) => enqueueAutoPrint(item.id));
+  const rows = data || [];
+  rows.forEach((item) => enqueueAutoPrint(item.id));
+  lastAutoPrintPoll.pending_count = rows.length;
+  lastAutoPrintPoll.enqueued_count = rows.length;
 }
 
 async function startRealtimeAutoPrint() {
@@ -1043,6 +1125,7 @@ async function startRealtimeAutoPrint() {
       }
     })
     .subscribe((status) => {
+      realtimeStatus = status;
       if (status === "SUBSCRIBED") {
         console.log("[Servico de impressao] Listener de check-ins ativo.");
       }

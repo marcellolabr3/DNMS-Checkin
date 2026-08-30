@@ -75,6 +75,7 @@ Credenciais:
 - Em 2026-08-30, corrigida UI de salas: depois de abrir salas em massa, checkboxes/selecionar todas continuam disponiveis para salas visiveis; "Abrir selecionadas" ainda abre apenas salas aptas. Ao fechar sala pelo dialog, a janela fecha automaticamente. Cache atual: `checkin-cache-v155`, `app.js?v=20260830g`.
 - Em 2026-08-30, regra de nome de evento/sala: o nome sempre inclui a data curta da propria ocorrencia (`dd/mm`). Se o nome for vazio, usa apenas `dd/mm`; em recorrencia, cada sala recebe sua respectiva data no nome.
 - Em 2026-08-30, painel de impressao/reimpressao lista somente check-ins ativos do dia (`checked_out_at is null`); ao fechar sala e fazer checkout automatico, a lista fica limpa. Cache atual: `checkin-cache-v157`, `app.js?v=20260830h`, `print.js?v=20260830a`.
+- Em 2026-08-30, diagnostico do notebook: check-in pelo celular depende do listener/polling do `DNMS Impressao` no notebook, nao de `localhost` no celular. `Servico de impressao/server.js` combina WMI + spooler; se WMI marcar offline mas spooler estiver Normal, tenta imprimir e confirma pela fila antes de marcar `printed_at`. Autoimpressao agora busca somente check-ins ativos nao impressos (`printed_at is null` e `checked_out_at is null`), prioriza os recentes e expõe no `/health`/`/status` status do Realtime, ultima varredura, pendentes ativos e fila local.
 - `npm.cmd test` passou com 150 testes em 2026-08-30.
 
 ## Pendencias
