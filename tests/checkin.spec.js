@@ -572,8 +572,8 @@ test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
   await page.locator("#selectAllRooms").check();
   await expect(page.locator('input[data-select-room="room-bulk-kids"]')).toBeChecked();
   await expect(page.locator('input[data-select-room="room-bulk-juniors"]')).toBeChecked();
-  await expect(page.locator('input[data-select-room="room-bulk-future"]')).not.toBeChecked();
-  await expect(page.locator('input[data-select-room="room-bulk-future"]')).toBeDisabled();
+  await expect(page.locator('input[data-select-room="room-bulk-future"]')).toBeChecked();
+  await expect(page.locator('input[data-select-room="room-bulk-future"]')).toBeEnabled();
   await expect(page.locator("#btnBulkEditRooms")).toBeEnabled();
 
   await page.locator("#btnBulkEditRooms").click();
@@ -591,6 +591,9 @@ test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
     .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-bulk-future")?.status))
     .toBe("Programada");
   await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
+  await expect(page.locator("#selectAllRooms")).toBeEnabled();
+  await expect(page.locator('input[data-select-room="room-bulk-kids"]')).toBeEnabled();
+  await expect(page.locator('input[data-select-room="room-bulk-juniors"]')).toBeEnabled();
 });
 
 test("dialog de sala fecha automaticamente apos abrir sala", async ({ page }) => {
@@ -621,6 +624,22 @@ test("dialog de sala fecha automaticamente apos abrir sala", async ({ page }) =>
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-dialog-open")?.status))
     .toBe("Aberta");
+});
+
+test("dialog de sala fecha automaticamente apos fechar sala", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await page.locator("#roomList .list-item").filter({ hasText: "Culto Kids" }).click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+
+  await page.locator("#btnRoomDialogClose").click();
+
+  await expect(page.locator("#roomDetailsDialog")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-kids")?.status))
+    .toBe("Fechada");
 });
 
 test("lista exibe foto e formulario prioriza nome e endereco", async ({ page }) => {

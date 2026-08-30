@@ -1642,8 +1642,8 @@ function renderRooms() {
 
   els.btnCreateRoom.disabled = !canManageRoom;
   if (els.selectAllRooms) {
-    els.selectAllRooms.checked = Boolean(openableRooms.length) && openableRooms.every((room) => selectedSet.has(room.id));
-    els.selectAllRooms.disabled = !canOperateRoom || !openableRooms.length;
+    els.selectAllRooms.checked = Boolean(visibleRooms.length) && visibleRooms.every((room) => selectedSet.has(room.id));
+    els.selectAllRooms.disabled = !canOperateRoom || !visibleRooms.length;
   }
   if (els.btnBulkEditRooms) {
     els.btnBulkEditRooms.disabled = !canOperateRoom || !selectedOpenableCount;
@@ -1678,13 +1678,13 @@ function renderRooms() {
 }
 
 function createRoomListItem(room, canManageRoom, selectedSet) {
-  const canSelectRoom = canOperateRooms() && isRoomOpenableFromList(room);
+  const canSelectRoom = canOperateRooms() && room.status !== "Fechada" && !isRoomPast(room);
   const item = document.createElement("div");
   item.className = "list-item";
   item.innerHTML = `
     ${
       canManageRoom || canOperateRooms()
-        ? `<label class="field checkbox-field"><span>Selecionar para abrir</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} ${canSelectRoom ? "" : "disabled"} /></label>`
+        ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} ${canSelectRoom ? "" : "disabled"} /></label>`
         : ""
     }
     <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}</strong>
@@ -1740,8 +1740,8 @@ function formatMonthLabel(date) {
 
 function handleSelectAllRoomsInList(event) {
   const checked = Boolean(event?.target?.checked);
-  const openableRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room) && isRoomOpenableFromList(room));
-  state.ui.selectedRoomIds = checked ? openableRooms.map((room) => room.id) : [];
+  const selectableRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
+  state.ui.selectedRoomIds = checked ? selectableRooms.map((room) => room.id) : [];
   renderRooms();
 }
 
@@ -1749,6 +1749,13 @@ function getSelectedRoomIdsInList() {
   const selected = new Set(state.ui.selectedRoomIds || []);
   return state.rooms
     .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id) && isRoomOpenableFromList(room))
+    .map((room) => room.id);
+}
+
+function getSelectedVisibleRoomIdsInList() {
+  const selected = new Set(state.ui.selectedRoomIds || []);
+  return state.rooms
+    .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id))
     .map((room) => room.id);
 }
 
@@ -1801,7 +1808,7 @@ async function handleBulkDeleteRooms() {
     alert("Somente administradores podem excluir salas.");
     return;
   }
-  const ids = getSelectedRoomIdsInList();
+  const ids = getSelectedVisibleRoomIdsInList();
   if (!ids.length) {
     alert("Selecione ao menos uma sala.");
     return;
@@ -6045,8 +6052,13 @@ async function handleRoomDialogClose() {
   if (!state.selectedRoomId) {
     return;
   }
-  await closeRoom(state.selectedRoomId, { requireDoubleConfirm: true });
-  const room = state.rooms.find((item) => item.id === state.selectedRoomId);
+  const roomId = state.selectedRoomId;
+  await closeRoom(roomId, { requireDoubleConfirm: true });
+  const room = state.rooms.find((item) => item.id === roomId);
+  if (room?.status === "Fechada") {
+    els.roomDetailsDialog?.close();
+    return;
+  }
   if (room) {
     renderRoomDetailsDialog(room);
   }

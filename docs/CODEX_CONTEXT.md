@@ -72,7 +72,8 @@ Credenciais:
 - Auditoria para repositorio publico em 2026-08-30: arquivos rastreados e historico sensivel nao indicaram `DATABASE_URL` real, Service Role Key real, chaves privadas ou tokens pessoais. Chaves anon do Supabase e URL do projeto estao no frontend/servico e sao esperadas; manter RLS como barreira. Arquivos `.idea` foram removidos do Git e seguem ignorados.
 - Em 2026-08-30, corrigida regra de turma por aniversario e aplicado `supabase/patch_student_age_eligibility.sql` em producao: Arthur Labre/faz 7 em 27/12/2026 permanece Kids em 2026 e vira Juniors em 2027; quem faz 15 em 2026 permanece Teens e fica fora da faixa em 2027. Cache atual: `checkin-cache-v154`, `app.js?v=20260830f`.
 - Em 2026-08-30, diagnosticado problema de autoimpressao: servico no notebook recebeu check-ins do celular e marcou `printed_at`, mas o Windows manteve etiquetas presas na fila da Brother. `Servico de impressao/server.js` agora consulta a fila (`printer_queue_length` no `/health`), bloqueia novas impressoes se houver jobs pendentes e so marca `printed_at` depois que a etiqueta sai da fila. Executavel local recompilado; se a fila tiver itens presos, limpar/liberar a fila no Windows antes de novo check-in.
-- `npm.cmd test` passou com 146 testes em 2026-08-30.
+- Em 2026-08-30, corrigida UI de salas: depois de abrir salas em massa, checkboxes/selecionar todas continuam disponiveis para salas visiveis; "Abrir selecionadas" ainda abre apenas salas aptas. Ao fechar sala pelo dialog, a janela fecha automaticamente. Cache atual: `checkin-cache-v155`, `app.js?v=20260830g`.
+- `npm.cmd test` passou com 148 testes em 2026-08-30.
 
 ## Pendencias
 
