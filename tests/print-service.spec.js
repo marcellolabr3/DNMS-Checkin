@@ -51,4 +51,6 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(print).toContain('const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token"');
   expect(print).toContain('"X-DNMS-Print-Token"');
   expect(print).toContain("headers: getPrintServiceHeaders()");
+  expect(print).toContain('.select("student_id,checked_in_at")\n    .not("student_id", "is", null)\n    .is("checked_out_at", null)');
+  expect(print).toContain('.select("*")\n    .eq("student_id", studentId)\n    .is("checked_out_at", null)');
 });
