@@ -67,10 +67,11 @@ Credenciais:
 - Check-in real de responsavel com QR presencial funcionou em producao.
 - Em 2026-08-29, corrigida inconsistencia visual: crianca com check-in ativo nao deve manter botao "Check-in" clicavel quando a janela da sala ainda nao abriu.
 - Em 2026-08-29, saneados 11 check-ins antigos sem checkout de salas fechadas de 2026-08-27; `fetchRooms` agora faz checkout automatico antes de fechar salas vencidas.
-- Em 2026-08-30, revisada recuperacao de senha: emails usam redirect com `password_recovery=1`; o app captura recovery antes do `createClient`/`detectSessionInUrl`, escuta `PASSWORD_RECOVERY` e checa recovery antes/depois de `getSession`, evitando abrir o app quando o Supabase consome a URL; forms respondem a submit/Enter e, apos `updateUser({ password })`, o app faz logout, limpa URL de recovery e volta para login.
+- Em 2026-08-30, revisada recuperacao de senha nos commits `01ee94e`, `2ed323b`, `f6225a7`, `8e00701`: emails usam redirect com `password_recovery=1`; o app captura recovery antes do `createClient`/`detectSessionInUrl`, escuta `PASSWORD_RECOVERY` e checa recovery antes/depois de `getSession`, evitando abrir o app quando o Supabase consome a URL; forms respondem a submit/Enter e, apos `updateUser({ password })`, o app faz logout, limpa URL de recovery e volta para login. Cache atual: `checkin-cache-v152`, `app.js?v=20260830d`.
 
 ## Pendencias
 
 - Validar em producao uma tentativa de cadastro duplicado pelo app.
+- Apos publicar o commit `8e00701`, validar recuperacao de senha em producao com link novo e janela anonima; links antigos podem continuar abrindo sessao direto.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
 - Confirmar periodicamente se credenciais administrativas devem permanecer no arquivo local.
