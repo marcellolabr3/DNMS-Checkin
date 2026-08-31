@@ -7,7 +7,7 @@ Tambem possui modo de auto-impressao: ao iniciar, ele escuta novos `checkins` no
 Quando o PWA e usado no mesmo computador em que o servico e a Brother estao instalados, o check-in envia a etiqueta diretamente para `http://localhost:3001/print`.
 Nesse modo direto, o `SUPABASE_SERVICE_ROLE_KEY` nao e necessario para receber a etiqueta do PWA.
 
-Quando o check-in e feito em outro dispositivo, como celular ou outro computador, `localhost` aponta para esse outro dispositivo. Para imprimir na Brother do computador principal nesses casos, use o modo de auto-impressao por listener com `SUPABASE_SERVICE_ROLE_KEY`.
+Quando o check-in e feito em outro dispositivo, como celular ou outro computador, `localhost` aponta para esse outro dispositivo. Para imprimir na Brother do computador principal nesses casos, o servico precisa rodar nesse computador com `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` configurado em `.codex-secrets.env`.
 
 ## Endpoints
 
@@ -44,7 +44,7 @@ Se essa impressora nao for encontrada, o servico retorna erro e nao imprime.
 
 O health/status tambem consulta o estado da fila no Windows via `Win32_Printer`/`Get-Printer`. Quando o Windows marcar a Brother como offline ou com erro conhecido, `/health` retorna `ok: false`, `printer_ready: false` e o painel mostra a impressora em vermelho. Essa verificacao nao imprime etiqueta de teste.
 
-Alguns drivers retornam apenas estado neutro/desconhecido mesmo com a impressora instalada. Nesse caso o servico informa que o estado online nao foi confirmado, mas nao bloqueia a impressao para preservar compatibilidade.
+No Windows, se o estado da Brother nao puder ser confirmado, o servico mostra a impressora como indisponivel para evitar falso online com a impressora desligada.
 
 ## Auto-impressao por listener (check-in de qualquer origem)
 
@@ -54,8 +54,8 @@ Ao iniciar, o servico:
 2. escuta novos inserts na tabela `checkins`;
 3. imprime automaticamente e marca `printed_at`.
 
-Para esse modo funcionar com permissao completa, use `SUPABASE_SERVICE_ROLE_KEY` (pode estar no `.codex-secrets.env`).
-Sem Service Role, o servico pode nao conseguir ler todos os dados necessarios para montar a etiqueta. A versao atual bloqueia a impressao se faltar nome, turma ou responsavel, para evitar etiqueta em branco marcada como impressa.
+Para esse modo funcionar, configure `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` no `.codex-secrets.env` do computador ligado a Brother.
+Sem uma dessas credenciais, o painel mostra a auto-impressao do celular como inativa. A versao atual bloqueia a impressao se faltar nome, turma ou responsavel, para evitar etiqueta em branco marcada como impressa.
 
 ## Reimpressao remota por fila
 
@@ -163,7 +163,7 @@ cmd /c npm run package:portable
 
 3. Extraia o ZIP no computador que ficara ligado a impressora.
 4. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
-5. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `SUPABASE_SERVICE_ROLE_KEY`.
+5. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`.
 6. Inicie com duplo clique em:
 
 `DNMS Impressao.cmd`
@@ -172,8 +172,8 @@ cmd /c npm run package:portable
 
 `http://localhost:3001/status`
 
-O servico esta operacional quando o painel mostrar bolinha verde para servico local, impressora Brother e acesso aos dados.
-Para check-ins feitos no celular/outro computador, confirme tambem que `supabase_role` retorna `service_role` ou `postgres_direct`.
+O servico esta operacional quando o painel mostrar bolinha verde para servico local, impressora Brother, autoimpressao do celular e fila da Brother.
+Para check-ins feitos no celular/outro computador, a linha "Autoimpressao do celular" precisa aparecer como ativa.
 
 Se o painel mostrar etiquetas pendentes na fila da Brother, limpe ou libere a fila pelo Windows antes de continuar. O servico bloqueia novas impressoes enquanto houver jobs pendentes e so marca `printed_at` depois que o Windows confirma que a etiqueta saiu da fila.
 

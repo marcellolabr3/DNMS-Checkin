@@ -24,9 +24,12 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain("readWindowsPrinterStatus");
   expect(server).toContain("evaluateWindowsPrinterReadiness");
   expect(server).toContain("SpoolerPrinterStatus");
-  expect(server).toContain("Win32 marca offline, mas o spooler do Windows esta Normal");
+  expect(server).toContain("if (isMarkedOffline || hasKnownOfflineState || hasKnownErrorCode)");
+  expect(server).not.toContain("Win32 marca offline, mas o spooler do Windows esta Normal");
   expect(server).toContain("auto_print_realtime_status");
   expect(server).toContain("auto_print_last_poll");
+  expect(server).toContain("canUseAutoPrintDataAccess");
+  expect(server).toContain("Autoimpressao do celular requer DATABASE_URL ou Service Role no servico local.");
   expect(server).toContain("and checked_out_at is null");
   expect(server).toContain('.is("checked_out_at", null)');
   expect(server).toContain("Check-in ja recebeu checkout; autoimpressao ignorada.");

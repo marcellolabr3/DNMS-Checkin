@@ -32,6 +32,7 @@ const supabaseClient = SUPABASE_ACCESS_KEY ? createClient(SUPABASE_URL, SUPABASE
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const pgPool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } }) : null;
 const canUseDirectDatabase = Boolean(pgPool);
+const canUseAutoPrintDataAccess = Boolean(pgPool || SUPABASE_SERVICE_ROLE_KEY);
 const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY || pgPool);
 const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at";
 const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
@@ -393,14 +394,16 @@ function delay(ms) {
 function evaluateWindowsPrinterReadiness(status) {
   if (!status) {
     return {
-      ready: true,
+      ready: process.platform !== "win32",
       status: "unknown",
-      detail: "Impressora encontrada; estado online nao confirmado pelo sistema."
+      detail: process.platform === "win32"
+        ? "Brother encontrada, mas o Windows nao confirmou o estado online."
+        : "Impressora encontrada; estado online nao confirmado pelo sistema."
     };
   }
   if (status.status_error) {
     return {
-      ready: true,
+      ready: false,
       status: "unknown",
       detail: `Impressora encontrada; nao foi possivel ler estado do Windows: ${status.status_error}`
     };
@@ -426,9 +429,8 @@ function evaluateWindowsPrinterReadiness(status) {
   );
   const isMarkedOffline = status.WorkOffline === true || String(status.WorkOffline).toLowerCase() === "true";
   const spoolerStatus = String(status.SpoolerPrinterStatus || "").toLowerCase();
-  const spoolerLooksReady = spoolerStatus === "normal" || spoolerStatus === "idle";
 
-  if ((isMarkedOffline && !spoolerLooksReady) || hasKnownOfflineState || hasKnownErrorCode) {
+  if (isMarkedOffline || hasKnownOfflineState || hasKnownErrorCode) {
     return {
       ready: false,
       status: "offline",
@@ -436,11 +438,11 @@ function evaluateWindowsPrinterReadiness(status) {
     };
   }
 
-  if (isMarkedOffline && spoolerLooksReady) {
+  if (spoolerStatus && spoolerStatus !== "normal" && spoolerStatus !== "idle") {
     return {
-      ready: true,
-      status: "online",
-      detail: "Brother encontrada; Win32 marca offline, mas o spooler do Windows esta Normal. O servico tentara imprimir e confirmara pela fila."
+      ready: false,
+      status: "offline",
+      detail: `Brother encontrada, mas o spooler esta ${status.SpoolerPrinterStatus}.`
     };
   }
 
@@ -709,7 +711,7 @@ async function buildHealthPayload() {
     printer_status_detail: printerStatus.detail,
     printer_windows_status: printerStatus.windows_status || null,
     printer_queue_length: printerQueue.length,
-    auto_print_listener: Boolean(supabaseClient),
+    auto_print_listener: Boolean(canUseAutoPrintDataAccess),
     auto_print_realtime_status: realtimeStatus,
     auto_print_polling: Boolean(autoPrintPollTimer),
     auto_print_last_poll: lastAutoPrintPoll,
@@ -971,6 +973,7 @@ function buildStatusPageHtml() {
         }
         const health = await response.json();
         const printingBusy = Boolean(health.auto_print_processing || health.reprint_queue_processing);
+        const printerQueueLength = Number(health.printer_queue_length || 0);
         setItems([
           {
             state: "ok",
@@ -978,33 +981,24 @@ function buildStatusPageHtml() {
             detail: "Online e recebendo pedidos neste computador."
           },
           {
-            state: health.printer_ready && !health.printer_queue_length ? "ok" : "off",
+            state: health.printer_ready && !printerQueueLength ? "ok" : "off",
             label: "Impressora Brother",
             detail: health.target_printer
               ? health.target_printer + " - " + (health.printer_status_detail || "estado nao confirmado") +
-                (health.printer_queue_length ? " Fila: " + health.printer_queue_length + " etiqueta(s) pendente(s)." : "")
+                (printerQueueLength ? " Fila: " + printerQueueLength + " etiqueta(s) pendente(s)." : "")
               : (health.printer_status_detail || "Brother QL-810W nao encontrada no Windows.")
           },
           {
             state: getAutoPrintState(health, printingBusy),
-            label: "Escuta e autoimpressao",
+            label: "Autoimpressao do celular",
             detail: buildAutoPrintDetail(health, printingBusy)
           },
           {
-            state: health.reprint_queue_polling || health.reprint_queue_listener ? "ok" : "off",
-            label: "Reimpressao remota",
-            detail: health.reprint_queue_polling || health.reprint_queue_listener
-              ? "Fila remota ativa para pedidos feitos em outro dispositivo."
-              : "Fila remota inativa."
-          },
-          {
-            state: health.supabase_role === "anon" ? "off" : "ok",
-            label: "Acesso aos dados",
-            detail: health.supabase_role === "postgres_direct"
-              ? "Conectado direto ao banco para ler etiquetas do celular."
-              : health.supabase_role === "service_role"
-                ? "Conectado com Service Role."
-                : "Usando anon; pode falhar para check-ins de outro dispositivo."
+            state: printerQueueLength ? "off" : "ok",
+            label: "Fila da Brother",
+            detail: printerQueueLength
+              ? printerQueueLength + " etiqueta(s) presa(s). Limpe/libere a fila no Windows."
+              : "Sem etiquetas pendentes na fila local."
           }
         ]);
       } catch (error) {
@@ -1021,21 +1015,24 @@ function buildStatusPageHtml() {
     function buildAutoPrintDetail(health, printingBusy) {
       const poll = health.auto_print_last_poll || {};
       const lastPoll = poll.checked_at ? new Date(poll.checked_at).toLocaleString("pt-BR") : "ainda nao executada";
-      const realtime = health.auto_print_realtime_status || "desconhecido";
-      const base = printingBusy ? "Processando etiqueta ou fila de impressao." : "Aguardando novos check-ins.";
+      if (poll.error) {
+        return poll.error;
+      }
+      if (health.supabase_role === "anon") {
+        return "Inativa: configure DATABASE_URL ou Service Role neste computador para imprimir check-ins feitos pelo celular.";
+      }
+      const base = printingBusy ? "Processando etiqueta." : "Ativa e aguardando novos check-ins.";
       return base +
-        " Realtime: " + realtime +
-        ". Ultima varredura: " + lastPoll +
+        " Ultima varredura: " + lastPoll +
         ". Pendentes ativos: " + (poll.pending_count || 0) +
-        ". Fila local: " + (health.auto_print_queue_length || 0) +
-        (poll.error ? ". Erro da varredura: " + poll.error : ".");
+        ". Fila interna: " + (health.auto_print_queue_length || 0) + ".";
     }
 
     function getAutoPrintState(health, printingBusy) {
       if (printingBusy) {
         return "busy";
       }
-      if (health.auto_print_realtime_status === "SUBSCRIBED" || health.auto_print_polling) {
+      if (health.supabase_role !== "anon" && (health.auto_print_realtime_status === "SUBSCRIBED" || health.auto_print_polling)) {
         return "ok";
       }
       return "off";
@@ -1064,7 +1061,13 @@ function resolveServiceDataRole() {
 }
 
 async function processPendingCheckins() {
-  if (!supabaseClient && !pgPool) {
+  if (!canUseAutoPrintDataAccess) {
+    lastAutoPrintPoll = {
+      checked_at: new Date().toISOString(),
+      pending_count: 0,
+      enqueued_count: 0,
+      error: "Autoimpressao do celular requer DATABASE_URL ou Service Role no servico local."
+    };
     return;
   }
   lastAutoPrintPoll = {
@@ -1111,8 +1114,9 @@ async function processPendingCheckins() {
 }
 
 async function startRealtimeAutoPrint() {
-  if (!supabaseClient) {
-    console.warn("[Servico de impressao] Auto-print desativado (Supabase key ausente).");
+  if (!supabaseClient || !canUseAutoPrintDataAccess) {
+    console.warn("[Servico de impressao] Auto-print do celular desativado: configure DATABASE_URL ou SUPABASE_SERVICE_ROLE_KEY.");
+    realtimeStatus = "disabled_missing_admin_data_access";
     return;
   }
   await processPendingCheckins();
@@ -1133,7 +1137,7 @@ async function startRealtimeAutoPrint() {
 }
 
 function startAutoPrintPolling() {
-  if (!supabaseClient) {
+  if (!canUseAutoPrintDataAccess) {
     return;
   }
   if (autoPrintPollTimer) {
