@@ -50,6 +50,54 @@ test("responsavel precisa validar QR fixo antes de fazer check-in", async ({ pag
     .toBe("parent-1");
 });
 
+test("responsavel le QR pela camera no iPhone sem BarcodeDetector", async ({ page }) => {
+  await page.addInitScript(() => {
+    delete window.BarcodeDetector;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: async () => document.createElement("canvas").captureStream()
+      }
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", {
+      configurable: true,
+      get: () => 32
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", {
+      configurable: true,
+      get: () => 32
+    });
+    HTMLMediaElement.prototype.play = async () => {};
+    HTMLCanvasElement.prototype.getContext = () => ({
+      drawImage: () => {},
+      getImageData: () => ({ data: new Uint8ClampedArray(32 * 32 * 4) })
+    });
+  });
+  await openApp(page);
+  await loginAs(page, "responsavel@dnms.test");
+  await page.evaluate(() => {
+    delete window.BarcodeDetector;
+    window.jsQR = () => {
+      window.__jsQrDetectCount = (window.__jsQrDetectCount || 0) + 1;
+      return window.__jsQrDetectCount > 1 ? { data: "DNMS-CHECKIN-PRESENCIAL" } : null;
+    };
+  });
+
+  const ana = page.locator("#studentList .list-item").filter({ hasText: "Ana Kids" });
+  await ana.getByRole("button", { name: "Check-in" }).click();
+
+  await expect(page.locator("#qrDialog")).toBeVisible();
+  await expect(page.locator("#qrDialogManualField")).toBeHidden();
+  await expect(page.locator("#btnQrDialogCheckin")).toBeHidden();
+  await expect(page.locator("#qrCameraPreview")).toBeVisible();
+  await expect(page.locator("#qrDialogStatus")).toContainText("Aponte a camera");
+  await expect(page.locator("#qrDialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins[0]?.actor_id))
+    .toBe("parent-1");
+});
+
 test("responsavel usa campo manual somente quando camera nao esta disponivel", async ({ page }) => {
   await page.addInitScript(() => {
     delete window.BarcodeDetector;

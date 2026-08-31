@@ -49,7 +49,13 @@ const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "" };
-const parentCheckinContext = { presenceToken: "", targetStudentId: "", qrStream: null, qrScanTimer: null };
+const parentCheckinContext = {
+  presenceToken: "",
+  targetStudentId: "",
+  qrStream: null,
+  qrScanTimer: null,
+  qrCanvas: null
+};
 const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "" };
 const familyNetworkContext = { members: [], familyId: "" };
 const familyContext = { selectedProfileId: "" };
@@ -7290,10 +7296,6 @@ async function startQrCameraScan() {
   if (!els.qrCameraPreview || !els.qrDialogInput) {
     return;
   }
-  if (!("BarcodeDetector" in window)) {
-    showQrManualFallback("Camera sem leitor QR nativo. Digite ou cole o codigo exibido no local.");
-    return;
-  }
   if (!navigator.mediaDevices?.getUserMedia) {
     showQrManualFallback("Camera indisponivel neste navegador. Digite ou cole o codigo exibido no local.");
     return;
@@ -7311,15 +7313,19 @@ async function startQrCameraScan() {
     els.qrCameraPreview.srcObject = stream;
     els.qrCameraPreview.style.display = "block";
     await els.qrCameraPreview.play();
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const detector = createQrDetector();
+    if (!detector) {
+      stopQrCameraScan({ keepStatus: true });
+      showQrManualFallback("Leitor de QR indisponivel neste navegador. Digite ou cole o codigo exibido no local.");
+      return;
+    }
     const scan = async () => {
       if (!parentCheckinContext.qrStream || !els.qrDialog?.open) {
         stopQrCameraScan();
         return;
       }
       try {
-        const codes = await detector.detect(els.qrCameraPreview);
-        const value = String(codes?.[0]?.rawValue || "").trim();
+        const value = await detectQrFromVideo(detector, els.qrCameraPreview);
         if (value) {
           els.qrDialogInput.value = value;
           stopQrCameraScan();
@@ -7336,6 +7342,45 @@ async function startQrCameraScan() {
   }
 }
 
+function createQrDetector() {
+  if ("BarcodeDetector" in window) {
+    try {
+      return { type: "native", detector: new BarcodeDetector({ formats: ["qr_code"] }) };
+    } catch (_error) {}
+  }
+  if (typeof window.jsQR === "function") {
+    return { type: "jsqr" };
+  }
+  return null;
+}
+
+async function detectQrFromVideo(detector, video) {
+  if (detector?.type === "native") {
+    const codes = await detector.detector.detect(video);
+    return String(codes?.[0]?.rawValue || "").trim();
+  }
+  if (detector?.type !== "jsqr" || typeof window.jsQR !== "function") {
+    return "";
+  }
+  const width = video.videoWidth || video.clientWidth || 0;
+  const height = video.videoHeight || video.clientHeight || 0;
+  if (!width || !height) {
+    return "";
+  }
+  const canvas = parentCheckinContext.qrCanvas || document.createElement("canvas");
+  parentCheckinContext.qrCanvas = canvas;
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return "";
+  }
+  context.drawImage(video, 0, 0, width, height);
+  const imageData = context.getImageData(0, 0, width, height);
+  const result = window.jsQR(imageData.data, width, height, { inversionAttempts: "dontInvert" });
+  return String(result?.data || "").trim();
+}
+
 function stopQrCameraScan(options = {}) {
   if (parentCheckinContext.qrScanTimer) {
     window.clearTimeout(parentCheckinContext.qrScanTimer);
@@ -7350,6 +7395,7 @@ function stopQrCameraScan(options = {}) {
     els.qrCameraPreview.srcObject = null;
     els.qrCameraPreview.style.display = "none";
   }
+  parentCheckinContext.qrCanvas = null;
   if (!options.keepStatus && els.qrDialogStatus) {
     els.qrDialogStatus.textContent = "";
   }
