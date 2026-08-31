@@ -79,6 +79,7 @@ Credenciais:
 - Em 2026-08-30, corrigida exclusao de sala com check-in ativo: `deleteRoom` preserva historico local com checkout, `supabase/patch_checkout_on_room_delete.sql` cria trigger `checkout_open_checkins_before_room_delete_trigger` para fazer checkout antes de deletar sala e saneia check-ins ativos orfaos. Patch aplicado em producao; verificacao retornou trigger instalada e 0 check-ins ativos orfaos. Cache atual: `checkin-cache-v158`, `app.js?v=20260830i`.
 - `npm.cmd test` passou com 152 testes em 2026-08-30.
 - Em 2026-08-31, criado `docs/PLANO_ESTABILIZACAO_OPERACIONAL.md` com problemas do teste pratico e ordem de correcao. Primeira correcao de impressao: servico local nao considera Brother online quando Windows marca `WorkOffline`, simplifica `/status` e deixa claro que autoimpressao de check-ins feitos no celular requer `DATABASE_URL` ou Service Role no computador do servico. `Servico de impressao/dist/Servico-de-impressao.exe` e pacote portatil foram recompilados. `npm.cmd test` passou com 152 testes.
+- Em 2026-08-31, corrigido empacotamento portatil da impressao: `scripts/package-portable.ps1` inclui `.codex-secrets.env` local no ZIP quando existir, sem versionar o segredo, alem de `dist`, `bin`, `scripts`, CMD, README e exemplo. O ZIP local foi regenerado e conferido por nomes.
 
 ## Pendencias
 
@@ -88,4 +89,4 @@ Credenciais:
 - Validar recuperacao de senha em producao com link novo e janela anonima; links antigos podem continuar abrindo sessao direto.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
 - Confirmar periodicamente se credenciais administrativas devem permanecer no arquivo local.
-- Validar no notebook real o novo pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`: conferir `/status` com Brother ligada/desligada e confirmar que o arquivo local `.codex-secrets.env` existe no notebook sem expor credenciais.
+- Validar no notebook real o novo pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`: conferir `/status` com Brother ligada/desligada e confirmar que `.codex-secrets.env` veio no ZIP sem expor credenciais.

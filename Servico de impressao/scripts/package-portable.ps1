@@ -43,6 +43,14 @@ foreach ($item in $items) {
   Copy-Item -LiteralPath $source -Destination $staging -Recurse -Force
 }
 
+$localSecrets = Join-Path $root ".codex-secrets.env"
+if (Test-Path $localSecrets) {
+  Copy-Item -LiteralPath $localSecrets -Destination $staging -Force
+  Write-Host "Configuracao local incluida no pacote: .codex-secrets.env"
+} else {
+  Write-Host "Configuracao local ausente: crie .codex-secrets.env no destino antes de usar autoimpressao do celular."
+}
+
 Compress-Archive -LiteralPath $staging -DestinationPath $zipPath -Force
 
 Write-Host "Pacote gerado em: $zipPath"

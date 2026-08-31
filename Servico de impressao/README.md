@@ -162,13 +162,14 @@ cmd /c npm run package:portable
 `dist-pacote\DNMS-Servico-de-impressao-portable.zip`
 
 3. Extraia o ZIP no computador que ficara ligado a impressora.
-4. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
-5. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, copie `.codex-secrets.example.env` para `.codex-secrets.env` e preencha `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`.
-6. Inicie com duplo clique em:
+4. Se existir `.codex-secrets.env` no computador que gerou o pacote, ele sera incluido no ZIP local para preservar `DATABASE_URL`, token e portas. Esse arquivo continua ignorado pelo Git.
+5. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
+6. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, confirme que `.codex-secrets.env` existe na pasta extraida e contem `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`.
+7. Inicie com duplo clique em:
 
 `DNMS Impressao.cmd`
 
-7. Valide em:
+8. Valide em:
 
 `http://localhost:3001/status`
 
