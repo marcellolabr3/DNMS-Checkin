@@ -50,9 +50,9 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Etapa 3 do plano operacional implementada em 2026-08-31: dashboard alerta check-ins ativos de dias anteriores, lista os principais casos e permite Admin/SADMIN encerrar em lote com auditoria `stale_checkins_closed`; equipe visualiza alerta sem acao destrutiva.
 - Etapa 4 do plano operacional implementada em 2026-08-31: dashboard mostra resumo do dia e Log ganhou relatorio "Resumo do evento" com total geral, criancas unicas, ativos, check-outs, pendentes de impressao, agrupamento por turma/sala e exportacao CSV compativel com Excel. Planilha e WhatsApp incluem resumo detalhado antes da lista nominal.
 - Ajuste de Log em 2026-08-31: Assiduidade mostra resumo curto do periodo/dia filtrado, remove "criancas filtradas" quando nao ha selecao manual e oculta nomes em grupos recolhiveis por turma.
-- Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios, com opcoes em linha responsiva.
-- Ultima validacao local: `npm.cmd test` passou com 160 testes em 2026-08-31.
-- Cache atual: `checkin-cache-v166`, `app.js?v=20260831g`, `styles.css?v=20260831c`.
+- Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios; lista permite abrir selecionadas, fechar selecionadas com checkout automatico e excluir uma ou varias salas pelo botao "Excluir".
+- Ultima validacao local: `npm.cmd test` passou com 162 testes em 2026-08-31.
+- Cache atual: `checkin-cache-v167`, `app.js?v=20260831h`, `styles.css?v=20260831c`.
 
 ## Pendencias
 

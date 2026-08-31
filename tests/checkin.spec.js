@@ -695,7 +695,10 @@ test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
   await expect(page.locator("#roomCard")).toBeVisible();
   await expect(page.locator("#btnBulkOpenAllRooms")).toHaveCount(0);
   await expect(page.locator("#btnBulkEditRooms")).toHaveText("Abrir selecionadas");
+  await expect(page.locator("#btnBulkCloseRooms")).toHaveText("Fechar selecionadas");
+  await expect(page.locator("#btnBulkDeleteRooms")).toHaveText("Excluir");
   await expect(page.locator("#btnBulkEditRooms")).toBeDisabled();
+  await expect(page.locator("#btnBulkCloseRooms")).toBeDisabled();
 
   await page.locator("#selectAllRooms").check();
   await expect(page.locator('input[data-select-room="room-bulk-kids"]')).toBeChecked();
@@ -722,6 +725,70 @@ test("abrir selecionadas abre apenas salas aptas de hoje", async ({ page }) => {
   await expect(page.locator("#selectAllRooms")).toBeEnabled();
   await expect(page.locator('input[data-select-room="room-bulk-kids"]')).toBeEnabled();
   await expect(page.locator('input[data-select-room="room-bulk-juniors"]')).toBeEnabled();
+});
+
+test("fechar selecionadas faz checkout automatico das salas abertas", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.rooms.push({
+      id: "room-bulk-close-juniors",
+      name: "Culto Bulk Fechar Juniors",
+      date: today,
+      start_time: "00:00",
+      end_time: "23:59",
+      class_target: "Juniors",
+      status: "Aberta",
+      opened_at: new Date().toISOString(),
+      closed_at: null
+    });
+    window.__mockDnmsDb.checkins.push(
+      {
+        id: "checkin-bulk-close-kids",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        checked_in_at: new Date().toISOString(),
+        checked_out_at: null
+      },
+      {
+        id: "checkin-bulk-close-juniors",
+        student_id: "student-juniors",
+        room_id: "room-bulk-close-juniors",
+        room_name_snapshot: "Culto Bulk Fechar Juniors",
+        class_name: "Juniors",
+        actor_id: "admin-1",
+        checked_in_at: new Date().toISOString(),
+        checked_out_at: null
+      }
+    );
+  }, todayIso());
+
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+  await page.locator('input[data-select-room="room-kids"]').check();
+  await page.locator('input[data-select-room="room-bulk-close-juniors"]').check();
+  await expect(page.locator("#btnBulkCloseRooms")).toBeEnabled();
+
+  await page.locator("#btnBulkCloseRooms").click();
+
+  await expect
+    .poll(() => page.evaluate(() => window.confirmMessages || []))
+    .toContain("Fechar 2 sala(s) selecionada(s)?");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-kids")?.status))
+    .toBe("Fechada");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-bulk-close-juniors")?.status))
+    .toBe("Fechada");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.id === "checkin-bulk-close-kids")?.checked_out_at))
+    .not.toBeNull();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.id === "checkin-bulk-close-juniors")?.checked_out_at))
+    .not.toBeNull();
 });
 
 test("dialog de sala fecha automaticamente apos abrir sala", async ({ page }) => {

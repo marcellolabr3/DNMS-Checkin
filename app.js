@@ -112,6 +112,7 @@ const els = {
   btnDeleteRoomFromEdit: document.getElementById("btnDeleteRoomFromEdit"),
   selectAllRooms: document.getElementById("selectAllRooms"),
   btnBulkEditRooms: document.getElementById("btnBulkEditRooms"),
+  btnBulkCloseRooms: document.getElementById("btnBulkCloseRooms"),
   btnBulkDeleteRooms: document.getElementById("btnBulkDeleteRooms"),
   studentList: document.getElementById("studentList"),
   studentSearch: document.getElementById("studentSearch"),
@@ -339,6 +340,7 @@ function bindEvents() {
   els.btnDeleteRoomFromEdit?.addEventListener("click", handleDeleteRoomFromEdit);
   els.selectAllRooms?.addEventListener("change", handleSelectAllRoomsInList);
   els.btnBulkEditRooms?.addEventListener("click", handleBulkOpenSelectedRooms);
+  els.btnBulkCloseRooms?.addEventListener("click", handleBulkCloseSelectedRooms);
   els.btnBulkDeleteRooms?.addEventListener("click", handleBulkDeleteRooms);
   els.btnAddStudent.addEventListener("click", () => openStudentDialog());
   els.btnParentCheckin?.addEventListener("click", openQrDialog);
@@ -1639,10 +1641,12 @@ function renderRooms() {
   const canOperateRoom = canOperateRooms();
   const openableRooms = visibleRooms.filter((room) => isRoomOpenableFromList(room));
   const openableRoomIds = new Set(openableRooms.map((room) => room.id));
+  const closableRoomIds = new Set(visibleRooms.filter((room) => isRoomClosableFromList(room)).map((room) => room.id));
   const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
   state.ui.selectedRoomIds = (state.ui.selectedRoomIds || []).filter((id) => visibleRoomIds.has(id));
   const selectedSet = new Set(state.ui.selectedRoomIds || []);
   const selectedOpenableCount = (state.ui.selectedRoomIds || []).filter((id) => openableRoomIds.has(id)).length;
+  const selectedClosableCount = (state.ui.selectedRoomIds || []).filter((id) => closableRoomIds.has(id)).length;
 
   els.btnCreateRoom.disabled = !canManageRoom;
   if (els.selectAllRooms) {
@@ -1651,6 +1655,9 @@ function renderRooms() {
   }
   if (els.btnBulkEditRooms) {
     els.btnBulkEditRooms.disabled = !canOperateRoom || !selectedOpenableCount;
+  }
+  if (els.btnBulkCloseRooms) {
+    els.btnBulkCloseRooms.disabled = !canOperateRoom || !selectedClosableCount;
   }
   if (els.btnBulkDeleteRooms) {
     els.btnBulkDeleteRooms.disabled = !canManageRoom || !selectedSet.size;
@@ -1763,8 +1770,19 @@ function getSelectedVisibleRoomIdsInList() {
     .map((room) => room.id);
 }
 
+function getSelectedClosableRoomIdsInList() {
+  const selected = new Set(state.ui.selectedRoomIds || []);
+  return state.rooms
+    .filter((room) => room.status !== "Fechada" && !isRoomPast(room) && selected.has(room.id) && isRoomClosableFromList(room))
+    .map((room) => room.id);
+}
+
 function isRoomOpenableFromList(room) {
   return Boolean(room && room.status !== "Aberta" && canOpenRoomNow(room));
+}
+
+function isRoomClosableFromList(room) {
+  return Boolean(room && room.status === "Aberta" && canCloseRoomNow(room));
 }
 
 async function handleBulkOpenSelectedRooms() {
@@ -1807,6 +1825,45 @@ async function openRoomsFromList(ids) {
   }
 }
 
+async function handleBulkCloseSelectedRooms() {
+  if (!canOperateRooms()) {
+    alert("Somente administradores e equipe podem fechar salas.");
+    return;
+  }
+  const ids = getSelectedClosableRoomIdsInList();
+  if (!ids.length) {
+    alert("Selecione ao menos uma sala aberta.");
+    return;
+  }
+  if (!confirm(`Fechar ${ids.length} sala(s) selecionada(s)?`)) {
+    return;
+  }
+  await closeRoomsFromList(ids);
+}
+
+async function closeRoomsFromList(ids) {
+  let closedCount = 0;
+  for (const id of ids) {
+    const room = state.rooms.find((item) => item.id === id);
+    if (!isRoomClosableFromList(room)) {
+      continue;
+    }
+    await closeRoom(id, { skipConfirm: true });
+    const current = state.rooms.find((item) => item.id === id);
+    if (current?.status === "Fechada" || !current) {
+      closedCount += 1;
+    }
+  }
+  state.ui.selectedRoomIds = [];
+  if (els.selectAllRooms) {
+    els.selectAllRooms.checked = false;
+  }
+  render();
+  if (closedCount) {
+    alert(`${closedCount} sala(s) fechada(s).`);
+  }
+}
+
 async function handleBulkDeleteRooms() {
   if (!canManageRooms()) {
     alert("Somente administradores podem excluir salas.");
@@ -1820,7 +1877,10 @@ async function handleBulkDeleteRooms() {
   if (!confirm(`Excluir ${ids.length} sala(s) selecionada(s)?`)) {
     return;
   }
-  if (!confirm("Confirmacao final: deseja realmente excluir em massa?")) {
+  const finalMessage = ids.length > 1
+    ? "Confirmacao final: deseja realmente excluir as salas selecionadas?"
+    : "Confirmacao final: deseja realmente excluir esta sala?";
+  if (!confirm(finalMessage)) {
     return;
   }
 
@@ -6202,12 +6262,15 @@ async function closeRoom(roomId, options = {}) {
     alert("Somente administradores e equipe podem fechar salas.");
     return;
   }
+  const skipConfirm = options.skipConfirm === true;
   const requireDoubleConfirm = options.requireDoubleConfirm !== false;
-  if (!confirm("Tem certeza que deseja fechar esta sala?")) {
-    return;
-  }
-  if (requireDoubleConfirm && !confirm("Confirmar fechamento da sala agora?")) {
-    return;
+  if (!skipConfirm) {
+    if (!confirm("Tem certeza que deseja fechar esta sala?")) {
+      return;
+    }
+    if (requireDoubleConfirm && !confirm("Confirmar fechamento da sala agora?")) {
+      return;
+    }
   }
   const room = state.rooms.find((item) => item.id === roomId);
   if (!room) {
