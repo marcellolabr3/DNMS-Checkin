@@ -196,6 +196,45 @@ test("crianca com check-in ativo em outra sala nao pode fazer novo check-in", as
   await expect(ana.getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
 });
 
+test("dashboard alerta e encerra check-ins ativos antigos", async ({ page }) => {
+  const staleDate = pastIso(1);
+  await openApp(page);
+  await page.evaluate((date) => {
+    const room = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+    room.date = date;
+    room.status = "Fechada";
+    room.closed_at = `${date}T13:00:00.000Z`;
+    window.__mockDnmsDb.checkins.push({
+      id: "checkin-old-active",
+      student_id: "student-kids",
+      room_id: "room-kids",
+      room_name_snapshot: "Culto Kids Antigo",
+      class_name: "Kids",
+      actor_id: "admin-1",
+      notes_snapshot: "",
+      checked_in_at: `${date}T12:00:00.000Z`,
+      checked_out_at: null
+    });
+  }, staleDate);
+
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#dashboardAlerts")).toContainText("1 check-in(s) antigo(s) ainda ativo(s).");
+  await expect(page.locator("#dashboardStaleCheckins")).toContainText("Ana Kids");
+  await expect(page.locator("#dashboardStaleCheckins")).toContainText("Culto Kids Antigo");
+  await page.click("#btnCheckoutStaleCheckins");
+
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.id === "checkin-old-active")?.checked_out_at))
+    .not.toBeNull();
+  await expect(page.locator("#dashboardStaleCheckins")).toBeEmpty();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.audit_logs.some((item) => item.action_type === "stale_checkins_closed")))
+    .toBe(true);
+  const alerts = await getAlerts(page);
+  expect(alerts).toContain("1 check-in(s) antigo(s) encerrado(s).");
+});
+
 test("turma muda somente no ano seguinte ao aniversario", async ({ page }) => {
   const year = new Date().getFullYear();
   await openApp(page);
@@ -1072,6 +1111,76 @@ test("sadmin edita qualquer usuario e crianca", async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.notes))
     .toBe("Atualizado pelo SADMIN");
+});
+
+test("sadmin reenvia email de acesso para responsavel cadastrado", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Teste");
+  await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
+  await expect(page.locator("#btnFamilyResendAccess")).toBeVisible();
+  await page.click("#btnFamilyResendAccess");
+
+  await expect
+    .poll(() => page.evaluate(() => window.__lastPasswordResetEmail || ""))
+    .toBe("responsavel@dnms.test");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.audit_logs.some((item) => item.action_type === "user_access_resent")))
+    .toBe(true);
+  const alerts = await getAlerts(page);
+  expect(alerts).toContain("Email de acesso reenviado para responsavel@dnms.test.");
+});
+
+test("sadmin cadastra responsavel e envia email de primeiro acesso", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+  await openFamiliesPanel(page);
+
+  await page.locator("#familyCreatePanel summary").click();
+  await page.fill("#familyCreateName", "novo responsavel");
+  await page.fill("#familyCreateBirth", "12/05/1988");
+  await page.selectOption("#familyCreateCivil", "casado");
+  await page.fill("#familyCreatePhone", "11933334444");
+  await page.fill("#familyCreateEmail", "novo.responsavel@dnms.test");
+  await page.fill("#familyCreateAddress", "Rua Primeiro Acesso");
+  await page.click("#btnFamilyCreateResponsible");
+
+  await expect(page.locator("#familyCreateStatus")).toContainText(
+    "Responsavel Novo Responsavel cadastrado. Email enviado para definir senha no primeiro acesso."
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.__lastSignupEmail || ""))
+    .toBe("novo.responsavel@dnms.test");
+  await expect
+    .poll(() => page.evaluate(() => window.__lastPasswordResetEmail || ""))
+    .toBe("novo.responsavel@dnms.test");
+  await expect
+    .poll(() => page.evaluate(() => window.__lastPasswordResetRedirectTo || ""))
+    .toContain("password_recovery=1");
+  const created = await page.evaluate(() => {
+    const profile = window.__mockDnmsDb.profiles.find((item) => item.email === "novo.responsavel@dnms.test");
+    const authUser = window.__mockDnmsDb.auth_users.find((item) => item.email === "novo.responsavel@dnms.test");
+    return { profile, authUser, signupMetadata: window.__lastSignupMetadata };
+  });
+  expect(created.profile).toMatchObject({
+    name: "Novo Responsavel",
+    role: "responsavel",
+    email: "novo.responsavel@dnms.test",
+    birth_date: "1988-05-12",
+    marital_status: "casado",
+    phone: "+55 (11) 93333-4444",
+    address: "Rua Primeiro Acesso"
+  });
+  expect(created.authUser?.id).toBe(created.profile?.id);
+  expect(created.signupMetadata).toMatchObject({
+    full_name: "Novo Responsavel",
+    desired_role: "responsavel",
+    birth_date: "1988-05-12",
+    marital_status: "casado",
+    phone: "+55 (11) 93333-4444"
+  });
 });
 
 test("exclusao de usuario remove filhos somente quando ele e responsavel principal", async ({ page }) => {

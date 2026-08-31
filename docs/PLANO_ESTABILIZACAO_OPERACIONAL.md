@@ -35,14 +35,15 @@ Este arquivo consolida os problemas observados no teste pratico e as correcoes p
    - Adicionar teste de impressao e diagnostico de configuracao do notebook.
 
 2. Cadastro
-   - Validar em producao o fluxo completo: cadastro pelo SADMIN, email recebido, definicao de senha, login e filhos vinculados.
-   - Criar acao administrativa para reenviar email de acesso/recuperacao.
-   - Criar indicador de responsavel sem acesso confirmado, quando possivel.
+   - Implementado no app: cadastro de responsavel pelo SADMIN/Admin envia email de primeiro acesso via recuperacao de senha.
+   - Implementado no app: acao administrativa "Reenviar acesso" para responsavel cadastrado, com registro em `audit_logs`.
+   - Validado por testes automatizados; confirmacao real de recebimento de email/login em producao ainda exige teste manual com conta real.
+   - Indicador de acesso confirmado nao foi adicionado porque o frontend anon nao deve consultar `auth.users.email_confirmed_at`.
 
 3. Check-in
-   - Criar alerta administrativo para check-ins ativos antigos.
-   - Criar acao segura para encerrar check-ins vencidos.
-   - Reforcar a tela para mostrar claramente quando a crianca ja tem check-in ativo.
+   - Implementado no dashboard: alerta para check-ins ativos de dias anteriores.
+   - Implementado no dashboard: Admin/SADMIN pode encerrar check-ins antigos em lote com confirmacao e auditoria `stale_checkins_closed`; equipe apenas visualiza.
+   - Tela de alunos ja mostra check-in ativo com botao "Check-in realizado" desabilitado e checkout para operador autorizado.
 
 4. Resumo do evento
    - Criar painel do dia com total geral, total por sala/classe, ativos, check-outs e pendentes de impressao.
@@ -51,6 +52,6 @@ Este arquivo consolida os problemas observados no teste pratico e as correcoes p
 ## Ordem Recomendada
 
 1. Corrigir impressao e monitoramento.
-2. Validar cadastro SADMIN e criar reenvio de acesso.
-3. Criar saneamento/alerta de check-ins ativos antigos.
+2. Cadastro SADMIN e reenvio de acesso concluido no app; falta validacao manual em producao com conta real.
+3. Saneamento/alerta de check-ins ativos antigos concluido no app.
 4. Criar painel resumo do evento.

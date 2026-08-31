@@ -79,6 +79,7 @@ const els = {
   dashboardAlerts: document.getElementById("dashboardAlerts"),
   dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
+  dashboardStaleCheckins: document.getElementById("dashboardStaleCheckins"),
   dashboardTips: document.getElementById("dashboardTips"),
   dashboardSchedules: document.getElementById("dashboardSchedules"),
   dashboardBirthdays: document.getElementById("dashboardBirthdays"),
@@ -1547,6 +1548,7 @@ async function fetchCheckins() {
       studentId: checkin.student_id,
       className: checkin.class_name,
       notes: checkin.notes_snapshot || "",
+      checkedInAt: checkin.checked_in_at || "",
       dateTime: formatDateTimeFromIso(checkin.checked_in_at),
       checkedOutAt: checkin.checked_out_at ? formatTimeFromIso(checkin.checked_out_at) : "",
       actor: state.session?.name || ""
@@ -2121,6 +2123,126 @@ function renderStudents() {
 
 function renderCheckins() {}
 
+function getCheckinDateIso(checkin) {
+  const raw = String(checkin?.checkedInAt || "").trim();
+  if (raw) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) {
+      return formatDateIso(date);
+    }
+  }
+  const formatted = String(checkin?.dateTime || "").trim();
+  const brMatch = formatted.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!brMatch) {
+    return "";
+  }
+  return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+}
+
+function getStaleActiveCheckins() {
+  const todayIso = formatTodayIso();
+  return (state.checkins || [])
+    .filter((checkin) => !checkin.checkedOutAt)
+    .filter((checkin) => {
+      const dateIso = getCheckinDateIso(checkin);
+      return Boolean(dateIso) && dateIso < todayIso;
+    })
+    .sort((a, b) => String(a.dateTime || "").localeCompare(String(b.dateTime || "")));
+}
+
+function getStudentNameForCheckin(checkin) {
+  return state.students.find((student) => student.id === checkin?.studentId)?.name || "Crianca";
+}
+
+function renderDashboardStaleCheckins(staleActiveCheckins = getStaleActiveCheckins()) {
+  if (!els.dashboardStaleCheckins) {
+    return;
+  }
+  if (!staleActiveCheckins.length || !(isAdmin() || isEquipe())) {
+    els.dashboardStaleCheckins.innerHTML = "";
+    return;
+  }
+  const canCleanup = isAdmin();
+  const visible = staleActiveCheckins.slice(0, 6);
+  els.dashboardStaleCheckins.innerHTML = `
+    <strong>Check-ins ativos antigos</strong><br />
+    <span>Ha ${staleActiveCheckins.length} crianca(s) com check-in aberto de dia anterior.</span>
+    <div class="list" style="margin-top:8px">
+      ${visible
+        .map(
+          (checkin) => `
+        <div class="list-item">
+          <strong>${escapeHtml(getStudentNameForCheckin(checkin))}</strong>
+          <span class="muted">${escapeHtml(checkin.roomName || "-")} | Entrada: ${escapeHtml(checkin.dateTime || "-")}</span>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+    ${staleActiveCheckins.length > visible.length ? `<span class="muted">Mais ${staleActiveCheckins.length - visible.length} item(ns) oculto(s).</span>` : ""}
+    <div class="actions" style="margin-top:10px">
+      ${
+        canCleanup
+          ? `<button id="btnCheckoutStaleCheckins" type="button" class="danger">Encerrar check-ins antigos</button>`
+          : `<span class="muted">Somente Admin/SADMIN pode encerrar em lote.</span>`
+      }
+    </div>
+  `;
+  document.getElementById("btnCheckoutStaleCheckins")?.addEventListener("click", checkoutStaleActiveCheckins);
+}
+
+async function checkoutStaleActiveCheckins() {
+  if (!isAdmin()) {
+    alert("Somente Admin/SADMIN pode encerrar check-ins antigos.");
+    return;
+  }
+  const staleActiveCheckins = getStaleActiveCheckins();
+  if (!staleActiveCheckins.length) {
+    alert("Nao ha check-ins antigos ativos para encerrar.");
+    return;
+  }
+  if (!confirm(`Encerrar ${staleActiveCheckins.length} check-in(s) antigo(s)?`)) {
+    return;
+  }
+  const ids = staleActiveCheckins.map((checkin) => checkin.id).filter(Boolean);
+  const checkedOutIso = new Date().toISOString();
+  if (supabaseClient && ids.length) {
+    const { error } = await supabaseClient
+      .from("checkins")
+      .update({ checked_out_at: checkedOutIso })
+      .in("id", ids)
+      .is("checked_out_at", null);
+    if (error) {
+      alert(`Falha ao encerrar check-ins antigos: ${error.message || "erro inesperado"}`);
+      return;
+    }
+  }
+  state.checkins.forEach((checkin) => {
+    if (ids.includes(checkin.id) && !checkin.checkedOutAt) {
+      checkin.checkedOutAt = formatTimeFromIso(checkedOutIso);
+      checkin.checkedOutBy = state.session?.name || "";
+    }
+  });
+  await recordAuditLog(
+    "stale_checkins_closed",
+    "checkin",
+    ids[0] || "",
+    `${staleActiveCheckins.length} check-in(s) antigo(s)`,
+    `${staleActiveCheckins.length} check-in(s) antigo(s) encerrado(s) em lote.`,
+    {
+      checkinIds: ids,
+      studentIds: staleActiveCheckins.map((checkin) => checkin.studentId).filter(Boolean),
+      checkedOutAt: checkedOutIso
+    }
+  );
+  if (supabaseClient) {
+    await fetchCheckins();
+    await fetchAuditLogs();
+  }
+  alert(`${staleActiveCheckins.length} check-in(s) antigo(s) encerrado(s).`);
+  render();
+}
+
 function toggleDashboardScheduleDate(date) {
   if (!date) {
     return;
@@ -2156,6 +2278,7 @@ function renderDashboard() {
 
   const alerts = [];
   const openRooms = state.rooms.filter((room) => room.status === "Aberta");
+  const staleActiveCheckins = getStaleActiveCheckins();
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
@@ -2173,6 +2296,9 @@ function renderDashboard() {
   }
   if (roomsWithoutTime.length) {
     alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
+  }
+  if (staleActiveCheckins.length) {
+    alerts.push(`${staleActiveCheckins.length} check-in(s) antigo(s) ainda ativo(s).`);
   }
   const alertsLine = alerts.length ? `${alerts.map((alert) => escapeHtml(alert)).join("<br />")}<br />` : "";
   const infoText = state.dashboardInfo || "Nenhuma informacao cadastrada.";
@@ -2214,6 +2340,8 @@ function renderDashboard() {
       }
     });
   });
+
+  renderDashboardStaleCheckins(staleActiveCheckins);
 
   renderDashboardTips();
 
@@ -4677,6 +4805,7 @@ function renderFamiliesPanel() {
     return;
   }
   const canManageResponsible = canManageResponsibleProfile(selected.profile);
+  const canResendAccess = canResendResponsibleAccess(selected.profile);
   const canDelete = canManageResponsible;
   const canManageNetwork = canManageFamilyNetwork(selected.profile);
   const networkMembers = selected.networkMembers || [selected.profile];
@@ -4774,6 +4903,11 @@ function renderFamiliesPanel() {
       </label>
       <div class="actions">
         <button id="btnFamilySaveProfile" type="button" class="primary" ${canManageResponsible ? "" : "disabled"}>Salvar responsavel</button>
+        ${
+          canResendAccess
+            ? `<button id="btnFamilyResendAccess" type="button" class="ghost">Reenviar acesso</button>`
+            : ""
+        }
         <button id="btnFamilyAddChild" type="button" class="ghost" ${canManageResponsible ? "" : "disabled"}>Adicionar crianca</button>
       </div>
     </div>
@@ -4832,6 +4966,9 @@ function renderFamiliesPanel() {
 
   document.getElementById("btnFamilySaveProfile")?.addEventListener("click", async () => {
     await saveFamilyProfile(selected.profile.id);
+  });
+  document.getElementById("btnFamilyResendAccess")?.addEventListener("click", async () => {
+    await resendResponsibleAccessEmail(selected.profile);
   });
   document.getElementById("btnFamilyAddChild")?.addEventListener("click", () => {
     openStudentDialogForFamily(selected.profile);
@@ -5341,6 +5478,36 @@ async function handleCreateFamilyResponsible() {
   await fetchProfiles();
   await fetchStudents();
   render();
+}
+
+async function resendResponsibleAccessEmail(profile) {
+  if (!supabaseClient || !canResendResponsibleAccess(profile)) {
+    alert("Sem permissao para reenviar acesso deste responsavel.");
+    return;
+  }
+  const email = String(profile.email || "").trim().toLowerCase();
+  if (!email || !isValidEmail(email)) {
+    alert("Este responsavel nao possui email valido para reenvio.");
+    return;
+  }
+  if (!confirm(`Reenviar email de acesso para ${profile.name || email}?`)) {
+    return;
+  }
+  const redirectTo = getPasswordRecoveryRedirectUrl();
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) {
+    alert(`Falha ao reenviar acesso: ${error.message || "erro inesperado"}`);
+    return;
+  }
+  await recordAuditLog(
+    "user_access_resent",
+    "profile",
+    profile.id,
+    profile.name || email,
+    `Email de acesso reenviado para ${profile.name || email}.`,
+    { email }
+  );
+  alert(`Email de acesso reenviado para ${email}.`);
 }
 
 async function updateUserAccess(profile, nextRole) {
@@ -7584,6 +7751,15 @@ function canManageResponsibleProfile(profile) {
   return normalizeRole(profile.role) === "responsavel";
 }
 
+function canResendResponsibleAccess(profile) {
+  return Boolean(
+    profile &&
+      normalizeRole(profile.role) === "responsavel" &&
+      (isSadmin() || isAdmin()) &&
+      String(profile.email || "").trim()
+  );
+}
+
 function getRoomsToday() {
   const today = formatToday();
   return state.rooms.filter((room) => room.date === today);
@@ -8451,6 +8627,7 @@ function formatAuditAction(type) {
     user_deleted: "Usuario excluido",
     checkin_created: "Check-in",
     checkout_created: "Checkout",
+    stale_checkins_closed: "Check-ins antigos encerrados",
     room_opened: "Sala aberta",
     room_closed: "Sala fechada"
   };

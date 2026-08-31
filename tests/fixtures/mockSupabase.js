@@ -840,6 +840,24 @@ function createMockSupabaseScript() {
             currentUser = { id: authUser.id, email: authUser.email };
             return { data: { user: currentUser, session: { user: currentUser } }, error: null };
           },
+          async signUp({ email, password, options }) {
+            const normalizedEmail = String(email || "").trim().toLowerCase();
+            if (!normalizedEmail || !password) {
+              return { data: null, error: { message: "Email e senha sao obrigatorios." } };
+            }
+            if (db.auth_users.some((item) => item.email === normalizedEmail)) {
+              return { data: null, error: { message: "User already registered" } };
+            }
+            const user = {
+              id: "auth-user-" + idCounter++,
+              email: normalizedEmail,
+              user_metadata: { ...(options?.data || {}) }
+            };
+            db.auth_users.push(user);
+            window.__lastSignupEmail = normalizedEmail;
+            window.__lastSignupMetadata = user.user_metadata;
+            return { data: { user, session: null }, error: null };
+          },
           async signOut() {
             window.__mockSignOutCount += 1;
             currentUser = null;
