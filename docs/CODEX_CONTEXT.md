@@ -48,11 +48,11 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Etapa 2 do plano operacional implementada em 2026-08-31: SADMIN/Admin podem cadastrar responsavel na aba Familias, o app envia email de primeiro acesso via recuperacao de senha, SADMIN/Admin podem reenviar acesso para responsavel cadastrado e a acao gera `audit_logs` (`user_access_resent`). Testes focados de cadastro/reenvio/autenticacao passaram.
 - Confirmacao real de recebimento de email e login em producao ainda depende de teste manual com conta real; o frontend nao le `auth.users.email_confirmed_at` por anon/RLS.
 - Etapa 3 do plano operacional implementada em 2026-08-31: dashboard alerta check-ins ativos de dias anteriores, lista os principais casos e permite Admin/SADMIN encerrar em lote com auditoria `stale_checkins_closed`; equipe visualiza alerta sem acao destrutiva.
-- Cache atual apos etapa 3: `checkin-cache-v160`, `app.js?v=20260831b`.
+- Etapa 4 do plano operacional implementada em 2026-08-31: dashboard mostra resumo do dia e Log ganhou relatorio "Resumo do evento" com total geral, criancas unicas, ativos, check-outs, pendentes de impressao, agrupamento por turma/sala e exportacao CSV compativel com Excel. Assiduidade, planilha e WhatsApp tambem incluem resumo detalhado antes da lista nominal.
+- Cache atual apos etapa 4: `checkin-cache-v164`, `app.js?v=20260831f`, `styles.css?v=20260831a`.
 
 ## Pendencias
 
-- Proxima etapa do plano operacional: criar painel/resumo do evento com total geral, por sala/classe, ativos, check-outs, pendentes de impressao e exportacao.
 - Auditar Supabase de producao e reconstruir/validar `supabase/setup_dnms_checkin.sql` como arquivo canonico detalhado.
 - Definir rotina segura de exportacao/restauracao de dados reais, incluindo usuarios/perfis/vinculos, sem expor senhas/tokens/secrets.
 - Validar em producao tentativa de cadastro duplicado pelo app.

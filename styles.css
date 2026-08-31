@@ -974,6 +974,11 @@ button:disabled,
   color: var(--ink);
 }
 
+.event-summary-section {
+  display: grid;
+  gap: 8px;
+}
+
 #familyEditor:empty {
   display: none;
 }

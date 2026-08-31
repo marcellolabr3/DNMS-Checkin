@@ -1049,8 +1049,107 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   await expect(page.locator("#logStart")).toHaveValue(todayIso());
   await expect(page.locator("#logEnd")).toHaveValue(todayIso());
   await expect(page.locator("#logSummary")).toContainText("Frequencia do periodo");
+  await expect(page.locator("#logSummary")).toContainText("Total geral: 1 check-in(s), 1 crianca(s), 1 ativo(s), 0 checkout(s), Impressao pendente: 1");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
   await expect(page.locator("#logList")).toContainText("Ana Kids");
   await expect(page.locator("#btnExport")).toBeEnabled();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.click("#btnExport");
+  const download = await downloadPromise;
+  const filePath = await download.path();
+  const buffer = fs.readFileSync(filePath);
+  const csv = buffer.toString("utf8");
+  expect(csv).toContain("Secao;Nome;Total;Criancas;Ativos;Check-outs;Pendentes de impressao");
+  expect(csv).toContain("Resumo;Geral;1;1;1;0;1");
+  expect(csv).toContain("Aluno;Turma;Presencas;Horarios de check-in");
+  expect(csv).toContain("Ana Kids;Kids;1;");
+
+  await page.evaluate(() => {
+    window.__lastOpenedUrl = "";
+    window.open = (url) => {
+      window.__lastOpenedUrl = String(url);
+      return null;
+    };
+  });
+  await page.click("#btnShareWhatsapp");
+  const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
+  expect(whatsappText).toContain("Resumo do evento");
+  expect(whatsappText).toContain("Total geral: 1 check-in(s), 1 crianca(s), 1 ativo(s), 0 checkout(s), Impressao pendente: 1");
+  expect(whatsappText).toContain("Frequencia detalhada");
+  expect(whatsappText).toContain("Ana Kids | Kids |");
+});
+
+test("log gera resumo do evento com pendencias de impressao e exporta csv", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.checkins.push(
+      {
+        id: "checkin-summary-active-pending",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T10:00:00.000Z`,
+        checked_out_at: null,
+        printed_at: null
+      },
+      {
+        id: "checkin-summary-checked-out",
+        student_id: "student-juniors",
+        room_id: "room-juniors",
+        room_name_snapshot: "Culto Juniors",
+        class_name: "Juniors",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T10:05:00.000Z`,
+        checked_out_at: `${today}T11:00:00.000Z`,
+        printed_at: `${today}T10:06:00.000Z`
+      }
+    );
+  }, todayIso());
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#dashboardEventSummary")).toContainText("Total geral: 2");
+  await expect(page.locator("#dashboardEventSummary")).toContainText("Impressao pendente: 1");
+
+  await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType", "event_summary");
+  await expect(page.locator("#logSummary")).toContainText("Resumo do evento: Total geral: 2 check-in(s), 2 crianca(s), 1 ativo(s), 1 checkout(s), Impressao pendente: 1.");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
+  await expect(page.locator("#logList")).toContainText("Por turma");
+  await expect(page.locator("#logList")).toContainText("Culto Juniors");
+  await expect(page.locator("#btnShareWhatsapp")).toBeEnabled();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.click("#btnExport");
+  const download = await downloadPromise;
+  const filePath = await download.path();
+  const buffer = fs.readFileSync(filePath);
+  const csv = buffer.toString("utf8");
+
+  expect(Array.from(buffer.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+  expect(csv).toContain("Secao;Nome;Total;Criancas;Ativos;Check-outs;Pendentes de impressao");
+  expect(csv).toContain("Resumo;Geral;2;2;1;1;1");
+  expect(csv).toContain("Turma;Kids;1;;1;0;1");
+  expect(csv).toContain("Sala;Culto Juniors;1;;0;1;0");
+
+  await page.evaluate(() => {
+    window.__lastOpenedUrl = "";
+    window.open = (url) => {
+      window.__lastOpenedUrl = String(url);
+      return null;
+    };
+  });
+  await page.click("#btnShareWhatsapp");
+  const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
+  expect(whatsappText).toContain(`Resumo do evento (${todayIso()})`);
+  expect(whatsappText).toContain("Total geral: 2 check-in(s), 2 crianca(s), 1 ativo(s), 1 checkout(s), Impressao pendente: 1");
+  expect(whatsappText).toContain("Por turma:");
+  expect(whatsappText).toContain("- Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
+  expect(whatsappText).toContain("- Culto Juniors: 1 check-in(s), 0 ativo(s), 1 checkout(s), 0 pendente(s) de impressao");
 });
 
 test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {

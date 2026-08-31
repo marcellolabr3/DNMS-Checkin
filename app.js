@@ -16,7 +16,7 @@ const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
 const ROOM_SELECT_COLUMNS = "id,name,date,start_time,time,end_time,class_target,status,opened_at,closed_at";
-const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at";
+const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at,printed_at";
 const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,action_type,target_type,target_id,target_name,details,metadata";
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
 const TIP_SELECT_COLUMNS = "id,message,recipient_id,created_at,created_by,sender_name";
@@ -80,6 +80,7 @@ const els = {
   dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
   dashboardStaleCheckins: document.getElementById("dashboardStaleCheckins"),
+  dashboardEventSummary: document.getElementById("dashboardEventSummary"),
   dashboardTips: document.getElementById("dashboardTips"),
   dashboardSchedules: document.getElementById("dashboardSchedules"),
   dashboardBirthdays: document.getElementById("dashboardBirthdays"),
@@ -1551,6 +1552,7 @@ async function fetchCheckins() {
       checkedInAt: checkin.checked_in_at || "",
       dateTime: formatDateTimeFromIso(checkin.checked_in_at),
       checkedOutAt: checkin.checked_out_at ? formatTimeFromIso(checkin.checked_out_at) : "",
+      printedAt: checkin.printed_at ? formatDateTimeFromIso(checkin.printed_at) : "",
       actor: state.session?.name || ""
     };
   });
@@ -2123,6 +2125,121 @@ function renderStudents() {
 
 function renderCheckins() {}
 
+function getTodayCheckins() {
+  const today = formatToday();
+  return (state.checkins || []).filter((checkin) => String(checkin.dateTime || "").startsWith(today));
+}
+
+function buildEventSummary(checkins) {
+  const rows = Array.isArray(checkins) ? checkins : [];
+  const uniqueStudents = new Set();
+  const byClass = new Map();
+  const byRoom = new Map();
+  rows.forEach((checkin) => {
+    if (checkin.studentId) {
+      uniqueStudents.add(checkin.studentId);
+    }
+    const className = checkin.className || "Indefinida";
+    const roomName = checkin.roomName || "-";
+    if (!byClass.has(className)) {
+      byClass.set(className, createEventSummaryGroup(className));
+    }
+    if (!byRoom.has(roomName)) {
+      byRoom.set(roomName, createEventSummaryGroup(roomName));
+    }
+    updateEventSummaryGroup(byClass.get(className), checkin);
+    updateEventSummaryGroup(byRoom.get(roomName), checkin);
+  });
+  return {
+    totalCheckins: rows.length,
+    uniqueStudents: uniqueStudents.size,
+    active: rows.filter((checkin) => !checkin.checkedOutAt).length,
+    checkedOut: rows.filter((checkin) => Boolean(checkin.checkedOutAt)).length,
+    pendingPrint: rows.filter((checkin) => !checkin.checkedOutAt && !checkin.printedAt).length,
+    byClass: Array.from(byClass.values()).sort(compareEventSummaryGroups),
+    byRoom: Array.from(byRoom.values()).sort(compareEventSummaryGroups)
+  };
+}
+
+function createEventSummaryGroup(label) {
+  return { label, total: 0, active: 0, checkedOut: 0, pendingPrint: 0 };
+}
+
+function updateEventSummaryGroup(group, checkin) {
+  group.total += 1;
+  if (checkin.checkedOutAt) {
+    group.checkedOut += 1;
+  } else {
+    group.active += 1;
+    if (!checkin.printedAt) {
+      group.pendingPrint += 1;
+    }
+  }
+}
+
+function compareEventSummaryGroups(a, b) {
+  const totalDiff = b.total - a.total;
+  if (totalDiff) {
+    return totalDiff;
+  }
+  return String(a.label || "").localeCompare(String(b.label || ""), "pt-BR");
+}
+
+function formatEventSummaryLine(group) {
+  return `${group.label}: ${group.total} check-in(s), ${group.active} ativo(s), ${group.checkedOut} checkout(s), ${group.pendingPrint} pendente(s) de impressao`;
+}
+
+function formatEventSummaryTotals(summary) {
+  return `Total geral: ${summary.totalCheckins} check-in(s), ${summary.uniqueStudents} crianca(s), ${summary.active} ativo(s), ${summary.checkedOut} checkout(s), Impressao pendente: ${summary.pendingPrint}`;
+}
+
+function getLogPeriodLabel() {
+  const startValue = els.logStart?.value || "";
+  const endValue = els.logEnd?.value || "";
+  if (startValue && endValue && startValue === endValue) {
+    return startValue;
+  }
+  if (startValue && endValue) {
+    return `${startValue} ate ${endValue}`;
+  }
+  return "periodo selecionado";
+}
+
+function buildEventSummaryTextLines(summary, periodLabel = getLogPeriodLabel()) {
+  return [
+    `Resumo do evento (${periodLabel})`,
+    formatEventSummaryTotals(summary),
+    "Por turma:",
+    ...(summary.byClass.length ? summary.byClass.map((group) => `- ${formatEventSummaryLine(group)}`) : ["- Nenhum check-in"]),
+    "Por sala:",
+    ...(summary.byRoom.length ? summary.byRoom.map((group) => `- ${formatEventSummaryLine(group)}`) : ["- Nenhum check-in"])
+  ];
+}
+
+function buildEventSummaryCsvRows(summary) {
+  return [
+    ["Resumo", "Geral", summary.totalCheckins, summary.uniqueStudents, summary.active, summary.checkedOut, summary.pendingPrint],
+    ...summary.byClass.map((group) => ["Turma", group.label, group.total, "", group.active, group.checkedOut, group.pendingPrint]),
+    ...summary.byRoom.map((group) => ["Sala", group.label, group.total, "", group.active, group.checkedOut, group.pendingPrint])
+  ];
+}
+
+function renderDashboardEventSummary() {
+  if (!els.dashboardEventSummary || !(isAdmin() || isEquipe())) {
+    return;
+  }
+  const today = formatToday();
+  const summary = buildEventSummary(getTodayCheckins());
+  const classLines = summary.byClass.length
+    ? summary.byClass.slice(0, 4).map((group) => escapeHtml(formatEventSummaryLine(group))).join("<br />")
+    : "Nenhum check-in hoje.";
+  els.dashboardEventSummary.innerHTML = `
+    <strong>Resumo do dia (${escapeHtml(today)})</strong><br />
+    ${escapeHtml(formatEventSummaryTotals(summary))}<br />
+    ${classLines}
+  `;
+}
+
 function getCheckinDateIso(checkin) {
   const raw = String(checkin?.checkedInAt || "").trim();
   if (raw) {
@@ -2342,6 +2459,7 @@ function renderDashboard() {
   });
 
   renderDashboardStaleCheckins(staleActiveCheckins);
+  renderDashboardEventSummary();
 
   renderDashboardTips();
 
@@ -2655,8 +2773,9 @@ function renderLog() {
   renderLogClassFilterOptions();
   renderLogStudentFilterOptions();
   const isAttendance = reportType === "attendance";
+  const isEventSummary = reportType === "event_summary";
   if (els.logClassFilter) {
-    els.logClassFilter.closest(".field").style.display = isAttendance ? "" : "none";
+    els.logClassFilter.closest(".field").style.display = isAttendance || isEventSummary ? "" : "none";
   }
   if (els.logStudentFilter) {
     els.logStudentFilter.closest(".field").style.display = isAttendance ? "" : "none";
@@ -2684,6 +2803,11 @@ function renderLog() {
     if (els.btnLogSelectStudents) {
       els.btnLogSelectStudents.disabled = true;
     }
+    return;
+  }
+
+  if (isEventSummary) {
+    renderEventSummaryReport();
     return;
   }
 
@@ -2716,8 +2840,9 @@ function renderLog() {
     els.logSummary.textContent = "Nenhuma frequencia encontrada para o periodo selecionado.";
     els.logCounts.textContent = "";
   } else {
-    els.logSummary.textContent = `Frequencia do periodo: ${totalRows} crianca(s) com presenca.`;
-    els.logCounts.textContent = `Total de check-ins no periodo: ${totalCheckins}.`;
+    const summary = buildEventSummary(items);
+    els.logSummary.textContent = `Frequencia do periodo: ${totalRows} crianca(s) com presenca. ${formatEventSummaryTotals(summary)}.`;
+    els.logCounts.textContent = summary.byClass.map(formatEventSummaryLine).join(" | ");
   }
 
   els.btnExport.disabled = !totalRows;
@@ -2736,6 +2861,57 @@ function renderLogSummaryToday() {
   const total = items.length;
   els.logSummary.textContent = `Resumo do dia (${today}): ${total} check-in(s).`;
   els.logCounts.textContent = formatCounts(counts);
+}
+
+function renderEventSummaryReport() {
+  if (els.logSelectedStudentsSummary) {
+    els.logSelectedStudentsSummary.textContent = "";
+  }
+  if (els.btnLogSelectStudents) {
+    els.btnLogSelectStudents.disabled = true;
+  }
+  const items = getFilteredCheckins();
+  const summary = buildEventSummary(items);
+  els.logList.innerHTML = "";
+  if (!summary.totalCheckins) {
+    els.logSummary.textContent = "Nenhum check-in encontrado para o periodo selecionado.";
+    els.logCounts.textContent = "";
+    els.btnExport.disabled = true;
+    if (els.btnShareWhatsapp) {
+      els.btnShareWhatsapp.disabled = true;
+    }
+    return;
+  }
+
+  els.logSummary.textContent = `Resumo do evento: ${formatEventSummaryTotals(summary)}.`;
+  els.logCounts.textContent = summary.byClass.map(formatEventSummaryLine).join(" | ");
+  appendEventSummarySection("Por turma", summary.byClass);
+  appendEventSummarySection("Por sala", summary.byRoom);
+  els.btnExport.disabled = false;
+  if (els.btnShareWhatsapp) {
+    els.btnShareWhatsapp.disabled = false;
+  }
+}
+
+function appendEventSummarySection(title, groups) {
+  const section = document.createElement("div");
+  section.className = "event-summary-section";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  section.appendChild(heading);
+  const list = document.createElement("div");
+  list.className = "list";
+  groups.forEach((group) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <strong>${escapeHtml(group.label)}</strong>
+      <span class="muted">Total: ${group.total} | Ativos: ${group.active} | Check-outs: ${group.checkedOut} | Impressao pendente: ${group.pendingPrint}</span>
+    `;
+    list.appendChild(item);
+  });
+  section.appendChild(list);
+  els.logList.appendChild(section);
 }
 
 function renderAuditReport(reportType) {
@@ -7322,7 +7498,8 @@ async function handleManualCheckin(studentId, options = {}) {
     notes: student.notes,
     dateTime: `${room.date} ${timeNow()}`,
     actor: state.session.name,
-    checkedOutAt: ""
+    checkedOutAt: "",
+    printedAt: ""
   };
   if (supabaseClient) {
     let data;
@@ -7380,9 +7557,11 @@ async function handleManualCheckin(studentId, options = {}) {
       studentId: data.student_id,
       className: data.class_name,
       notes: data.notes_snapshot || "",
+      checkedInAt: data.checked_in_at || "",
       dateTime: formatDateTimeFromIso(data.checked_in_at),
       actor: state.session?.name || "",
-      checkedOutAt: data.checked_out_at ? formatTimeFromIso(data.checked_out_at) : ""
+      checkedOutAt: data.checked_out_at ? formatTimeFromIso(data.checked_out_at) : "",
+      printedAt: data.printed_at ? formatDateTimeFromIso(data.printed_at) : ""
     };
   }
   state.checkins.push(record);
@@ -7593,6 +7772,10 @@ function exportCsv() {
     return;
   }
   const reportType = getLogReportType();
+  if (reportType === "event_summary") {
+    exportEventSummaryCsv();
+    return;
+  }
   if (reportType !== "attendance") {
     exportAuditCsv(reportType);
     return;
@@ -7602,12 +7785,36 @@ function exportCsv() {
     alert("Nenhuma frequencia encontrada para exportar.");
     return;
   }
-  const header = ["Aluno", "Turma", "Presencas", "Horarios de check-in"];
-  const csvRows = rows.map((row) => [row.studentName, row.className, row.checkinCount, row.timesLabel]);
+  const filteredCheckins = getFilteredCheckins();
+  const summary = buildEventSummary(filteredCheckins);
+  const summaryHeader = ["Secao", "Nome", "Total", "Criancas", "Ativos", "Check-outs", "Pendentes de impressao"];
+  const detailHeader = ["Aluno", "Turma", "Presencas", "Horarios de check-in"];
+  const csvRows = [
+    summaryHeader,
+    ...buildEventSummaryCsvRows(summary),
+    [],
+    detailHeader,
+    ...rows.map((row) => [row.studentName, row.className, row.checkinCount, row.timesLabel])
+  ];
   const periodStart = els.logStart?.value || "";
   const periodEnd = els.logEnd?.value || "";
   const periodLabel = periodStart && periodEnd ? `${periodStart}_${periodEnd}` : "periodo";
-  downloadCsv(`frequencia_${periodLabel}.csv`, [header, ...csvRows]);
+  downloadCsv(`frequencia_${periodLabel}.csv`, csvRows);
+  render();
+}
+
+function exportEventSummaryCsv() {
+  const items = getFilteredCheckins();
+  const summary = buildEventSummary(items);
+  if (!summary.totalCheckins) {
+    alert("Nenhum resumo de evento encontrado para exportar.");
+    return;
+  }
+  const header = ["Secao", "Nome", "Total", "Criancas", "Ativos", "Check-outs", "Pendentes de impressao"];
+  const rows = buildEventSummaryCsvRows(summary);
+  const periodStart = els.logStart?.value || "inicio";
+  const periodEnd = els.logEnd?.value || "fim";
+  downloadCsv(`resumo_evento_${periodStart}_${periodEnd}.csv`, [header, ...rows]);
   render();
 }
 
@@ -7668,14 +7875,28 @@ function shareLogWhatsapp() {
     alert("Selecione o periodo para compartilhar.");
     return;
   }
-  const rows = buildLogFrequencyRows(getFilteredCheckins());
+  const reportType = getLogReportType();
+  const filteredCheckins = getFilteredCheckins();
+  const summary = buildEventSummary(filteredCheckins);
+  if (reportType === "event_summary") {
+    if (!summary.totalCheckins) {
+      alert("Nenhum resumo de evento encontrado para compartilhar.");
+      return;
+    }
+    const message = buildEventSummaryTextLines(summary, getLogPeriodLabel()).join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const rows = buildLogFrequencyRows(filteredCheckins);
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para compartilhar.");
     return;
   }
   const lines = rows.map((row) => `${row.studentName} | ${row.className} | ${row.timesLabel}`);
   const message = [
-    `Frequencia de ${periodStart} ate ${periodEnd}`,
+    ...buildEventSummaryTextLines(summary, getLogPeriodLabel()),
+    "",
+    `Frequencia detalhada de ${periodStart} ate ${periodEnd}`,
     "Nome | Turma | Horarios de check-in",
     ...lines
   ].join("\n");
@@ -8610,6 +8831,7 @@ function buildAuditCountsLabel(rows) {
 }
 
 function formatReportType(type) {
+  if (type === "event_summary") return "Resumo do evento";
   if (type === "child_created") return "Cadastro de criancas";
   if (type === "user_deleted") return "Exclusoes de usuarios";
   if (type === "changes") return "Alteracoes de dados";

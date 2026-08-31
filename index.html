@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260829b" />
+  <link rel="stylesheet" href="styles.css?v=20260831a" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -77,6 +77,7 @@
         <div class="summary" id="dashboardLessonToday"></div>
       </div>
       <div id="dashboardStaleCheckins" class="summary"></div>
+      <div id="dashboardEventSummary" class="summary"></div>
       <h3 class="dashboard-title">Mensagens recentes</h3>
       <div id="dashboardTips" class="dashboard-tips"></div>
       <h3 class="dashboard-title">Proximas escalas</h3>
@@ -219,6 +220,7 @@
         <label class="field">Relatorio
           <select id="logReportType">
             <option value="attendance">Assiduidade</option>
+            <option value="event_summary">Resumo do evento</option>
             <option value="child_created">Cadastro de criancas</option>
             <option value="user_deleted">Exclusoes de usuarios</option>
             <option value="changes">Alteracoes de dados</option>
@@ -623,6 +625,6 @@
   </dialog>
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
-  <script src="app.js?v=20260831b"></script>
+  <script src="app.js?v=20260831f"></script>
 </body>
 </html>
