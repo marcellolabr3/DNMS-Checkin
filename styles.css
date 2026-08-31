@@ -616,6 +616,7 @@ body.role-theme-sadmin {
 
 .room-class-field {
   border: 0;
+  grid-column: 1 / -1;
   margin: 0;
   padding: 0;
 }
@@ -626,8 +627,8 @@ body.role-theme-sadmin {
 }
 
 .room-class-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -636,6 +637,7 @@ body.role-theme-sadmin {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 132px;
   padding: 10px 12px;
   border: 1px solid var(--stroke);
   border-radius: 10px;

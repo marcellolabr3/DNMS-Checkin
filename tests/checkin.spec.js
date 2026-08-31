@@ -535,6 +535,14 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnRoomsPanel");
   await expect(page.locator("#roomCard")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.locator(".room-class-field").evaluate((node) => {
+        const style = window.getComputedStyle(node);
+        return `${style.gridColumnStart}/${style.gridColumnEnd}`;
+      })
+    )
+    .toBe("1/-1");
 
   const firstDate = futureIso(3);
   const firstDateLabel = shortDateLabel(firstDate);
