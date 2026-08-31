@@ -1048,10 +1048,16 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   await expect(page.locator("#logCard")).toBeVisible();
   await expect(page.locator("#logStart")).toHaveValue(todayIso());
   await expect(page.locator("#logEnd")).toHaveValue(todayIso());
-  await expect(page.locator("#logSummary")).toContainText("Frequencia do periodo");
-  await expect(page.locator("#logSummary")).toContainText("Total geral: 1 check-in(s), 1 crianca(s), 1 ativo(s), 0 checkout(s), Impressao pendente: 1");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
-  await expect(page.locator("#logList")).toContainText("Ana Kids");
+  await expect(page.locator("#logSelectedStudentsSummary")).toBeEmpty();
+  await expect(page.locator("#logSummary")).toContainText("Frequencia");
+  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 check-in(s).");
+  await expect(page.locator("#logSummary")).not.toContainText("Total geral");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s)");
+  const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
+  await expect(kidsGroup.locator("summary")).toContainText("1 crianca(s) | 1 check-in(s)");
+  await expect(kidsGroup.getByText("Ana Kids")).not.toBeVisible();
+  await kidsGroup.locator("summary").click();
+  await expect(kidsGroup.getByText("Ana Kids")).toBeVisible();
   await expect(page.locator("#btnExport")).toBeEnabled();
 
   const downloadPromise = page.waitForEvent("download");

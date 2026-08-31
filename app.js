@@ -2823,16 +2823,6 @@ function renderLog() {
   renderLogSelectedStudentsSummary(availableStudents);
   const rows = buildLogFrequencyRows(items);
   els.logList.innerHTML = "";
-  rows.forEach((row) => {
-    const item = document.createElement("div");
-    item.className = "list-item";
-    item.innerHTML = `
-      <strong>${escapeHtml(row.studentName)}</strong>
-      <span class="muted">Turma: ${escapeHtml(row.className)}</span>
-      <span class="muted">Horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
-    `;
-    els.logList.appendChild(item);
-  });
 
   const totalRows = rows.length;
   const totalCheckins = rows.reduce((acc, row) => acc + row.checkinCount, 0);
@@ -2841,8 +2831,10 @@ function renderLog() {
     els.logCounts.textContent = "";
   } else {
     const summary = buildEventSummary(items);
-    els.logSummary.textContent = `Frequencia do periodo: ${totalRows} crianca(s) com presenca. ${formatEventSummaryTotals(summary)}.`;
-    els.logCounts.textContent = summary.byClass.map(formatEventSummaryLine).join(" | ");
+    const periodLabel = getLogPeriodLabel();
+    els.logSummary.textContent = `Frequencia (${periodLabel}): ${totalRows} crianca(s) com presenca. ${totalCheckins} check-in(s).`;
+    els.logCounts.textContent = summary.byClass.map((group) => `${group.label}: ${group.total} check-in(s)`).join(" | ");
+    appendAttendanceClassSections(rows);
   }
 
   els.btnExport.disabled = !totalRows;
@@ -2852,6 +2844,44 @@ function renderLog() {
   if (els.btnLogSelectStudents) {
     els.btnLogSelectStudents.disabled = !availableStudents.length;
   }
+}
+
+function appendAttendanceClassSections(rows) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const className = row.className || "Indefinida";
+    if (!grouped.has(className)) {
+      grouped.set(className, []);
+    }
+    grouped.get(className).push(row);
+  });
+  Array.from(grouped.entries())
+    .sort((a, b) => String(a[0] || "").localeCompare(String(b[0] || ""), "pt-BR"))
+    .forEach(([className, classRows]) => {
+      const details = document.createElement("details");
+      details.className = "attendance-class-group";
+      const totalCheckins = classRows.reduce((acc, row) => acc + row.checkinCount, 0);
+      const summary = document.createElement("summary");
+      summary.innerHTML = `
+        <span>${escapeHtml(className)}</span>
+        <span class="muted">${classRows.length} crianca(s) | ${totalCheckins} check-in(s)</span>
+      `;
+      details.appendChild(summary);
+      const list = document.createElement("div");
+      list.className = "list";
+      classRows.forEach((row) => {
+        const item = document.createElement("div");
+        item.className = "list-item";
+        item.innerHTML = `
+          <strong>${escapeHtml(row.studentName)}</strong>
+          <span class="muted">Presencas: ${row.checkinCount}</span>
+          <span class="muted">Horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
+        `;
+        list.appendChild(item);
+      });
+      details.appendChild(list);
+      els.logList.appendChild(details);
+    });
 }
 
 function renderLogSummaryToday() {
@@ -8891,17 +8921,14 @@ function renderLogSelectedStudentsSummary(availableStudents) {
   }
   const selectedIds = state.ui.logSelectedStudentIds || [];
   if (!availableStudents.length) {
-    els.logSelectedStudentsSummary.textContent = "Nenhuma crianca com check-in no periodo/turma selecionados.";
+    els.logSelectedStudentsSummary.textContent = "";
     return;
   }
   if (!selectedIds.length) {
-    els.logSelectedStudentsSummary.textContent = `Criancas filtradas: todas (${availableStudents.length}).`;
+    els.logSelectedStudentsSummary.textContent = "";
     return;
   }
-  const selectedNames = availableStudents
-    .filter((student) => selectedIds.includes(student.id))
-    .map((student) => student.name);
-  els.logSelectedStudentsSummary.textContent = `Criancas selecionadas (${selectedNames.length}): ${selectedNames.join(", ")}`;
+  els.logSelectedStudentsSummary.textContent = `Filtro aplicado: ${selectedIds.length} crianca(s) selecionada(s).`;
 }
 
 function renderLogClassFilterOptions() {

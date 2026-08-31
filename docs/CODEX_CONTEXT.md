@@ -48,8 +48,10 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Etapa 2 do plano operacional implementada em 2026-08-31: SADMIN/Admin podem cadastrar responsavel na aba Familias, o app envia email de primeiro acesso via recuperacao de senha, SADMIN/Admin podem reenviar acesso para responsavel cadastrado e a acao gera `audit_logs` (`user_access_resent`). Testes focados de cadastro/reenvio/autenticacao passaram.
 - Confirmacao real de recebimento de email e login em producao ainda depende de teste manual com conta real; o frontend nao le `auth.users.email_confirmed_at` por anon/RLS.
 - Etapa 3 do plano operacional implementada em 2026-08-31: dashboard alerta check-ins ativos de dias anteriores, lista os principais casos e permite Admin/SADMIN encerrar em lote com auditoria `stale_checkins_closed`; equipe visualiza alerta sem acao destrutiva.
-- Etapa 4 do plano operacional implementada em 2026-08-31: dashboard mostra resumo do dia e Log ganhou relatorio "Resumo do evento" com total geral, criancas unicas, ativos, check-outs, pendentes de impressao, agrupamento por turma/sala e exportacao CSV compativel com Excel. Assiduidade, planilha e WhatsApp tambem incluem resumo detalhado antes da lista nominal.
-- Cache atual apos etapa 4: `checkin-cache-v164`, `app.js?v=20260831f`, `styles.css?v=20260831a`.
+- Etapa 4 do plano operacional implementada em 2026-08-31: dashboard mostra resumo do dia e Log ganhou relatorio "Resumo do evento" com total geral, criancas unicas, ativos, check-outs, pendentes de impressao, agrupamento por turma/sala e exportacao CSV compativel com Excel. Planilha e WhatsApp incluem resumo detalhado antes da lista nominal.
+- Ajuste de Log em 2026-08-31: Assiduidade mostra resumo curto do periodo/dia filtrado, remove "criancas filtradas" quando nao ha selecao manual e oculta nomes em grupos recolhiveis por turma.
+- Ultima validacao local: `npm.cmd test` passou com 160 testes em 2026-08-31.
+- Cache atual: `checkin-cache-v165`, `app.js?v=20260831g`, `styles.css?v=20260831b`.
 
 ## Pendencias
 

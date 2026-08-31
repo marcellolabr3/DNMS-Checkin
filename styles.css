@@ -979,6 +979,27 @@ button:disabled,
   gap: 8px;
 }
 
+.attendance-class-group {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.attendance-class-group summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.attendance-class-group .list {
+  padding: 0 12px 12px;
+}
+
 #familyEditor:empty {
   display: none;
 }
