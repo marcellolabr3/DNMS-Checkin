@@ -626,9 +626,9 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
     .toBe(true);
 });
 
-test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", async ({ page }) => {
+test("salas passadas ficam no historico ocultavel por ate 16 dias", async ({ page }) => {
   await openApp(page);
-  await page.evaluate(({ past, futureA, futureB }) => {
+  await page.evaluate(({ past, oldPast, futureA, futureB }) => {
     window.__mockDnmsDb.rooms.push(
       {
         id: "room-old-open",
@@ -640,6 +640,17 @@ test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", asyn
         status: "Aberta",
         opened_at: past + "T10:00:00.000Z",
         closed_at: null
+      },
+      {
+        id: "room-too-old",
+        name: "Evento Antigo Fora Do Historico",
+        date: oldPast,
+        start_time: "10:00",
+        end_time: "11:00",
+        class_target: "Kids",
+        status: "Fechada",
+        opened_at: oldPast + "T10:00:00.000Z",
+        closed_at: oldPast + "T11:00:00.000Z"
       },
       {
         id: "room-future-a",
@@ -664,14 +675,16 @@ test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", asyn
         closed_at: null
       }
     );
-  }, { past: pastIso(2), futureA: futureIso(35), futureB: futureIso(70) });
+  }, { past: pastIso(2), oldPast: pastIso(17), futureA: futureIso(35), futureB: futureIso(70) });
 
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnRoomsPanel");
   await expect(page.locator("#roomCard")).toBeVisible();
 
-  await expect(page.locator(".room-month-group")).toHaveCount(3);
   await expect(page.locator("#roomList")).not.toContainText("Evento Vencido Aberto");
+  await expect(page.locator("#pastRoomsPanel")).toBeVisible();
+  await expect(page.locator("#pastRoomList")).toContainText("Evento Vencido Aberto");
+  await expect(page.locator("#pastRoomList")).not.toContainText("Evento Antigo Fora Do Historico");
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.id === "room-old-open")?.status))
     .toBe("Fechada");

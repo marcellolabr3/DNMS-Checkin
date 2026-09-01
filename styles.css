@@ -1135,6 +1135,10 @@ button:disabled,
   display: none;
 }
 
+.room-history-panel {
+  margin-top: 14px;
+}
+
 .collapse-icon::before {
   content: "+";
   display: inline-grid;

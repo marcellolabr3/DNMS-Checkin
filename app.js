@@ -108,6 +108,8 @@ const els = {
   roomStatus: document.getElementById("roomStatus"),
   roomCurrent: document.getElementById("roomCurrent"),
   roomList: document.getElementById("roomList"),
+  pastRoomsPanel: document.getElementById("pastRoomsPanel"),
+  pastRoomList: document.getElementById("pastRoomList"),
   roomName: document.getElementById("roomName"),
   roomDate: document.getElementById("roomDate"),
   roomStartTime: document.getElementById("roomStartTime"),
@@ -1642,6 +1644,7 @@ async function recordAuditLog(actionType, targetType, targetId, targetName, deta
 function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
   const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
+  const pastRooms = sortedRooms.filter((room) => isRoomInPastHistoryWindow(room));
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = canManageRooms();
   const canOperateRoom = canOperateRooms();
@@ -1691,6 +1694,29 @@ function renderRooms() {
       details.appendChild(createRoomListItem(room, canManageRoom, selectedSet));
     });
     els.roomList.appendChild(details);
+  });
+  renderPastRooms(pastRooms, canManageRoom, selectedSet);
+}
+
+function renderPastRooms(rooms, canManageRoom, selectedSet) {
+  if (!els.pastRoomsPanel || !els.pastRoomList) {
+    return;
+  }
+  els.pastRoomsPanel.style.display = rooms.length ? "" : "none";
+  els.pastRoomList.innerHTML = "";
+  if (!rooms.length) {
+    return;
+  }
+  groupRoomsByMonth(rooms).forEach((group) => {
+    const details = document.createElement("details");
+    details.className = "room-month-group";
+    const summary = document.createElement("summary");
+    summary.innerHTML = `<strong>${escapeHtml(group.label)}</strong><span>${group.rooms.length} evento(s)</span>`;
+    details.appendChild(summary);
+    group.rooms.forEach((room) => {
+      details.appendChild(createRoomListItem(room, canManageRoom, selectedSet));
+    });
+    els.pastRoomList.appendChild(details);
   });
 }
 
@@ -8616,6 +8642,18 @@ function isRoomPast(room) {
   }
   const dateObj = parseRoomDate(room.date || "");
   return Boolean(dateObj) && formatDateIso(dateObj) < formatTodayIso();
+}
+
+function isRoomInPastHistoryWindow(room, daysBack = 16) {
+  const dateObj = getRoomDateObject(room);
+  if (!dateObj) {
+    return false;
+  }
+  dateObj.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const firstVisibleDay = addDays(today, -daysBack);
+  return dateObj < today && dateObj >= firstVisibleDay;
 }
 
 function isValidDateParts(year, month, day) {

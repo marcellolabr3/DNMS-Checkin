@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260831c" />
+  <link rel="stylesheet" href="styles.css?v=20260901a" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -176,6 +176,13 @@
       </div>
       <div id="roomCurrent" class="room-current"></div>
       <div class="room-list" id="roomList"></div>
+      <details id="pastRoomsPanel" class="collapsible-panel room-history-panel">
+        <summary>
+          <span>Salas passadas</span>
+          <span class="collapse-icon" aria-hidden="true"></span>
+        </summary>
+        <div id="pastRoomList" class="room-list"></div>
+      </details>
     </section>
 
     <section class="card" id="studentCard" style="display:none">
@@ -627,6 +634,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20260901a"></script>
+  <script src="app.js?v=20260901b"></script>
 </body>
 </html>
