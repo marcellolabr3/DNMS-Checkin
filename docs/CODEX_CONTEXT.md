@@ -32,7 +32,8 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Crianca permanece na mesma turma durante todo o ano vigente mesmo que faca aniversario; troca apenas em 1 de janeiro do ano seguinte.
 - Responsavel faz check-in somente via QR presencial usando RPC `parent_checkin_with_presence`.
 - Admin/equipe fazem check-in direto em `checkins`, mas a trigger do banco tambem valida horario.
-- Salas/eventos devem ser criados sempre como `Programada`; abertura deve ser manual por admin/equipe.
+- Salas/eventos devem ser criados sempre como `Programada`; abertura deve ser manual por admin/equipe. Se ninguem abrir a sala, ela continua sem check-ins e deve aparecer no historico, nao abrir sozinha.
+- Salas abertas precisam permanecer visiveis na aba Salas para gerenciamento; salas passadas devem ficar em secao ocultavel separada por mes, limitada aos ultimos 16 dias.
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Cadastro de crianca deve criar vinculo em `student_guardians`; responsavel comum nao pode se vincular automaticamente a crianca fora da familia.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
