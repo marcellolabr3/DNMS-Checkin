@@ -48,10 +48,13 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Impressao local diferencia Brother ligada/desligada, usa fila local e autoimprime somente check-ins ativos nao impressos.
 - Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
 - Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
+- Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip` correspondente; inclui dumps `pg_dump` full custom/plain, schema, dados, roles sem senhas, inventario e checksums.
+- Auditoria do banco em 2026-09-01: nao ha `students` orfaos; ha check-ins historicos com `student_id`/`room_id` apagados. 5 convites expirados foram removidos de `public.invites`. Fotos orfas do Storage foram listadas e baixadas em `D:\Dev\BCK_CHEK\db-cleanup-20260901`; remocao fisica ainda requer Storage API/Service Role.
 
 ## Pendencias
 
 - Auditar Supabase de producao e reconstruir/validar `supabase/setup_dnms_checkin.sql` como arquivo canonico detalhado.
+- Limpar via Storage API os 32 objetos orfaos de `dnms-photos` apos obter Service Role Key ou sessao autenticada com permissao de delete.
 - Definir rotina segura de exportacao/restauracao de dados reais, incluindo usuarios/perfis/vinculos, sem expor senhas/tokens/secrets.
 - Validar em producao tentativa de cadastro duplicado pelo app e recuperacao de senha com link novo em janela anonima.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
