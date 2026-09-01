@@ -573,6 +573,38 @@ test("admin cria eventos para multiplas turmas com recorrencia mensal", async ({
   await expect
     .poll(() => page.evaluate((name) => window.__mockDnmsDb.rooms.some((room) => room.name === name), `Culto Multiplo ${firstDateLabel}`))
     .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__mockDnmsDb.rooms
+          .filter((room) => room.name.startsWith("Culto Multiplo "))
+          .every((room) => room.status === "Programada" && !room.opened_at)
+      )
+    )
+    .toBe(true);
+});
+
+test("evento criado para hoje permanece programado ate abertura manual", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  await page.fill("#roomName", "Culto Manual");
+  await page.fill("#roomDate", todayIso());
+  await page.fill("#roomStartTime", timeOffset(-10));
+  await page.fill("#roomEndTime", timeOffset(60));
+  await page.locator('#roomClass input[value="Kids"]').check();
+  await page.click("#btnCreateRoom");
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const room = window.__mockDnmsDb.rooms.find((item) => item.name.startsWith("Culto Manual "));
+        return room ? { status: room.status, openedAt: room.opened_at || null } : null;
+      })
+    )
+    .toEqual({ status: "Programada", openedAt: null });
 });
 
 test("evento sem nome usa a data da sala como nome", async ({ page }) => {
