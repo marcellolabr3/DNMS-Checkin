@@ -52,8 +52,9 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Ajuste de Log em 2026-08-31: Assiduidade mostra resumo curto do periodo/dia filtrado, remove "criancas filtradas" quando nao ha selecao manual e oculta nomes em grupos recolhiveis por turma.
 - Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios; lista permite abrir selecionadas, fechar selecionadas com checkout automatico e excluir uma ou varias salas pelo botao "Excluir".
 - Ajuste de QR em 2026-08-31: responsavel usa camera com `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari sem leitor nativo; campo manual fica apenas quando camera/leitor indisponivel.
-- Ultima validacao local: `npm.cmd test` passou com 164 testes em 2026-08-31.
-- Cache atual: `checkin-cache-v168`, `app.js?v=20260831i`, `styles.css?v=20260831c`.
+- Ajuste de Salas em 2026-08-31: eventos criados para hoje dentro da janela de check-in ja nascem abertos; eventos futuros ou fora da janela continuam programados.
+- Ultima validacao local: `npm.cmd test` passou com 166 testes em 2026-09-01.
+- Cache atual: `checkin-cache-v169`, `app.js?v=20260831j`, `styles.css?v=20260831c`.
 
 ## Pendencias
 

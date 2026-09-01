@@ -163,10 +163,9 @@ test("excluir sala com check-in ativo libera novo check-in em sala recriada", as
   await page.fill("#roomEndTime", "23:59");
   await page.locator('#roomClass input[value="Kids"]').check();
   await page.click("#btnCreateRoom");
-  await page.locator("#roomList .list-item").filter({ hasText: "Culto Recriado" }).click();
-  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
-  await page.click("#btnRoomDialogOpen");
-  await expect(page.locator("#roomDetailsDialog")).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((item) => item.name.startsWith("Culto Recriado"))?.status))
+    .toBe("Aberta");
 
   await openStudentsPanel(page);
   await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
@@ -592,6 +591,31 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
   await expect
     .poll(() => page.evaluate((name) => window.__mockDnmsDb.rooms.some((room) => room.name === name), shortDateLabel(date)))
     .toBe(true);
+});
+
+test("evento de hoje dentro do horario ja abre para check-in", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.rooms = [];
+  });
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  await page.fill("#roomName", "Culto Teste Agora");
+  await page.fill("#roomDate", todayIso());
+  await page.fill("#roomStartTime", timeOffset(-10));
+  await page.fill("#roomEndTime", timeOffset(50));
+  await page.locator('#roomClass input[value="Kids"]').check();
+  await page.click("#btnCreateRoom");
+
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((room) => room.name.startsWith("Culto Teste Agora"))?.status))
+    .toBe("Aberta");
+  await openStudentsPanel(page);
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length)).toBe(1);
 });
 
 test("salas ficam agrupadas por mes e salas vencidas nao aparecem abertas", async ({ page }) => {
