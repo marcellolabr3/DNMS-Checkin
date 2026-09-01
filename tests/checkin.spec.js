@@ -607,6 +607,31 @@ test("evento criado para hoje permanece programado ate abertura manual", async (
     .toEqual({ status: "Programada", openedAt: null });
 });
 
+test("sala criada hoje abre manualmente, permanece visivel e libera check-in", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomCard")).toBeVisible();
+
+  await page.fill("#roomName", "Culto Visivel");
+  await page.fill("#roomDate", todayIso());
+  await page.fill("#roomStartTime", timeOffset(-10));
+  await page.fill("#roomEndTime", timeOffset(60));
+  await page.locator('#roomClass input[value="Kids"]').check();
+  await page.click("#btnCreateRoom");
+
+  const roomItem = page.locator("#roomList .list-item").filter({ hasText: "Culto Visivel" });
+  await expect(roomItem).toContainText("Status: Programada");
+  await roomItem.click();
+  await expect(page.locator("#roomDetailsDialog")).toBeVisible();
+  await page.click("#btnRoomDialogOpen");
+  await expect(page.locator("#roomDetailsDialog")).toBeHidden();
+  await expect(roomItem).toContainText("Status: Aberta");
+
+  await openStudentsPanel(page);
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
+});
+
 test("evento sem nome usa a data da sala como nome", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

@@ -55,7 +55,8 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios; lista permite abrir selecionadas, fechar selecionadas com checkout automatico e excluir uma ou varias salas pelo botao "Excluir".
 - Ajuste de QR em 2026-08-31: responsavel usa camera com `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari sem leitor nativo; campo manual fica apenas quando camera/leitor indisponivel.
 - Revertido em 2026-09-01 o ajuste indevido que criava eventos de hoje ja abertos; criacao voltou a `Programada`.
-- Ultima validacao local: `npm.cmd test` passou com 164 testes em 2026-09-01 apos o revert.
+- Ajuste de Salas em 2026-09-01: adicionada secao ocultavel "Salas passadas" abaixo das ativas, agrupada por mes e limitada aos ultimos 16 dias.
+- Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
 - Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
 
 ## Pendencias
