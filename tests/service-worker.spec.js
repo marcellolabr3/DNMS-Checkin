@@ -5,7 +5,7 @@ const path = require("path");
 test("service worker restringe cache a assets estaticos locais", async () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
 
-  expect(sw).toContain('const CACHE_NAME = "checkin-cache-v169"');
+  expect(sw).toContain('const CACHE_NAME = "checkin-cache-v168"');
   expect(sw).toContain('"./vendor/jsQR.js"');
   expect(sw).toContain('"./qr-checkin-presencial.svg"');
   expect(sw).toContain("requestUrl.origin !== self.location.origin");

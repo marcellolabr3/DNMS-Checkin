@@ -32,6 +32,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Crianca permanece na mesma turma durante todo o ano vigente mesmo que faca aniversario; troca apenas em 1 de janeiro do ano seguinte.
 - Responsavel faz check-in somente via QR presencial usando RPC `parent_checkin_with_presence`.
 - Admin/equipe fazem check-in direto em `checkins`, mas a trigger do banco tambem valida horario.
+- Salas/eventos devem ser criados sempre como `Programada`; abertura deve ser manual por admin/equipe.
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Cadastro de crianca deve criar vinculo em `student_guardians`; responsavel comum nao pode se vincular automaticamente a crianca fora da familia.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
@@ -52,9 +53,9 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Ajuste de Log em 2026-08-31: Assiduidade mostra resumo curto do periodo/dia filtrado, remove "criancas filtradas" quando nao ha selecao manual e oculta nomes em grupos recolhiveis por turma.
 - Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios; lista permite abrir selecionadas, fechar selecionadas com checkout automatico e excluir uma ou varias salas pelo botao "Excluir".
 - Ajuste de QR em 2026-08-31: responsavel usa camera com `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari sem leitor nativo; campo manual fica apenas quando camera/leitor indisponivel.
-- Ajuste de Salas em 2026-08-31: eventos criados para hoje dentro da janela de check-in ja nascem abertos; eventos futuros ou fora da janela continuam programados.
-- Ultima validacao local: `npm.cmd test` passou com 166 testes em 2026-09-01.
-- Cache atual: `checkin-cache-v169`, `app.js?v=20260831j`, `styles.css?v=20260831c`.
+- Revertido em 2026-09-01 o ajuste indevido que criava eventos de hoje ja abertos; criacao voltou a `Programada`.
+- Ultima validacao local: `npm.cmd test` passou com 164 testes em 2026-09-01 apos o revert.
+- Cache atual: `checkin-cache-v168`, `app.js?v=20260831i`, `styles.css?v=20260831c`.
 
 ## Pendencias
 

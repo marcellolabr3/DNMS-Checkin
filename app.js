@@ -6076,7 +6076,6 @@ async function createRooms() {
 
   const total = getRoomRecurrenceWeeks(recurrence);
   let createdCount = 0;
-  let openedOnCreateCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
   let lastErrorMessage = "";
@@ -6099,8 +6098,6 @@ async function createRooms() {
         skippedCount += 1;
         continue;
       }
-      const shouldOpenNow = shouldOpenRoomOnCreate(dateIso, startTimeValue, endTimeValue);
-      const openedAtIso = shouldOpenNow ? new Date().toISOString() : null;
       if (supabaseClient) {
         const { error } = await supabaseClient.from("rooms").insert({
           name: roomName,
@@ -6109,9 +6106,7 @@ async function createRooms() {
           start_time: startTimeValue,
           end_time: endTimeValue,
           class_target: targetClass,
-          status: shouldOpenNow ? "Aberta" : "Programada",
-          opened_at: openedAtIso,
-          closed_at: null,
+          status: "Programada",
           created_by: state.session?.id || null
         });
         if (error) {
@@ -6120,15 +6115,9 @@ async function createRooms() {
           lastErrorMessage = error.message || "erro inesperado";
         } else {
           createdCount += 1;
-          if (shouldOpenNow) {
-            openedOnCreateCount += 1;
-          }
         }
       } else {
         createdCount += 1;
-        if (shouldOpenNow) {
-          openedOnCreateCount += 1;
-        }
       }
     }
   }
@@ -6152,25 +6141,8 @@ async function createRooms() {
     return;
   }
   if (createdCount) {
-    const openedLabel = openedOnCreateCount ? ` ${openedOnCreateCount} sala(s) aberta(s) para check-in.` : "";
-    alert(`${createdCount} evento(s) criado(s) com sucesso.${openedLabel}`);
+    alert(`${createdCount} evento(s) criado(s) com sucesso.`);
   }
-}
-
-function shouldOpenRoomOnCreate(dateIso, startTimeValue, endTimeValue, now = new Date()) {
-  if (dateIso !== formatTodayIso()) {
-    return false;
-  }
-  const date = parseInputDate(dateIso);
-  const start = parseTimeValue(startTimeValue);
-  const end = parseTimeValue(endTimeValue);
-  if (!date || !start || !end) {
-    return false;
-  }
-  const startsAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), start.hours, start.minutes, 0, 0);
-  const opensAt = new Date(startsAt.getTime() - CHECKIN_EARLY_WINDOW_MINUTES * 60 * 1000);
-  const endsAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), end.hours, end.minutes, 0, 0);
-  return now >= opensAt && now < endsAt;
 }
 
 function getSelectedRoomClasses() {
