@@ -15,47 +15,37 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - PWA estatico em HTML/CSS/JS puro: `index.html`, `app.js`, `styles.css`, `sw.js`.
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` para Brother QL-810W em `http://127.0.0.1:3001`.
-- Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`).
-- SADMIN: `marvinlabre@gmail.com`.
+- Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
 
-## Banco e SQL
+## Banco e Operacao
 
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
-- `supabase/setup_dnms_checkin.sql` deve ser reconstruido/validado como schema canonico para novos ambientes.
-- Patches importantes aplicados/esperados: janela de check-in, QR presencial de responsavel, um check-in ativo por crianca, idade anual por virada de ano, fila de reimpressao, rede familiar, exclusao segura de usuario e checkout antes de deletar sala.
+- `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
 - Credencial administrativa pode existir em `docs/CODEX_CONTEXT.local.md`; usar somente em variavel temporaria e nunca expor.
+- Patches esperados no banco/app: janela de check-in, QR presencial de responsavel, um check-in ativo por crianca, idade anual por virada de ano, fila de reimpressao, rede familiar, exclusao segura de usuario e checkout antes de deletar sala.
 
 ## Regras Criticas
 
-- Regras sensiveis devem existir no frontend e no banco; nao desabilitar RLS.
+- Nao desabilitar RLS nem mover Service Role Key para frontend.
 - Check-in permitido somente de 30 min antes do inicio da aula ate antes do horario de termino.
-- Crianca permanece na mesma turma durante todo o ano vigente mesmo que faca aniversario; troca apenas em 1 de janeiro do ano seguinte.
+- Crianca permanece na mesma turma durante o ano vigente; troca apenas em 1 de janeiro.
 - Responsavel faz check-in somente via QR presencial usando RPC `parent_checkin_with_presence`.
-- Admin/equipe fazem check-in direto em `checkins`, mas a trigger do banco tambem valida horario.
-- Salas/eventos devem ser criados sempre como `Programada`; abertura deve ser manual por admin/equipe. Se ninguem abrir a sala, ela continua sem check-ins e deve aparecer no historico, nao abrir sozinha.
-- Salas abertas precisam permanecer visiveis na aba Salas para gerenciamento; salas passadas devem ficar em secao ocultavel separada por mes, limitada aos ultimos 16 dias.
+- Admin/equipe fazem check-in direto em `checkins`, mas banco tambem valida horario.
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Cadastro de crianca deve criar vinculo em `student_guardians`; responsavel comum nao pode se vincular automaticamente a crianca fora da familia.
+- Salas/eventos sempre nascem `Programada`; abertura e manual por admin/equipe. Se ninguem abrir, a sala continua sem check-ins e vai para historico.
+- Salas abertas devem permanecer visiveis na aba Salas para gerenciamento. Salas passadas ficam em secao ocultavel separada por mes, limitada aos ultimos 16 dias.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de entrar em `innerHTML`.
 - Service worker deve cachear apenas assets estaticos locais explicitamente listados.
 
-## Estado Validado
+## Estado Atual Validado
 
-- `npm.cmd test` passou com 152 testes em 2026-08-30 antes da estabilizacao operacional.
-- Janela de check-in e regra de idade anual foram aplicadas no app e no Supabase; fronteiras de horario foram validadas em producao.
-- Check-in real de responsavel com QR presencial funcionou em producao.
-- Impressao local: servico diferencia Brother ligada/desligada, usa fila local para evitar marcar `printed_at` antes de sair do spooler e autoimprime somente check-ins ativos nao impressos.
-- Pacote portatil da impressao inclui `.codex-secrets.env` local no ZIP quando existir, sem versionar segredo.
-- Etapa 2 do plano operacional implementada em 2026-08-31: SADMIN/Admin podem cadastrar responsavel na aba Familias, o app envia email de primeiro acesso via recuperacao de senha, SADMIN/Admin podem reenviar acesso para responsavel cadastrado e a acao gera `audit_logs` (`user_access_resent`). Testes focados de cadastro/reenvio/autenticacao passaram.
-- Confirmacao real de recebimento de email e login em producao ainda depende de teste manual com conta real; o frontend nao le `auth.users.email_confirmed_at` por anon/RLS.
-- Etapa 3 do plano operacional implementada em 2026-08-31: dashboard alerta check-ins ativos de dias anteriores, lista os principais casos e permite Admin/SADMIN encerrar em lote com auditoria `stale_checkins_closed`; equipe visualiza alerta sem acao destrutiva.
-- Etapa 4 do plano operacional implementada em 2026-08-31: dashboard mostra resumo do dia e Log ganhou relatorio "Resumo do evento" com total geral, criancas unicas, ativos, check-outs, pendentes de impressao, agrupamento por turma/sala e exportacao CSV compativel com Excel. Planilha e WhatsApp incluem resumo detalhado antes da lista nominal.
-- Ajuste de Log em 2026-08-31: Assiduidade mostra resumo curto do periodo/dia filtrado, remove "criancas filtradas" quando nao ha selecao manual e oculta nomes em grupos recolhiveis por turma.
-- Ajuste de Salas em 2026-08-31: selecao de turmas no formulario de evento ocupa linha propria abaixo dos horarios; lista permite abrir selecionadas, fechar selecionadas com checkout automatico e excluir uma ou varias salas pelo botao "Excluir".
-- Ajuste de QR em 2026-08-31: responsavel usa camera com `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari sem leitor nativo; campo manual fica apenas quando camera/leitor indisponivel.
-- Revertido em 2026-09-01 o ajuste indevido que criava eventos de hoje ja abertos; criacao voltou a `Programada`.
-- Ajuste de Salas em 2026-09-01: adicionada secao ocultavel "Salas passadas" abaixo das ativas, agrupada por mes e limitada aos ultimos 16 dias.
+- Fluxo de salas corrigido em 2026-09-01: revertida criacao automatica aberta; adicionado historico ocultavel "Salas passadas"; testes protegem criacao `Programada`, abertura manual, sala aberta visivel e check-in habilitado.
+- QR de responsavel usa `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari; campo manual aparece apenas quando camera/leitor indisponivel.
+- Dashboard/log atuais incluem alerta para check-ins ativos antigos, resumo do dia/evento, exportacao CSV e compartilhamento WhatsApp com resumo.
+- Familias permite SADMIN/Admin cadastrar responsavel, reenviar acesso e gerenciar rede familiar/vinculos.
+- Impressao local diferencia Brother ligada/desligada, usa fila local e autoimprime somente check-ins ativos nao impressos.
 - Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
 - Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
 
@@ -63,7 +53,6 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Auditar Supabase de producao e reconstruir/validar `supabase/setup_dnms_checkin.sql` como arquivo canonico detalhado.
 - Definir rotina segura de exportacao/restauracao de dados reais, incluindo usuarios/perfis/vinculos, sem expor senhas/tokens/secrets.
-- Validar em producao tentativa de cadastro duplicado pelo app.
-- Validar recuperacao de senha em producao com link novo e janela anonima.
+- Validar em producao tentativa de cadastro duplicado pelo app e recuperacao de senha com link novo em janela anonima.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
 - Validar no notebook real o pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`.
