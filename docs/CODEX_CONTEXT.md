@@ -55,7 +55,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Ajuste de QR em 2026-08-31: responsavel usa camera com `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari sem leitor nativo; campo manual fica apenas quando camera/leitor indisponivel.
 - Revertido em 2026-09-01 o ajuste indevido que criava eventos de hoje ja abertos; criacao voltou a `Programada`.
 - Ultima validacao local: `npm.cmd test` passou com 164 testes em 2026-09-01 apos o revert.
-- Cache atual: `checkin-cache-v168`, `app.js?v=20260831i`, `styles.css?v=20260831c`.
+- Cache atual: `checkin-cache-v170`, `app.js?v=20260901a`, `styles.css?v=20260831c`.
 
 ## Pendencias
 
