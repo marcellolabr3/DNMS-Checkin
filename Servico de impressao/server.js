@@ -47,6 +47,8 @@ let realtimeChannel = null;
 let reprintJobsChannel = null;
 let autoPrintPollTimer = null;
 let reprintJobPollTimer = null;
+let browserInstance = null;
+let browserLaunchPromise = null;
 let lastAutoPrintPoll = {
   checked_at: null,
   pending_count: 0,
@@ -472,18 +474,14 @@ async function markCheckinPrinted(checkinId) {
 }
 
 async function renderHtmlToPdf(htmlContent) {
-  const executablePath = resolveBrowserExecutablePath();
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
-  });
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "servico-impressao-"));
   const pdfPath = path.join(tempDir, `etiqueta-${Date.now()}.pdf`);
+  const browser = await getSharedBrowser();
+  let page = null;
 
   try {
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+    page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: "domcontentloaded" });
     await page.pdf({
       path: pdfPath,
       width: "90mm",
@@ -494,10 +492,60 @@ async function renderHtmlToPdf(htmlContent) {
       margin: { top: "0", right: "0", bottom: "0", left: "0" }
     });
   } finally {
-    await browser.close();
+    if (page) {
+      await page.close().catch(() => {});
+    }
   }
 
   return pdfPath;
+}
+
+async function getSharedBrowser() {
+  if (browserInstance?.isConnected()) {
+    return browserInstance;
+  }
+  if (browserLaunchPromise) {
+    return browserLaunchPromise;
+  }
+  const executablePath = resolveBrowserExecutablePath();
+  browserLaunchPromise = puppeteer
+    .launch({
+      headless: true,
+      executablePath,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+    })
+    .then((browser) => {
+      browserInstance = browser;
+      browserLaunchPromise = null;
+      browser.on("disconnected", () => {
+        if (browserInstance === browser) {
+          browserInstance = null;
+        }
+      });
+      return browser;
+    })
+    .catch((error) => {
+      browserLaunchPromise = null;
+      throw error;
+    });
+  return browserLaunchPromise;
+}
+
+async function warmSharedBrowser() {
+  try {
+    await getSharedBrowser();
+    console.log("[Servico de impressao] navegador de impressao pre-aquecido.");
+  } catch (error) {
+    console.warn("[Servico de impressao] falha ao pre-aquecer navegador:", error?.message || error);
+  }
+}
+
+async function closeSharedBrowser() {
+  const browser = browserInstance;
+  browserInstance = null;
+  if (browser?.isConnected()) {
+    await browser.close().catch(() => {});
+  }
 }
 
 function resolveBrowserExecutablePath() {
@@ -1427,6 +1475,31 @@ function formatDate(date) {
   )}:${pad(d.getSeconds())}`;
 }
 
+function setupShutdownHandlers() {
+  let closing = false;
+  const close = async () => {
+    if (closing) {
+      return;
+    }
+    closing = true;
+    await closeSharedBrowser();
+    if (pgPool) {
+      await pgPool.end().catch(() => {});
+    }
+  };
+  process.once("SIGINT", () => {
+    close().finally(() => process.exit(0));
+  });
+  process.once("SIGTERM", () => {
+    close().finally(() => process.exit(0));
+  });
+  process.once("beforeExit", () => {
+    close();
+  });
+}
+
+setupShutdownHandlers();
+
 app.listen(PORT, HOST, () => {
   console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
   console.log(`[Servico de impressao] Acesso a dados: ${resolveServiceDataRole()}`);
@@ -1437,6 +1510,7 @@ app.listen(PORT, HOST, () => {
   );
   startAutoPrintPolling();
   startReprintJobPolling();
+  warmSharedBrowser();
   startRealtimeAutoPrint().catch((error) => {
     console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
   });
