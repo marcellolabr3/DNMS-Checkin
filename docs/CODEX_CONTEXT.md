@@ -47,7 +47,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Familias permite SADMIN/Admin cadastrar responsavel, reenviar acesso e gerenciar rede familiar/vinculos.
 - Impressao local diferencia Brother ligada/desligada, usa fila local e autoimprime somente check-ins ativos nao impressos.
 - Em 2026-09-05, painel do servico de impressao corrigido para mostrar autoimpressao como erro quando a consulta ao Supabase falhar (`auto_print_last_poll.error`, ex. DNS/ENOTFOUND); intervalo padrao de varredura reduzido para 1s; navegador de PDF agora e pre-aquecido/reutilizado; executavel e ZIP portable foram regerados.
-- Pasta local `IMPRESSÂO/` foi criada como copia limpa operacional do pacote de impressao para notebook; contem configuracao local e fica ignorada pelo Git.
+- Pasta `IMPRESSÂO/` versiona no GitHub o ZIP portable publico e instrucoes de instalacao; `.codex-secrets.env` real e arquivos extraidos locais continuam ignorados.
 - Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
 - Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
 - Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip` correspondente; inclui dumps `pg_dump` full custom/plain, schema, dados, roles sem senhas, inventario e checksums.

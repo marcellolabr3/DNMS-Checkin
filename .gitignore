@@ -6,4 +6,9 @@ test-results/
 .env.*
 .codex-secrets.env
 docs/CODEX_CONTEXT.local.md
-IMPRESSÂO/
+IMPRESSÂO/.codex-secrets.env
+IMPRESSÂO/bin/
+IMPRESSÂO/dist/
+IMPRESSÂO/scripts/
+IMPRESSÂO/DNMS Impressao.cmd
+IMPRESSÂO/README.md
