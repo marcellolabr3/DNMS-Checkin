@@ -57,6 +57,8 @@ Ao iniciar, o servico:
 Para esse modo funcionar, configure `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` no `.codex-secrets.env` do computador ligado a Brother.
 Sem uma dessas credenciais, o painel mostra a auto-impressao do celular como inativa. A versao atual bloqueia a impressao se faltar nome, turma ou responsavel, para evitar etiqueta em branco marcada como impressa.
 
+O servico tambem faz varredura de pendencias a cada 1 segundo para cobrir falhas ou atraso do listener realtime. Se necessario, ajuste com `AUTO_PRINT_POLL_INTERVAL_MS` no `.codex-secrets.env`.
+
 ## Reimpressao remota por fila
 
 Reimpressao feita no proprio computador da Brother continua usando `http://localhost:3001/reprint`.

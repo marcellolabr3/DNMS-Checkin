@@ -15,7 +15,7 @@ loadEnvFromFiles();
 const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
 const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
 const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
-const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 4000);
+const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 1000);
 const PRINT_JOB_SETTLE_TIMEOUT_MS = Number(process.env.PRINT_JOB_SETTLE_TIMEOUT_MS || 20000);
 const PRINT_JOB_SETTLE_POLL_MS = Number(process.env.PRINT_JOB_SETTLE_POLL_MS || 750);
 const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
@@ -1031,6 +1031,10 @@ function buildStatusPageHtml() {
     function getAutoPrintState(health, printingBusy) {
       if (printingBusy) {
         return "busy";
+      }
+      const poll = health.auto_print_last_poll || {};
+      if (poll.error) {
+        return "off";
       }
       if (health.supabase_role !== "anon" && (health.auto_print_realtime_status === "SUBSCRIBED" || health.auto_print_polling)) {
         return "ok";

@@ -46,6 +46,8 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Dashboard/log atuais incluem alerta para check-ins ativos antigos, resumo do dia/evento, exportacao CSV e compartilhamento WhatsApp com resumo.
 - Familias permite SADMIN/Admin cadastrar responsavel, reenviar acesso e gerenciar rede familiar/vinculos.
 - Impressao local diferencia Brother ligada/desligada, usa fila local e autoimprime somente check-ins ativos nao impressos.
+- Em 2026-09-05, painel do servico de impressao corrigido para mostrar autoimpressao como erro quando a consulta ao Supabase falhar (`auto_print_last_poll.error`, ex. DNS/ENOTFOUND); intervalo padrao de varredura reduzido para 1s; executavel e ZIP portable foram regerados.
+- Pasta local `IMPRESSÂO/` foi criada como copia limpa operacional do pacote de impressao para notebook; contem configuracao local e fica ignorada pelo Git.
 - Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
 - Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
 - Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip` correspondente; inclui dumps `pg_dump` full custom/plain, schema, dados, roles sem senhas, inventario e checksums.
@@ -58,4 +60,4 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Definir rotina segura de exportacao/restauracao de dados reais, incluindo usuarios/perfis/vinculos, sem expor senhas/tokens/secrets.
 - Validar em producao tentativa de cadastro duplicado pelo app e recuperacao de senha com link novo em janela anonima.
 - Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
-- Validar no notebook real o pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`.
+- Validar no notebook real o pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`, confirmando autoimpressao verde somente sem erro de Supabase/DNS.
