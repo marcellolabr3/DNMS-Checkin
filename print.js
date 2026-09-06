@@ -386,7 +386,11 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
       } catch (_error) {}
       throw new Error(message);
     }
-    return "printed";
+    const body = await response.json().catch(() => ({}));
+    if (body?.jobId) {
+      console.info(`Requisicao enfileirada no servico de impressao: ${body.jobId}`);
+    }
+    return "queued";
   } catch (error) {
     console.warn("Falha ao enviar para servico de impressao", error);
     if (type === "reprint" && checkinId) {
@@ -398,6 +402,21 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function fetchPrintJobStatus(jobId) {
+  if (!jobId) {
+    return null;
+  }
+  const response = await fetch(`${PRINT_SERVICE_URL}/print/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+    headers: getPrintServiceHeaders()
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const body = await response.json().catch(() => null);
+  return body?.job || null;
 }
 
 async function requestRemoteReprint(checkinId) {

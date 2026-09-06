@@ -4,6 +4,7 @@ test-results/
 .idea/
 .env
 .env.*
+*.pid
 .codex-secrets.env
 docs/CODEX_CONTEXT.local.md
 IMPRESSÂO/.codex-secrets.env

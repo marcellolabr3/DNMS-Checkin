@@ -2,7 +2,7 @@
 
 Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Service Role Keys ou connection strings.
 
-## Como Iniciar
+## Como iniciar
 
 1. Ler `AGENTS.md`.
 2. Ler este arquivo.
@@ -14,50 +14,54 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - PWA estatico em HTML/CSS/JS puro: `index.html`, `app.js`, `styles.css`, `sw.js`.
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
-- Servico local de impressao: `Servico de impressao/server.js` para Brother QL-810W em `http://127.0.0.1:3001`.
+- Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
+- Cache atual: `checkin-cache-v172`, `app.js?v=20260905a`, `print.js?v=20260905a`, `styles.css?v=20260901a`.
 
-## Banco e Operacao
+## Regras criticas
+
+- Nunca expor secrets; nao colocar Service Role Key no frontend; manter `.env` e `.codex-secrets.env` fora do GitHub.
+- Respeitar RLS e preservar dados. Migracoes devem ser nao destrutivas quando possivel.
+- Check-in: de 30 min antes do inicio da aula ate antes do fim; responsavel somente via QR presencial/RPC `parent_checkin_with_presence`.
+- Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
+- Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
+- Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
+- Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
+- Service worker deve cachear apenas assets estaticos locais explicitamente listados.
+
+## Banco e operacao
 
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
-- Credencial administrativa pode existir em `docs/CODEX_CONTEXT.local.md`; usar somente em variavel temporaria e nunca expor.
-- Patches esperados no banco/app: janela de check-in, QR presencial de responsavel, um check-in ativo por crianca, idade anual por virada de ano, fila de reimpressao, rede familiar, exclusao segura de usuario e checkout antes de deletar sala.
+- Supabase guarda familias, criancas, check-ins, historico, reimpressoes e auditoria.
+- Conexao local do Print Service com Postgres deve usar o pooler Supabase `aws-1-us-east-1.pooler.supabase.com:5432/postgres` com usuario `postgres.<project-ref>`; senha somente em `.codex-secrets.env`.
+- SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
+- Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip`.
 
-## Regras Criticas
+## Print Service
 
-- Nao desabilitar RLS nem mover Service Role Key para frontend.
-- Check-in permitido somente de 30 min antes do inicio da aula ate antes do horario de termino.
-- Crianca permanece na mesma turma durante o ano vigente; troca apenas em 1 de janeiro.
-- Responsavel faz check-in somente via QR presencial usando RPC `parent_checkin_with_presence`.
-- Admin/equipe fazem check-in direto em `checkins`, mas banco tambem valida horario.
-- Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
-- Cadastro de crianca deve criar vinculo em `student_guardians`; responsavel comum nao pode se vincular automaticamente a crianca fora da familia.
-- Salas/eventos sempre nascem `Programada`; abertura e manual por admin/equipe. Se ninguem abrir, a sala continua sem check-ins e vai para historico.
-- Salas abertas devem permanecer visiveis na aba Salas para gerenciamento. Salas passadas ficam em secao ocultavel separada por mes, limitada aos ultimos 16 dias.
-- Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
-- Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de entrar em `innerHTML`.
-- Service worker deve cachear apenas assets estaticos locais explicitamente listados.
+- Fase 1 implementada: `POST /print` e `POST /reprint` validam, persistem `PrintJob` em SQLite e respondem rapido com `202 Accepted` e `{ success, jobId, status }`.
+- Endpoints disponiveis: `GET /print/:jobId`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado.
+- Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
+- SQLite padrao: `Servico de impressao/data/print-service.sqlite`; sobrescrevivel por `PRINT_JOB_DB_PATH`; pasta/arquivos SQLite ignorados pelo Git.
+- Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao devem voltar a imprimir diretamente por caminhos independentes.
+- `PrintWorker` processa 1 job por vez, marca `SENT_TO_SPOOLER` apos aceite do adapter e `SPOOLER_DONE` quando o spooler remove o job.
+- Retry automatico somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
+- Recuperacao apos reinicio: jobs `PRINTING` voltam para `QUEUED`; jobs `SENT_TO_SPOOLER` viram `FAILED` com `completedReason = "spooler_status_ambiguous_no_retry"` para nao ficarem abertos nem serem reenfileirados automaticamente.
+- Mecanismo preservado: Chromium/Puppeteer persistente com nova Page por job, PDF, Sumatra, Windows Spooler, Brother QL-810W.
+- ZIP portable: `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`. O script inclui `.codex-secrets.env` no pacote quando o arquivo local existe; tratar o ZIP como artefato privado.
+- SQLite no `.exe` usa binding nativo externo em `dist/native/sqlite3/node_sqlite3.node`; se faltar, o portable falha com "could not locate the bindings file".
 
-## Estado Atual Validado
+## Ultimo estado validado
 
-- Fluxo de salas corrigido em 2026-09-01: revertida criacao automatica aberta; adicionado historico ocultavel "Salas passadas"; testes protegem criacao `Programada`, abertura manual, sala aberta visivel e check-in habilitado.
-- QR de responsavel usa `BarcodeDetector` quando disponivel e fallback local `vendor/jsQR.js` para iPhone/Safari; campo manual aparece apenas quando camera/leitor indisponivel.
-- Dashboard/log atuais incluem alerta para check-ins ativos antigos, resumo do dia/evento, exportacao CSV e compartilhamento WhatsApp com resumo.
-- Familias permite SADMIN/Admin cadastrar responsavel, reenviar acesso e gerenciar rede familiar/vinculos.
-- Impressao local diferencia Brother ligada/desligada, usa fila local e autoimprime somente check-ins ativos nao impressos.
-- Em 2026-09-05, painel do servico de impressao corrigido para mostrar autoimpressao como erro quando a consulta ao Supabase falhar (`auto_print_last_poll.error`, ex. DNS/ENOTFOUND); intervalo padrao de varredura reduzido para 1s; navegador de PDF agora e pre-aquecido/reutilizado; executavel e ZIP portable foram regerados.
-- Pasta `IMPRESSÂO/` versiona no GitHub o ZIP portable publico e instrucoes de instalacao; `.codex-secrets.env` real e arquivos extraidos locais continuam ignorados.
-- Ultima validacao local: `npm.cmd test -- tests/checkin.spec.js tests/service-worker.spec.js` passou com 86 testes em 2026-09-01.
-- Cache atual: `checkin-cache-v171`, `app.js?v=20260901b`, `styles.css?v=20260901a`.
-- Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip` correspondente; inclui dumps `pg_dump` full custom/plain, schema, dados, roles sem senhas, inventario e checksums.
-- Auditoria do banco em 2026-09-01: nao ha `students` orfaos; ha check-ins historicos com `student_id`/`room_id` apagados. 5 convites expirados foram removidos de `public.invites`. Fotos orfas do Storage foram listadas e baixadas em `D:\Dev\BCK_CHEK\db-cleanup-20260901`; remocao fisica ainda requer Storage API/Service Role.
+- Em 2026-09-05, `npm.cmd test` passou com 178 testes.
+- Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
+- Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
+- Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
+- Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
+- A conexao do Print Service com o banco passou a funcionar corretamente usando o pooler Supabase no `.codex-secrets.env`.
 
-## Pendencias
+## Pendencias reais
 
-- Auditar Supabase de producao e reconstruir/validar `supabase/setup_dnms_checkin.sql` como arquivo canonico detalhado.
-- Limpar via Storage API os 32 objetos orfaos de `dnms-photos` apos obter Service Role Key ou sessao autenticada com permissao de delete.
-- Definir rotina segura de exportacao/restauracao de dados reais, incluindo usuarios/perfis/vinculos, sem expor senhas/tokens/secrets.
-- Validar em producao tentativa de cadastro duplicado pelo app e recuperacao de senha com link novo em janela anonima.
-- Documentar procedimento operacional para equipe/admin ajustar responsaveis de crianca existente.
-- Validar no notebook real o pacote `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`, confirmando autoimpressao verde somente sem erro de Supabase/DNS.
+- Auditar Supabase/producao e `setup_dnms_checkin.sql`; limpar fotos orfas do Storage.
+- Validar cadastro duplicado e recuperacao de senha em ambiente real; documentar ajuste operacional de responsaveis.

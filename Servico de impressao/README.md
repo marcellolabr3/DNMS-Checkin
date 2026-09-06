@@ -1,10 +1,10 @@
 # Servico de impressao
 
-Servico local Node.js para executar impressao da etiqueta recebendo HTML pronto do sistema de check-in.
+Servico local Node.js para receber pedidos de etiqueta, persistir uma fila tecnica local e imprimir na Brother.
 
 Tambem possui modo de auto-impressao: ao iniciar, ele escuta novos `checkins` no Supabase e imprime automaticamente no desktop (inclusive check-ins feitos pelo celular).
 
-Quando o PWA e usado no mesmo computador em que o servico e a Brother estao instalados, o check-in envia a etiqueta diretamente para `http://localhost:3001/print`.
+Quando o PWA e usado no mesmo computador em que o servico e a Brother estao instalados, o check-in envia a etiqueta para `http://localhost:3001/print`.
 Nesse modo direto, o `SUPABASE_SERVICE_ROLE_KEY` nao e necessario para receber a etiqueta do PWA.
 
 Quando o check-in e feito em outro dispositivo, como celular ou outro computador, `localhost` aponta para esse outro dispositivo. Para imprimir na Brother do computador principal nesses casos, o servico precisa rodar nesse computador com `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` configurado em `.codex-secrets.env`.
@@ -13,7 +13,20 @@ Quando o check-in e feito em outro dispositivo, como celular ou outro computador
 
 - `POST http://localhost:3001/print`
 - `POST http://localhost:3001/reprint`
+- `GET http://localhost:3001/print/:jobId`
 - `GET http://localhost:3001/health`
+
+`POST /print` e `POST /reprint` sao assincronos. Eles validam o payload, criam um `PrintJob`, salvam no SQLite local e respondem `202 Accepted` sem aguardar renderizacao, Sumatra ou spooler:
+
+```json
+{
+  "success": true,
+  "jobId": "8F73A1",
+  "status": "QUEUED"
+}
+```
+
+Consulte `GET /print/:jobId` para acompanhar o status tecnico.
 
 Por seguranca, o servico escuta somente em `127.0.0.1` por padrao. Assim ele atende o navegador do proprio computador da Brother, mas nao fica exposto para outros dispositivos da rede.
 
@@ -60,11 +73,13 @@ Sem uma dessas credenciais, o painel mostra a auto-impressao do celular como ina
 O servico tambem faz varredura de pendencias a cada 1 segundo para cobrir falhas ou atraso do listener realtime. Se necessario, ajuste com `AUTO_PRINT_POLL_INTERVAL_MS` no `.codex-secrets.env`.
 Para reduzir a latencia, o servico pre-aquece e reutiliza o navegador Chromium usado para gerar o PDF da etiqueta.
 
+Os check-ins pendentes nao sao impressos diretamente pelo listener. Eles entram na mesma fila local usada por `/print` e `/reprint`.
+
 ## Reimpressao remota por fila
 
 Reimpressao feita no proprio computador da Brother continua usando `http://localhost:3001/reprint`.
 
-Quando a reimpressao for solicitada fora do computador da Brother, o app cria um registro em `print_jobs`. O servico de impressao, rodando com `SUPABASE_SERVICE_ROLE_KEY`, reserva um job por vez com `claim_next_reprint_job`, imprime e marca o job como `printed`.
+Quando a reimpressao for solicitada fora do computador da Brother, o app cria um registro em `print_jobs`. O servico de impressao, rodando com `SUPABASE_SERVICE_ROLE_KEY`, reserva um job por vez com `claim_next_reprint_job`, cria um `PrintJob` tecnico local, imprime pelo worker unico e marca o job remoto como `printed` ou `failed`.
 
 Antes de usar esse fluxo, aplique no Supabase:
 
@@ -86,6 +101,46 @@ A tabela impede mais de uma reimpressao aberta para o mesmo check-in (`pending` 
 
 `tipo` aceita `print` ou `reprint`.
 
+## Fila tecnica local
+
+O estado tecnico de impressao fica em SQLite local:
+
+`data/print-service.sqlite`
+
+Esse arquivo nao e versionado. Para alterar o local, defina:
+
+```env
+PRINT_JOB_DB_PATH=C:\caminho\print-service.sqlite
+```
+
+Estados do `PrintJob`:
+
+- `QUEUED`
+- `PRINTING`
+- `SENT_TO_SPOOLER`
+- `SPOOLER_DONE`
+- `FAILED`
+- `CANCELLED`
+
+O worker processa 1 job por vez. Ao reiniciar o servico, jobs que estavam em `PRINTING` voltam para `QUEUED`. Jobs que chegaram a `SENT_TO_SPOOLER` sao tratados como ambiguos e nao recebem retry automatico, para evitar etiquetas duplicadas.
+
+`SPOOLER_DONE` significa que o Windows removeu/concluiu o job no spooler. Nao e confirmacao fisica de etiqueta impressa/cortada.
+
+## Motor de impressao
+
+Nesta fase o motor foi preservado:
+
+```text
+Puppeteer/Chromium persistente
+  -> nova Page por job
+  -> PDF
+  -> SumatraPDF
+  -> Windows Spooler
+  -> Brother QL-810W
+```
+
+O motor fica encapsulado para permitir substituir o adaptador futuramente sem reescrever API/fila.
+
 ## Exemplo de integracao no frontend
 
 ```js
@@ -102,6 +157,8 @@ fetch("http://localhost:3001/print", {
   })
 });
 ```
+
+A resposta indica que o job foi aceito na fila local, nao que a etiqueta ja saiu fisicamente.
 
 ## Como rodar no Windows
 

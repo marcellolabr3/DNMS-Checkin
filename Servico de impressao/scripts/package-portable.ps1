@@ -23,8 +23,15 @@ if (-not (Test-Path (Join-Path $root "bin\SumatraPDF.exe"))) {
 }
 
 Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $staging) {
+  Start-Sleep -Milliseconds 500
+  Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+}
+if (Test-Path $staging) {
+  throw "Nao foi possivel limpar a pasta de pacote: $staging. Feche qualquer servico/janela usando essa pasta e tente novamente."
+}
 Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path $staging | Out-Null
+New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
 $items = @(
   "dist",
@@ -42,6 +49,14 @@ foreach ($item in $items) {
   }
   Copy-Item -LiteralPath $source -Destination $staging -Recurse -Force
 }
+
+$sqliteBinding = Join-Path $root "node_modules\sqlite3\build\Release\node_sqlite3.node"
+if (-not (Test-Path $sqliteBinding)) {
+  throw "Binding nativo do SQLite ausente: $sqliteBinding"
+}
+$sqliteNativeDir = Join-Path $staging "dist\native\sqlite3"
+New-Item -ItemType Directory -Path $sqliteNativeDir -Force | Out-Null
+Copy-Item -LiteralPath $sqliteBinding -Destination $sqliteNativeDir -Force
 
 $localSecrets = Join-Path $root ".codex-secrets.env"
 if (Test-Path $localSecrets) {

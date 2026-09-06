@@ -9,8 +9,17 @@ const puppeteer = require("puppeteer-core");
 const { print, getPrinters } = require("pdf-to-printer");
 const { createClient } = require("@supabase/supabase-js");
 const { Pool } = require("pg");
+const { JobStore } = require("./src/job-store");
+const { PrintQueue } = require("./src/print-queue");
+const { PrintWorker } = require("./src/print-worker");
+const { WindowsPdfPrintAdapter } = require("./src/windows-pdf-print-adapter");
+const { PRINT_JOB_SOURCE, PRINT_JOB_TYPE } = require("./src/print-job");
 
 const execFileAsync = promisify(execFile);
+const envDiagnostics = {
+  loadedFiles: [],
+  skippedExistingKeys: []
+};
 loadEnvFromFiles();
 const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
 const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
@@ -37,11 +46,9 @@ const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY || pgPool);
 const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at";
 const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
 
-const autoPrintQueue = [];
 const autoPrintSeen = new Set();
 const reprintJobSeen = new Set();
 const PRINT_WORKER_ID = `${os.hostname()}-${process.pid}`;
-let autoPrintProcessing = false;
 let reprintJobProcessing = false;
 let realtimeChannel = null;
 let reprintJobsChannel = null;
@@ -49,6 +56,9 @@ let autoPrintPollTimer = null;
 let reprintJobPollTimer = null;
 let browserInstance = null;
 let browserLaunchPromise = null;
+let jobStore = null;
+let printQueue = null;
+let printWorker = null;
 let lastAutoPrintPoll = {
   checked_at: null,
   pending_count: 0,
@@ -92,6 +102,23 @@ app.get("/health", async (_req, res) => {
     res.json(await buildHealthPayload());
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/print/:jobId", async (req, res) => {
+  if (!authorizePrintRequest(req, res)) {
+    return;
+  }
+  try {
+    const jobId = String(req.params.jobId || "").trim();
+    const job = await jobStore.getJob(jobId);
+    if (!job) {
+      res.status(404).json({ ok: false, success: false, error: "PrintJob nao encontrado." });
+      return;
+    }
+    res.json({ ok: true, success: true, job: serializePrintJobForResponse(job) });
+  } catch (error) {
+    res.status(500).json({ ok: false, success: false, error: error?.message || "Falha ao consultar PrintJob." });
   }
 });
 
@@ -168,48 +195,25 @@ async function handlePrintRequest(req, res, routeType) {
     return;
   }
 
-  if (tipo === "print" && autoPrintSeen.has(checkinId)) {
-    logPrint({
-      checkinId,
-      tipo,
-      date: startedAt,
-      status: "ignorado",
-      details: "Check-in ja reservado pelo auto-print; evitando etiqueta duplicada."
-    });
-    res.json({ ok: true, checkin_id: checkinId, tipo, status: "ja_reservado" });
-    return;
-  }
-
-  if (tipo === "print") {
-    autoPrintSeen.add(checkinId);
-  }
-
   try {
-    const printer = await getTargetPrinterOrThrow();
-    await assertPrinterQueueReady(printer.name);
-    const pdfPath = await renderHtmlToPdf(conteudo);
-    try {
-      await print(pdfPath, {
-        printer: printer.name,
-        sumatraPdfPath: resolveSumatraPdfPath(),
-        pages: "1"
-      });
-      await waitForPrinterQueueToSettle(printer.name, pdfPath);
-    } finally {
-      await safeUnlink(pdfPath);
-    }
-    if (tipo === "print") {
-      await markCheckinPrinted(checkinId);
-    }
-
+    const job = await printQueue.enqueue({
+      source: PRINT_JOB_SOURCE.HTTP,
+      type: tipo === "reprint" ? PRINT_JOB_TYPE.REPRINT : PRINT_JOB_TYPE.PRINT,
+      payload: {
+        checkin_id: checkinId,
+        conteudo,
+        tipo
+      },
+      maxAttempts: 3
+    });
     logPrint({
       checkinId,
       tipo,
       date: startedAt,
-      status: "sucesso",
-      details: `Impressora utilizada: ${printer.name || "-"}`
+      status: "enfileirado",
+      details: `PrintJob ${job.id} criado com status ${job.status}.`
     });
-    res.json({ ok: true, checkin_id: checkinId, tipo, status: "sucesso" });
+    res.status(202).json({ ok: true, success: true, checkin_id: checkinId, tipo, jobId: job.id, status: job.status });
   } catch (error) {
     logPrint({
       checkinId,
@@ -225,9 +229,6 @@ async function handlePrintRequest(req, res, routeType) {
       status: "erro",
       error: error?.message || "Falha ao imprimir."
     });
-    if (tipo === "print") {
-      autoPrintSeen.delete(checkinId);
-    }
   }
 }
 
@@ -500,6 +501,14 @@ async function renderHtmlToPdf(htmlContent) {
   return pdfPath;
 }
 
+async function printPdfFile(pdfPath, printerName) {
+  await print(pdfPath, {
+    printer: printerName,
+    sumatraPdfPath: resolveSumatraPdfPath(),
+    pages: "1"
+  });
+}
+
 async function getSharedBrowser() {
   if (browserInstance?.isConnected()) {
     return browserInstance;
@@ -674,35 +683,21 @@ function enqueueAutoPrint(checkinId) {
     return;
   }
   autoPrintSeen.add(checkinId);
-  autoPrintQueue.push(checkinId);
-  processAutoPrintQueue();
-}
-
-async function processAutoPrintQueue() {
-  if (autoPrintProcessing || !autoPrintQueue.length) {
-    return;
-  }
-  autoPrintProcessing = true;
-  while (autoPrintQueue.length) {
-    const checkinId = autoPrintQueue.shift();
-    try {
-      await printCheckinById(checkinId);
-    } catch (error) {
+  enqueueCheckinPrintJob(checkinId, { source: PRINT_JOB_SOURCE.AUTO_PRINT, type: PRINT_JOB_TYPE.PRINT })
+    .catch((error) => {
       autoPrintSeen.delete(checkinId);
       console.warn(`[Servico de impressao] falha no auto-print do checkin ${checkinId}:`, error?.message || error);
-    }
-  }
-  autoPrintProcessing = false;
+    });
 }
 
-async function printCheckinById(checkinId, options = {}) {
+async function enqueueCheckinPrintJob(checkinId, options = {}) {
   if (!checkinId || (!supabaseClient && !pgPool)) {
-    return;
+    return null;
   }
   const checkin = await fetchCheckinForPrint(checkinId);
-  const isReprint = options.type === "reprint";
+  const isReprint = options.type === PRINT_JOB_TYPE.REPRINT || options.type === "reprint";
   if (checkin.printed_at && !isReprint) {
-    return;
+    return null;
   }
   if (checkin.checked_out_at && !isReprint) {
     logPrint({
@@ -712,7 +707,7 @@ async function printCheckinById(checkinId, options = {}) {
       status: "ignorado",
       details: "Check-in ja recebeu checkout; autoimpressao ignorada."
     });
-    return;
+    return null;
   }
 
   const student = await fetchStudentForPrint(checkin.student_id, checkinId);
@@ -721,34 +716,34 @@ async function printCheckinById(checkinId, options = {}) {
   validateAutoPrintLabelData(labelData, checkinId);
   const html = buildLabelDocumentHtml(labelData);
 
-  const printer = await getTargetPrinterOrThrow();
-  await assertPrinterQueueReady(printer.name);
-  const pdfPath = await renderHtmlToPdf(html);
-  try {
-    await print(pdfPath, {
-      printer: printer.name,
-      sumatraPdfPath: resolveSumatraPdfPath(),
-      pages: "1"
-    });
-    await waitForPrinterQueueToSettle(printer.name, pdfPath);
-  } finally {
-    await safeUnlink(pdfPath);
-  }
-  if (!isReprint) {
-    await markCheckinPrinted(checkinId);
-  }
+  const source = options.source || (isReprint ? PRINT_JOB_SOURCE.REMOTE_REPRINT : PRINT_JOB_SOURCE.AUTO_PRINT);
+  const type = isReprint ? PRINT_JOB_TYPE.REPRINT : PRINT_JOB_TYPE.PRINT;
+  const job = await printQueue.enqueue({
+    source,
+    type,
+    payload: {
+      checkin_id: checkinId,
+      conteudo: html,
+      tipo: type
+    },
+    remoteJobId: options.remoteJobId || null,
+    dedupeKey: options.remoteJobId ? `${source}:${type}:${options.remoteJobId}` : `${source}:${type}:${checkinId}`,
+    maxAttempts: 3
+  });
   logPrint({
     checkinId,
-    tipo: isReprint ? "reprint" : "print",
+    tipo: type,
     date: new Date(),
-    status: "sucesso",
-    details: `${isReprint ? "Reimpressao via fila" : "Auto-print via listener"} (${printer.name || "-"})`
+    status: "enfileirado",
+    details: `PrintJob ${job.id} criado por ${source}.`
   });
+  return job;
 }
 
 async function buildHealthPayload() {
   const printerStatus = await getTargetPrinterStatus();
   const printerQueue = printerStatus.name ? await readWindowsPrintJobs(printerStatus.name) : [];
+  const printJobSummary = jobStore ? await jobStore.getQueueSummary() : {};
   return {
     ok: Boolean(printerStatus.installed && printerStatus.ready),
     status: printerStatus.ready ? "online" : printerStatus.status,
@@ -763,12 +758,15 @@ async function buildHealthPayload() {
     auto_print_realtime_status: realtimeStatus,
     auto_print_polling: Boolean(autoPrintPollTimer),
     auto_print_last_poll: lastAutoPrintPoll,
-    auto_print_processing: Boolean(autoPrintProcessing || autoPrintQueue.length),
-    auto_print_queue_length: autoPrintQueue.length,
+    auto_print_processing: Boolean((printJobSummary.PRINTING || 0) + (printJobSummary.SENT_TO_SPOOLER || 0)),
+    auto_print_queue_length: Number(printJobSummary.QUEUED || 0),
     reprint_queue_listener: Boolean(supabaseClient && SUPABASE_SERVICE_ROLE_KEY),
     reprint_queue_polling: Boolean(reprintJobPollTimer),
     reprint_queue_processing: Boolean(reprintJobProcessing),
+    print_service_queue: printJobSummary,
+    print_worker_running: Boolean(printWorker && !printWorker.stopped),
     supabase_role: resolveServiceDataRole(),
+    data_access_diagnostics: buildDataAccessDiagnostics(),
     database_direct: canUseDirectDatabase
   };
 }
@@ -1042,6 +1040,11 @@ function buildStatusPageHtml() {
             detail: buildAutoPrintDetail(health, printingBusy)
           },
           {
+            state: health.supabase_role === "anon" ? "off" : "ok",
+            label: "Fonte de dados",
+            detail: buildDataAccessDetail(health)
+          },
+          {
             state: printerQueueLength ? "off" : "ok",
             label: "Fila da Brother",
             detail: printerQueueLength
@@ -1090,6 +1093,21 @@ function buildStatusPageHtml() {
       return "off";
     }
 
+    function buildDataAccessDetail(health) {
+      const info = health.data_access_diagnostics || {};
+      const files = Array.isArray(info.loaded_env_files) && info.loaded_env_files.length
+        ? info.loaded_env_files.join(", ")
+        : "nenhum .codex-secrets.env carregado";
+      const skipped = Array.isArray(info.skipped_existing_keys) && info.skipped_existing_keys.length
+        ? " Variaveis ja existentes no Windows: " + info.skipped_existing_keys.join(", ") + "."
+        : "";
+      return "Modo: " + (info.mode || health.supabase_role || "-") +
+        ". DATABASE_URL: " + (info.database_url_present ? (info.database_host || "host nao identificado") : "ausente") +
+        ". SUPABASE_URL: " + (info.supabase_url_host || "ausente") +
+        ". Service Role: " + (info.service_role_present ? "configurada" : "ausente") +
+        ". Arquivos: " + files + "." + skipped;
+    }
+
     refreshButton.addEventListener("click", refreshStatus);
     refreshStatus();
     setInterval(refreshStatus, 5000);
@@ -1110,6 +1128,39 @@ function resolveServiceDataRole() {
     return "postgres_direct";
   }
   return "anon";
+}
+
+function buildDataAccessDiagnostics() {
+  return {
+    mode: resolveServiceDataRole(),
+    database_url_present: Boolean(DATABASE_URL),
+    database_host: extractDatabaseHost(DATABASE_URL),
+    supabase_url_host: extractUrlHost(SUPABASE_URL),
+    service_role_present: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    loaded_env_files: envDiagnostics.loadedFiles.slice(),
+    skipped_existing_keys: envDiagnostics.skippedExistingKeys.slice()
+  };
+}
+
+function extractDatabaseHost(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const afterAt = text.includes("@") ? text.split("@").pop() : text;
+  return String(afterAt || "").split("/")[0].split(":")[0].trim();
+}
+
+function extractUrlHost(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  try {
+    return new URL(text).host;
+  } catch (_error) {
+    return text.replace(/^https?:\/\//i, "").split("/")[0];
+  }
 }
 
 async function processPendingCheckins() {
@@ -1230,8 +1281,11 @@ async function processPendingReprintJobs() {
       }
       reprintJobSeen.add(job.id);
       try {
-        await printCheckinById(job.checkin_id, { type: "reprint" });
-        await completeReprintJob(job.id);
+        await enqueueCheckinPrintJob(job.checkin_id, {
+          source: PRINT_JOB_SOURCE.REMOTE_REPRINT,
+          type: PRINT_JOB_TYPE.REPRINT,
+          remoteJobId: job.id
+        });
       } catch (error) {
         await failReprintJob(job.id, error);
         console.warn(`[Servico de impressao] falha na reimpressao ${job.id}:`, error?.message || error);
@@ -1384,6 +1438,7 @@ function loadEnvFromFiles() {
     }
     try {
       const raw = fsSync.readFileSync(filePath, "utf8");
+      envDiagnostics.loadedFiles.push(path.basename(filePath));
       raw.split(/\r?\n/).forEach((line) => {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
@@ -1392,9 +1447,16 @@ function loadEnvFromFiles() {
         const idx = trimmed.indexOf("=");
         const key = trimmed.slice(0, idx).trim();
         const value = trimmed.slice(idx + 1).trim().replace(/^"|"$/g, "");
-        if (key && !process.env[key]) {
-          process.env[key] = value;
+        if (!key) {
+          return;
         }
+        if (process.env[key]) {
+          if (["DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"].includes(key)) {
+            envDiagnostics.skippedExistingKeys.push(key);
+          }
+          return;
+        }
+        process.env[key] = value;
       });
     } catch (_error) {
       // arquivo opcional
@@ -1421,6 +1483,28 @@ function authorizePrintRequest(req, res) {
   }
   res.status(401).json({ ok: false, error: "Token de impressao local invalido ou ausente." });
   return false;
+}
+
+function serializePrintJobForResponse(job) {
+  return {
+    id: job.id,
+    source: job.source,
+    type: job.type,
+    status: job.status,
+    attempts: job.attempts,
+    maxAttempts: job.maxAttempts,
+    createdAt: job.createdAt,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    spoolerAcceptedAt: job.spoolerAcceptedAt,
+    finishedAt: job.finishedAt,
+    nextAttemptAt: job.nextAttemptAt,
+    error: job.error,
+    windowsJobId: job.windowsJobId,
+    printerName: job.printerName,
+    completedReason: job.completedReason,
+    checkinId: job.payload?.checkin_id || ""
+  };
 }
 
 function validatePrintPayload({ checkinId, conteudo }) {
@@ -1482,7 +1566,13 @@ function setupShutdownHandlers() {
       return;
     }
     closing = true;
+    if (printWorker) {
+      printWorker.stop();
+    }
     await closeSharedBrowser();
+    if (jobStore) {
+      await jobStore.close().catch(() => {});
+    }
     if (pgPool) {
       await pgPool.end().catch(() => {});
     }
@@ -1500,7 +1590,40 @@ function setupShutdownHandlers() {
 
 setupShutdownHandlers();
 
-app.listen(PORT, HOST, () => {
+async function initializePrintServices() {
+  jobStore = await new JobStore().open();
+  const adapter = new WindowsPdfPrintAdapter({
+    getTargetPrinterOrThrow,
+    renderHtmlToPdf,
+    printPdfFile,
+    waitForPrinterQueueToSettle,
+    safeUnlink,
+    afterSpoolerDone: async (job) => {
+      if (job.type === PRINT_JOB_TYPE.PRINT) {
+        await markCheckinPrinted(job.payload?.checkin_id);
+      }
+      if (job.remoteJobId) {
+        await completeReprintJob(job.remoteJobId);
+      }
+    }
+  });
+  printWorker = new PrintWorker({
+    jobStore,
+    adapter,
+    logger: console,
+    onJobFailed: async (job, error) => {
+      if (job.remoteJobId) {
+        await failReprintJob(job.remoteJobId, error);
+      }
+    }
+  });
+  printQueue = new PrintQueue({ jobStore });
+  printQueue.attachWorker(printWorker);
+  printWorker.start();
+}
+
+initializePrintServices().then(() => {
+  app.listen(PORT, HOST, () => {
   console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
   console.log(`[Servico de impressao] Acesso a dados: ${resolveServiceDataRole()}`);
   console.log(
@@ -1517,4 +1640,8 @@ app.listen(PORT, HOST, () => {
   startRealtimeReprintJobs().catch((error) => {
     console.warn("[Servico de impressao] falha ao iniciar listener de reimpressao:", error?.message || error);
   });
+  });
+}).catch((error) => {
+  console.error("[Servico de impressao] falha ao iniciar servico:", error?.stack || error);
+  process.exit(1);
 });

@@ -4,3 +4,7 @@ npm-debug.log*
 bin/*
 dist/*.exe
 dist-pacote/
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

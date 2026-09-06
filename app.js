@@ -7778,6 +7778,10 @@ async function printCurrentLabel(options = {}) {
       } catch (_error) {}
       throw new Error(message);
     }
+    const body = await response.json().catch(() => ({}));
+    if (body?.jobId) {
+      console.info(`Etiqueta enfileirada no servico de impressao: ${body.jobId}`);
+    }
     return true;
   } catch (error) {
     console.warn("Falha ao enviar etiqueta para o servico de impressao", error);
@@ -8642,6 +8646,21 @@ function isRoomPast(room) {
   }
   const dateObj = parseRoomDate(room.date || "");
   return Boolean(dateObj) && formatDateIso(dateObj) < formatTodayIso();
+}
+
+async function fetchPrintJobStatus(jobId) {
+  if (!jobId || !shouldUseLocalPrintService()) {
+    return null;
+  }
+  const response = await fetch(`${PRINT_SERVICE_URL}/print/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+    headers: getPrintServiceHeaders()
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const body = await response.json().catch(() => null);
+  return body?.job || null;
 }
 
 function isRoomInPastHistoryWindow(room, daysBack = 16) {
