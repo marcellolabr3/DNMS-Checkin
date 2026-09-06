@@ -951,6 +951,33 @@ test("familias oculta busca vazia e recolhe cadastro de responsavel", async ({ p
   await expect(page.locator("#familyList")).toContainText("Responsavel Teste");
 });
 
+test("familias mantem nome alinhado no resultado da busca", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel");
+  const firstItem = page.locator("#familyList .list-item").first();
+  await expect(firstItem).toBeVisible();
+
+  const geometry = await firstItem.evaluate((item) => {
+    const name = item.querySelector("strong");
+    const itemRect = item.getBoundingClientRect();
+    const nameRect = name.getBoundingClientRect();
+    return {
+      nameTop: nameRect.top,
+      nameBottom: nameRect.bottom,
+      itemTop: itemRect.top,
+      itemBottom: itemRect.bottom,
+      nameHeight: nameRect.height
+    };
+  });
+
+  expect(geometry.nameTop).toBeGreaterThanOrEqual(geometry.itemTop + 4);
+  expect(geometry.nameBottom).toBeLessThanOrEqual(geometry.itemBottom - 4);
+  expect(geometry.nameHeight).toBeGreaterThan(14);
+});
+
 test("gestao nao exibe gerador antigo de convites por tipo de acesso", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");

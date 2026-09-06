@@ -667,10 +667,22 @@ body.role-theme-sadmin {
   border: 1px solid var(--stroke);
   font-family: var(--font);
   font-size: 14px;
+  line-height: 1.35;
   color: var(--ink);
   background: #fff;
   outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.field input,
+.field select,
+.filters input,
+.filters select,
+#familyEditor input,
+#familyEditor select,
+#familiesCard input,
+#familiesCard select {
+  min-height: 44px;
 }
 
 .room-class-options input[type="checkbox"] {
@@ -1021,10 +1033,13 @@ button:disabled,
 
 .family-list .list-item {
   cursor: pointer;
+  min-height: 0;
 }
 
 .family-list .list-item strong,
 .family-list .list-item span {
+  display: block;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
