@@ -1586,3 +1586,29 @@ test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   await expect(page.locator("#btnRoomDialogEdit")).toBeHidden();
   await expect(page.locator("#btnRoomDialogClose")).toBeVisible();
 });
+
+test("sadmin zera check-ins de hoje com confirmacao forte", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length))
+    .toBe(1);
+
+  await page.click("#btnHomePanel");
+  await expect(page.locator("#btnClearTodayCheckins")).toBeVisible();
+  await page.click("#btnClearTodayCheckins");
+
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length))
+    .toBe(0);
+  const auditState = await page.evaluate(() => ({
+    hasClearLog: window.__mockDnmsDb.audit_logs.some((item) => item.action_type === "checkins_cleared"),
+    hasCheckinLog: window.__mockDnmsDb.audit_logs.some((item) => item.action_type === "checkin_created")
+  }));
+  expect(auditState).toEqual({ hasClearLog: true, hasCheckinLog: false });
+  const alerts = await getAlerts(page);
+  expect(alerts).toContain("Check-ins de hoje zerados: 1.");
+});

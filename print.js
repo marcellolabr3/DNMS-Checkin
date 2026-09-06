@@ -2,6 +2,9 @@ const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const PRINT_SERVICE_URL = "http://localhost:3001";
 const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token";
+const PRINT_JOB_FINAL_STATUSES = new Set(["SPOOLER_DONE", "FAILED", "CANCELLED"]);
+const PRINT_JOB_POLL_INTERVAL_MS = 1200;
+const PRINT_JOB_POLL_TIMEOUT_MS = 45000;
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const els = {
@@ -21,6 +24,7 @@ const els = {
 const queue = [];
 let isPrinting = false;
 let studentsCache = [];
+let printJobStatusTimerId = null;
 const reprintContext = { studentId: "", studentName: "", checkin: null };
 
 boot();
@@ -389,6 +393,7 @@ async function sendToPrintService({ checkinId, type, labelHtml }) {
     const body = await response.json().catch(() => ({}));
     if (body?.jobId) {
       console.info(`Requisicao enfileirada no servico de impressao: ${body.jobId}`);
+      startPrintJobStatusPolling(body.jobId, body?.status);
     }
     return "queued";
   } catch (error) {
@@ -417,6 +422,64 @@ async function fetchPrintJobStatus(jobId) {
   }
   const body = await response.json().catch(() => null);
   return body?.job || null;
+}
+
+function stopPrintJobStatusPolling() {
+  if (printJobStatusTimerId) {
+    clearTimeout(printJobStatusTimerId);
+    printJobStatusTimerId = null;
+  }
+}
+
+function startPrintJobStatusPolling(jobId, initialStatus = "QUEUED") {
+  stopPrintJobStatusPolling();
+  updatePrintJobStatusMessage({ id: jobId, status: initialStatus });
+  const startedAt = Date.now();
+
+  const poll = async () => {
+    const job = await fetchPrintJobStatus(jobId).catch(() => null);
+    if (job) {
+      updatePrintJobStatusMessage(job);
+      if (PRINT_JOB_FINAL_STATUSES.has(job.status)) {
+        printJobStatusTimerId = null;
+        return;
+      }
+    }
+    if (Date.now() - startedAt >= PRINT_JOB_POLL_TIMEOUT_MS) {
+      setPrintStatus(`Etiqueta ${jobId}: sem confirmacao final do servico. Consulte o status local da impressora.`, "error");
+      printJobStatusTimerId = null;
+      return;
+    }
+    printJobStatusTimerId = setTimeout(poll, PRINT_JOB_POLL_INTERVAL_MS);
+  };
+
+  printJobStatusTimerId = setTimeout(poll, PRINT_JOB_POLL_INTERVAL_MS);
+}
+
+function updatePrintJobStatusMessage(job) {
+  if (!job?.id) {
+    return;
+  }
+  const status = String(job.status || "QUEUED");
+  const statusLabels = {
+    QUEUED: "na fila",
+    PRINTING: "imprimindo",
+    SENT_TO_SPOOLER: "enviada ao Windows",
+    SPOOLER_DONE: "concluida",
+    FAILED: "falhou",
+    CANCELLED: "cancelada"
+  };
+  const label = statusLabels[status] || status;
+  const errorDetail = job.error ? ` Detalhe: ${job.error}` : "";
+  if (status === "SPOOLER_DONE") {
+    setPrintStatus(`Etiqueta ${job.id}: impressao concluida.`);
+    return;
+  }
+  if (status === "FAILED" || status === "CANCELLED") {
+    setPrintStatus(`Etiqueta ${job.id}: ${label}.${errorDetail}`, "error");
+    return;
+  }
+  setPrintStatus(`Etiqueta ${job.id}: ${label}.`);
 }
 
 async function requestRemoteReprint(checkinId) {

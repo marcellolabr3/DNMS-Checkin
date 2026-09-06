@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v174`, `app.js?v=20260906a`, `print.js?v=20260905a`, `styles.css?v=20260906a`.
+- Cache atual: `checkin-cache-v176`, `app.js?v=20260906c`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -25,6 +25,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Check-in: de 30 min antes do inicio da aula ate antes do fim; responsavel somente via QR presencial/RPC `parent_checkin_with_presence`.
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
+- Salas podem ser marcadas como teste somente por SADMIN; check-ins dessas salas nao entram em relatorios operacionais e nao disparam autoimpressao.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
 - Service worker deve cachear apenas assets estaticos locais explicitamente listados.
@@ -33,6 +34,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
+- Patch aplicado em producao em 2026-09-06: `supabase/patch_sadmin_test_rooms_clear_checkins.sql` adiciona `rooms.is_test`, trigger SADMIN e RPC `sadmin_clear_today_checkins`.
 - Supabase guarda familias, criancas, check-ins, historico, reimpressoes e auditoria.
 - Conexao local do Print Service com Postgres deve usar o pooler Supabase `aws-1-us-east-1.pooler.supabase.com:5432/postgres` com usuario `postgres.<project-ref>`; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
@@ -45,6 +47,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
 - SQLite padrao: `Servico de impressao/data/print-service.sqlite`; sobrescrevivel por `PRINT_JOB_DB_PATH`; pasta/arquivos SQLite ignorados pelo Git.
 - Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao devem voltar a imprimir diretamente por caminhos independentes.
+- PWA/painel local consultam `GET /print/:jobId` apos enfileirar e exibem status operacional: `QUEUED`, `PRINTING`, `SENT_TO_SPOOLER`, `SPOOLER_DONE`, `FAILED`, `CANCELLED`.
 - `PrintWorker` processa 1 job por vez, marca `SENT_TO_SPOOLER` apos aceite do adapter e `SPOOLER_DONE` quando o spooler remove o job.
 - Retry automatico somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
 - Recuperacao apos reinicio: jobs `PRINTING` voltam para `QUEUED`; jobs `SENT_TO_SPOOLER` viram `FAILED` com `completedReason = "spooler_status_ambiguous_no_retry"` para nao ficarem abertos nem serem reenfileirados automaticamente.
@@ -54,7 +57,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-09-06, `npm.cmd test` passou com 184 testes.
+- Em 2026-09-06, `npm.cmd test` passou com 186 testes apos adicionar polling visual de impressao, sala teste SADMIN e limpeza SADMIN de check-ins do dia.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
@@ -66,3 +69,4 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Auditar Supabase/producao e `setup_dnms_checkin.sql`; limpar fotos orfas do Storage.
 - Validar cadastro duplicado e recuperacao de senha em ambiente real; documentar ajuste operacional de responsaveis.
+- Impressao: proxima fase e robustez operacional, com listagem de jobs recentes, retry manual seguro antes do spooler, retention do SQLite e diagnostico mais claro de impressora/fila externa.

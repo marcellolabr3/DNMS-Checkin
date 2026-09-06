@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260906a" />
+  <link rel="stylesheet" href="styles.css?v=20260906c" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -90,6 +90,7 @@
           <textarea id="dashboardInfoText" placeholder="Informacoes gerais para equipe e responsaveis"></textarea>
         </label>
         <button id="btnSaveDashboardInfo" class="primary">Salvar informacoes</button>
+        <button id="btnClearTodayCheckins" class="danger" type="button" style="display:none">Zerar check-ins de hoje</button>
       </section>
     </section>
 
@@ -160,6 +161,10 @@
               <option value="months:5">5 meses</option>
               <option value="months:6">6 meses</option>
             </select>
+          </label>
+          <label class="field checkbox-field" id="roomTestField" style="display:none">
+            <span>Sala teste</span>
+            <input id="roomIsTest" type="checkbox" />
           </label>
         </div>
         <button id="btnCreateRoom" class="primary">Criar evento</button>
@@ -424,6 +429,7 @@
     <div class="dialog-body">
       <h3>Etiqueta gerada</h3>
       <div id="labelPreview" class="label"></div>
+      <div id="labelPrintStatus" class="print-job-status" role="status" aria-live="polite" hidden></div>
       <div class="dialog-actions">
         <button id="btnPrintLabel" class="primary">Imprimir</button>
         <button id="btnCloseLabel" class="ghost">Fechar</button>
@@ -634,6 +640,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20260906a"></script>
+  <script src="app.js?v=20260906c"></script>
 </body>
 </html>

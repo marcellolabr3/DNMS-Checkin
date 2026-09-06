@@ -214,6 +214,30 @@ body.role-theme-sadmin {
   background: var(--danger-soft);
 }
 
+.print-job-status {
+  border: 1px solid var(--stroke);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.print-job-status.is-ok {
+  border-left-color: var(--accent);
+  background: #edf8f0;
+  color: #155a38;
+}
+
+.print-job-status.is-error {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));

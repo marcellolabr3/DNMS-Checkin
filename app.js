@@ -9,6 +9,9 @@ const RECURRENCE_WEEKS_PER_MONTH = 4;
 const DASHBOARD_UPCOMING_SCHEDULE_LIMIT = 3;
 const PRINT_SERVICE_URL = "http://localhost:3001";
 const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token";
+const PRINT_JOB_FINAL_STATUSES = new Set(["SPOOLER_DONE", "FAILED", "CANCELLED"]);
+const PRINT_JOB_POLL_INTERVAL_MS = 1200;
+const PRINT_JOB_POLL_TIMEOUT_MS = 45000;
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const CHECKIN_EARLY_WINDOW_MINUTES = 30;
@@ -16,6 +19,7 @@ const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
 const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
 const ROOM_SELECT_COLUMNS = "id,name,date,start_time,time,end_time,class_target,status,opened_at,closed_at";
+const ROOM_SELECT_COLUMNS_WITH_TEST = `${ROOM_SELECT_COLUMNS},is_test`;
 const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at,printed_at";
 const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,action_type,target_type,target_id,target_name,details,metadata";
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
@@ -48,7 +52,7 @@ const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
 const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
-const labelContext = { checkinId: "" };
+const labelContext = { checkinId: "", printStatusTimerId: null };
 const parentCheckinContext = {
   presenceToken: "",
   targetStudentId: "",
@@ -93,6 +97,7 @@ const els = {
   dashboardAdminTools: document.getElementById("dashboardAdminTools"),
   dashboardInfoText: document.getElementById("dashboardInfoText"),
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
+  btnClearTodayCheckins: document.getElementById("btnClearTodayCheckins"),
   tipsCard: document.getElementById("tipsCard"),
   btnTipsBackHome: document.getElementById("btnTipsBackHome"),
   scheduleFileInput: document.getElementById("scheduleFileInput"),
@@ -116,6 +121,8 @@ const els = {
   roomEndTime: document.getElementById("roomEndTime"),
   roomClass: document.getElementById("roomClass"),
   roomRecurrence: document.getElementById("roomRecurrence"),
+  roomTestField: document.getElementById("roomTestField"),
+  roomIsTest: document.getElementById("roomIsTest"),
   btnCreateRoom: document.getElementById("btnCreateRoom"),
   btnDeleteRoomFromEdit: document.getElementById("btnDeleteRoomFromEdit"),
   selectAllRooms: document.getElementById("selectAllRooms"),
@@ -228,6 +235,7 @@ const els = {
   btnStudentDetailsCheckout: document.getElementById("btnStudentDetailsCheckout"),
   labelDialog: document.getElementById("labelDialog"),
   labelPreview: document.getElementById("labelPreview"),
+  labelPrintStatus: document.getElementById("labelPrintStatus"),
   btnPrintLabel: document.getElementById("btnPrintLabel"),
   btnCloseLabel: document.getElementById("btnCloseLabel"),
   signupDialog: document.getElementById("signupDialog"),
@@ -387,6 +395,7 @@ function bindEvents() {
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
   els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
+  els.btnClearTodayCheckins?.addEventListener("click", clearTodayCheckinsAsSadmin);
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSaveScheduleSheetUrl?.addEventListener("click", saveScheduleSheetUrl);
   els.btnSyncScheduleSheet?.addEventListener("click", () => syncSchedulesFromGoogleSheet({ manual: true }));
@@ -403,6 +412,7 @@ function bindEvents() {
   els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
   els.btnPrintLabel.addEventListener("click", () => printCurrentLabel({ type: "reprint" }));
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
+  els.labelDialog?.addEventListener("close", stopLabelPrintStatusPolling);
 
   if (els.studentPhoto) {
     els.studentPhoto.addEventListener("change", () => {
@@ -1482,7 +1492,10 @@ async function fetchStudents() {
 }
 
 async function fetchRooms() {
-  const { data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS);
+  let { data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS_WITH_TEST);
+  if (error && String(error.message || "").toLowerCase().includes("is_test")) {
+    ({ data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS));
+  }
   if (error) {
     console.warn("Falha ao buscar salas", error);
     return;
@@ -1537,6 +1550,7 @@ async function fetchRooms() {
       time: startTime,
       classTarget: room.class_target,
       status: room.status,
+      isTest: Boolean(room.is_test),
       openedAt: room.opened_at ? formatTimeFromIso(room.opened_at) : "",
       closedAt: room.closed_at ? formatTimeFromIso(room.closed_at) : ""
     };
@@ -1768,8 +1782,8 @@ function createRoomListItem(room, canManageRoom, selectedSet) {
         ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-room="${escapeAttribute(room.id)}" ${selectedSet.has(room.id) ? "checked" : ""} ${canSelectRoom ? "" : "disabled"} /></label>`
         : ""
     }
-    <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}</strong>
-    <span class="muted">Turma: ${escapeHtml(room.classTarget || "-")} | Status: ${escapeHtml(room.status)}</span>
+    <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}${room.isTest ? " [TESTE]" : ""}</strong>
+    <span class="muted">Turma: ${escapeHtml(room.classTarget || "-")} | Status: ${escapeHtml(room.status)}${room.isTest ? " | Sala teste" : ""}</span>
     <span class="muted">Abertura: ${escapeHtml(room.openedAt || "-")} | Fechamento: ${escapeHtml(room.closedAt || "-")}</span>
   `;
   item.addEventListener("click", (event) => {
@@ -2257,7 +2271,17 @@ function renderCheckins() {}
 
 function getTodayCheckins() {
   const today = formatToday();
-  return (state.checkins || []).filter((checkin) => String(checkin.dateTime || "").startsWith(today));
+  return (state.checkins || []).filter(
+    (checkin) => String(checkin.dateTime || "").startsWith(today) && !isCheckinFromTestRoom(checkin)
+  );
+}
+
+function isCheckinFromTestRoom(checkin) {
+  if (!checkin?.roomId) {
+    return false;
+  }
+  const room = state.rooms.find((item) => item.id === checkin.roomId);
+  return Boolean(room?.isTest);
 }
 
 function buildEventSummary(checkins) {
@@ -2530,8 +2554,7 @@ function renderDashboard() {
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
   const todayCheckinStudentIds = new Set(
-    (state.checkins || [])
-      .filter((checkin) => String(checkin.dateTime || "").startsWith(today))
+    getTodayCheckins()
       .map((checkin) => checkin.studentId)
   );
   const neuroStudents = state.students.filter((student) => {
@@ -2750,13 +2773,16 @@ function renderAdminDashboardTools() {
   if (!els.dashboardAdminTools) {
     return;
   }
-  const canManageDashboard = isAdmin();
+  const canManageDashboard = isSadmin() || isAdmin();
   els.dashboardAdminTools.style.display = canManageDashboard ? "flex" : "none";
   if (!canManageDashboard) {
     return;
   }
   if (els.dashboardInfoText) {
     els.dashboardInfoText.value = state.dashboardInfo || "";
+  }
+  if (els.btnClearTodayCheckins) {
+    els.btnClearTodayCheckins.style.display = isSadmin() ? "inline-flex" : "none";
   }
 }
 
@@ -2772,6 +2798,7 @@ function renderRoleVisibility() {
   const authCard = document.getElementById("authCard");
   const bootCard = els.bootCard || document.getElementById("bootCard");
   const isResponsavel = session?.role === "responsavel";
+  renderRoomTestControls();
 
   if (bootCard) {
     bootCard.style.display = bootContext.loadingSession ? "flex" : "none";
@@ -2888,6 +2915,16 @@ function renderRoleVisibility() {
   logCard.style.display = "none";
   if (inviteCard) {
     inviteCard.style.display = "none";
+  }
+}
+
+function renderRoomTestControls() {
+  const canMarkTestRoom = isSadmin();
+  if (els.roomTestField) {
+    els.roomTestField.style.display = canMarkTestRoom ? "" : "none";
+  }
+  if (!canMarkTestRoom && els.roomIsTest) {
+    els.roomIsTest.checked = false;
   }
 }
 
@@ -3143,7 +3180,7 @@ function toggleInvitePanel() {
 }
 
 async function saveDashboardInfo() {
-  if (!state.session || !isAdmin()) {
+  if (!state.session || !(isSadmin() || isAdmin())) {
     return;
   }
   const value = (els.dashboardInfoText?.value || "").trim();
@@ -3158,6 +3195,51 @@ async function saveDashboardInfo() {
     state.dashboardInfo = value;
   }
   render();
+}
+
+async function clearTodayCheckinsAsSadmin() {
+  if (!state.session || !isSadmin()) {
+    alert("Somente SADMIN pode zerar check-ins do dia.");
+    return;
+  }
+  if (!supabaseClient) {
+    alert("Esta acao requer Supabase conectado.");
+    return;
+  }
+  const todayIso = formatTodayIso();
+  const todayCount = (state.checkins || []).filter((checkin) => String(checkin.checkedInAt || "").slice(0, 10) === todayIso).length;
+  if (!todayCount) {
+    alert("Nao ha check-ins de hoje para zerar.");
+    return;
+  }
+  if (!confirm(`Zerar ${todayCount} check-in(s) de hoje (${formatToday()})? Esta acao remove os registros de presenca do dia.`)) {
+    return;
+  }
+  const typed = window.prompt("Digite ZERAR para confirmar a limpeza dos check-ins de hoje.");
+  if (String(typed || "").trim().toUpperCase() !== "ZERAR") {
+    alert("Confirmacao cancelada.");
+    return;
+  }
+  if (els.btnClearTodayCheckins) {
+    els.btnClearTodayCheckins.disabled = true;
+  }
+  try {
+    const { data, error } = await supabaseClient.rpc("sadmin_clear_today_checkins");
+    if (error) {
+      throw new Error(error.message || "Falha ao zerar check-ins de hoje.");
+    }
+    await fetchCheckins();
+    await fetchAuditLogs();
+    render();
+    const deleted = data?.deleted_checkins ?? data?.deletedCheckins ?? todayCount;
+    alert(`Check-ins de hoje zerados: ${deleted}.`);
+  } catch (error) {
+    alert(`Falha ao zerar check-ins de hoje: ${error?.message || "erro inesperado"}`);
+  } finally {
+    if (els.btnClearTodayCheckins) {
+      els.btnClearTodayCheckins.disabled = false;
+    }
+  }
 }
 
 async function importScheduleFromFile() {
@@ -6088,6 +6170,7 @@ async function createRooms() {
   const classTarget = classTargets[0] || "";
   const recurrence = els.roomRecurrence.value;
   const isEditing = Boolean(roomFormContext.editingId);
+  const isTestRoom = isSadmin() && Boolean(els.roomIsTest?.checked);
 
   if (!dateValue || !startTimeValue || !endTimeValue || !classTargets.length) {
     alert("Informe data, horario de inicio, horario de termino e ao menos uma turma do evento.");
@@ -6111,17 +6194,29 @@ async function createRooms() {
   if (isEditing) {
     const roomName = buildRoomNameForDate(name, baseDate);
     if (supabaseClient) {
-      const { error } = await supabaseClient
+      const payload = {
+        name: roomName,
+        date: dateValue,
+        time: startTimeValue,
+        start_time: startTimeValue,
+        end_time: endTimeValue,
+        class_target: classTarget
+      };
+      if (isSadmin()) {
+        payload.is_test = isTestRoom;
+      }
+      let { error } = await supabaseClient
         .from("rooms")
-        .update({
-          name: roomName,
-          date: dateValue,
-          time: startTimeValue,
-          start_time: startTimeValue,
-          end_time: endTimeValue,
-          class_target: classTarget
-        })
+        .update(payload)
         .eq("id", roomFormContext.editingId);
+      if (error && isMissingRoomTestColumnError(error)) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.is_test;
+        ({ error } = await supabaseClient
+          .from("rooms")
+          .update(fallbackPayload)
+          .eq("id", roomFormContext.editingId));
+      }
       if (error) {
         alert(`Falha ao atualizar sala: ${error.message || "erro inesperado"}`);
         return;
@@ -6137,6 +6232,7 @@ async function createRooms() {
         room.startTime = startTimeValue;
         room.endTime = endTimeValue;
         room.classTarget = classTarget;
+        room.isTest = isTestRoom;
       }
     }
     roomFormContext.editingId = "";
@@ -6146,6 +6242,9 @@ async function createRooms() {
     }
     if (els.roomRecurrence) {
       els.roomRecurrence.disabled = false;
+    }
+    if (els.roomIsTest) {
+      els.roomIsTest.checked = false;
     }
     render();
     alert("Sala atualizada com sucesso.");
@@ -6177,7 +6276,7 @@ async function createRooms() {
         continue;
       }
       if (supabaseClient) {
-        const { error } = await supabaseClient.from("rooms").insert({
+        const payload = {
           name: roomName,
           date: dateIso,
           time: startTimeValue,
@@ -6186,7 +6285,16 @@ async function createRooms() {
           class_target: targetClass,
           status: "Programada",
           created_by: state.session?.id || null
-        });
+        };
+        if (isSadmin()) {
+          payload.is_test = isTestRoom;
+        }
+        let { error } = await supabaseClient.from("rooms").insert(payload);
+        if (error && isMissingRoomTestColumnError(error)) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.is_test;
+          ({ error } = await supabaseClient.from("rooms").insert(fallbackPayload));
+        }
         if (error) {
           console.warn("Falha ao criar sala", error);
           failedCount += 1;
@@ -6207,6 +6315,9 @@ async function createRooms() {
   if (els.roomRecurrence) {
     els.roomRecurrence.value = "none";
   }
+  if (els.roomIsTest) {
+    els.roomIsTest.checked = false;
+  }
   render();
   if (failedCount) {
     alert(
@@ -6221,6 +6332,11 @@ async function createRooms() {
   if (createdCount) {
     alert(`${createdCount} evento(s) criado(s) com sucesso.`);
   }
+}
+
+function isMissingRoomTestColumnError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("is_test") || message.includes("column") && message.includes("not found");
 }
 
 function getSelectedRoomClasses() {
@@ -6505,6 +6621,7 @@ function renderRoomDetailsDialog(room) {
       <strong>Data:</strong> ${escapeHtml(room.date)}<br />
       <strong>Horario:</strong> ${escapeHtml(room.startTime || "-")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""}<br />
       <strong>Turma:</strong> ${escapeHtml(room.classTarget || "-")}<br />
+      <strong>Tipo:</strong> ${room.isTest ? "Sala teste" : "Operacional"}<br />
       <strong>Abertura:</strong> ${escapeHtml(room.openedAt || "-")} | <strong>Fechamento:</strong> ${escapeHtml(room.closedAt || "-")}
     `;
   }
@@ -6603,6 +6720,9 @@ function startRoomEdit(room) {
     els.roomRecurrence.value = "none";
     els.roomRecurrence.disabled = true;
   }
+  if (els.roomIsTest) {
+    els.roomIsTest.checked = Boolean(room.isTest);
+  }
   els.btnCreateRoom.textContent = "Salvar edicao";
   if (els.btnDeleteRoomFromEdit) {
     els.btnDeleteRoomFromEdit.style.display = "inline-flex";
@@ -6623,6 +6743,9 @@ async function handleDeleteRoomFromEdit() {
   }
   if (els.roomRecurrence) {
     els.roomRecurrence.disabled = false;
+  }
+  if (els.roomIsTest) {
+    els.roomIsTest.checked = false;
   }
   setSelectedRoomClasses([]);
 }
@@ -7831,7 +7954,7 @@ async function handleManualCheckin(studentId, options = {}) {
     roomName: room.name,
     className
   });
-  showLabel(student, record, { autoPrint: true, openPreview: false });
+  showLabel(student, record, { autoPrint: !room.isTest, openPreview: false });
   render();
   return { ok: true, message: `Check-in confirmado para ${student.name}.` };
 }
@@ -7876,6 +7999,7 @@ async function printCurrentLabel(options = {}) {
     const body = await response.json().catch(() => ({}));
     if (body?.jobId) {
       console.info(`Etiqueta enfileirada no servico de impressao: ${body.jobId}`);
+      startLabelPrintStatusPolling(body.jobId, body?.status);
     }
     return true;
   } catch (error) {
@@ -7907,6 +8031,74 @@ function getPrintServiceHeaders() {
   return headers;
 }
 
+function setLabelPrintStatus(message, tone = "info") {
+  if (!els.labelPrintStatus) {
+    return;
+  }
+  els.labelPrintStatus.hidden = !message;
+  els.labelPrintStatus.textContent = message || "";
+  els.labelPrintStatus.classList.toggle("is-ok", tone === "ok");
+  els.labelPrintStatus.classList.toggle("is-error", tone === "error");
+}
+
+function stopLabelPrintStatusPolling() {
+  if (labelContext.printStatusTimerId) {
+    clearTimeout(labelContext.printStatusTimerId);
+    labelContext.printStatusTimerId = null;
+  }
+}
+
+function startLabelPrintStatusPolling(jobId, initialStatus = "QUEUED") {
+  stopLabelPrintStatusPolling();
+  updateLabelPrintJobStatus({ id: jobId, status: initialStatus });
+  const startedAt = Date.now();
+
+  const poll = async () => {
+    const job = await fetchPrintJobStatus(jobId).catch(() => null);
+    if (job) {
+      updateLabelPrintJobStatus(job);
+      if (PRINT_JOB_FINAL_STATUSES.has(job.status)) {
+        labelContext.printStatusTimerId = null;
+        return;
+      }
+    }
+    if (Date.now() - startedAt >= PRINT_JOB_POLL_TIMEOUT_MS) {
+      setLabelPrintStatus(`Etiqueta ${jobId}: sem confirmacao final do servico. Consulte o painel da impressora.`, "error");
+      labelContext.printStatusTimerId = null;
+      return;
+    }
+    labelContext.printStatusTimerId = setTimeout(poll, PRINT_JOB_POLL_INTERVAL_MS);
+  };
+
+  labelContext.printStatusTimerId = setTimeout(poll, PRINT_JOB_POLL_INTERVAL_MS);
+}
+
+function updateLabelPrintJobStatus(job) {
+  if (!job?.id) {
+    return;
+  }
+  const status = String(job.status || "QUEUED");
+  const statusLabels = {
+    QUEUED: "na fila",
+    PRINTING: "imprimindo",
+    SENT_TO_SPOOLER: "enviada ao Windows",
+    SPOOLER_DONE: "concluida",
+    FAILED: "falhou",
+    CANCELLED: "cancelada"
+  };
+  const label = statusLabels[status] || status;
+  const errorDetail = job.error ? ` Detalhe: ${job.error}` : "";
+  if (status === "SPOOLER_DONE") {
+    setLabelPrintStatus(`Etiqueta ${job.id}: impressao concluida.`, "ok");
+    return;
+  }
+  if (status === "FAILED" || status === "CANCELLED") {
+    setLabelPrintStatus(`Etiqueta ${job.id}: ${label}.${errorDetail}`, "error");
+    return;
+  }
+  setLabelPrintStatus(`Etiqueta ${job.id}: ${label}.`);
+}
+
 async function requestRemoteReprint(checkinId, options = {}) {
   if (!supabaseClient || !checkinId) {
     if (!options.silentFailure) {
@@ -7933,6 +8125,8 @@ async function requestRemoteReprint(checkinId, options = {}) {
 }
 
 function showLabel(person, checkin, options = {}) {
+  stopLabelPrintStatusPolling();
+  setLabelPrintStatus("");
   const className = checkin.className || getClassForBirth(person.birth);
   const guardian = person.guardian || "-";
   const notes = checkin?.notes || person?.notes || "-";
@@ -9140,6 +9334,7 @@ function formatAuditAction(type) {
     user_deleted: "Usuario excluido",
     checkin_created: "Check-in",
     checkout_created: "Checkout",
+    checkins_cleared: "Check-ins zerados",
     stale_checkins_closed: "Check-ins antigos encerrados",
     room_opened: "Sala aberta",
     room_closed: "Sala fechada"
@@ -9313,6 +9508,9 @@ function getFilteredCheckins() {
   const endDate = parseInputDate(endValue);
 
   return state.checkins.filter((checkin) => {
+    if (isCheckinFromTestRoom(checkin)) {
+      return false;
+    }
     const datePart = checkin.dateTime.split(" ")[0];
     const checkinDate = parseRoomDate(datePart);
     if (!checkinDate) {

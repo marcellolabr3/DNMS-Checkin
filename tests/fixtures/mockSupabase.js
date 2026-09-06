@@ -36,8 +36,8 @@ function createMockSupabaseScript() {
       { id: "parent-2", name: "Responsavel Secundario", role: "responsavel", email: "secundario@dnms.test", phone: "11955550000", address: "Rua Secundaria", photo_url: "", family_id: "parent-2" }
     ],
     rooms: [
-      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null },
-      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null }
+      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false },
+      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false }
     ],
     students: [
       { id: "student-kids", name: "Ana Kids", birth_date: (yyyy - 5) + "-04-10", class_name: "Kids", primary_guardian_name: "Responsavel Teste", phone: "11988880000", address: "Rua Familia", notes: "Alergia leve", is_visitor: false, photo_url: "" },
@@ -348,6 +348,48 @@ function createMockSupabaseScript() {
   function canManageFamilyNetwork() {
     const actor = db.profiles.find((item) => item.id === currentUser?.id);
     return actor?.role === "admin" || String(actor?.email || "").toLowerCase() === "marvinlabre@gmail.com";
+  }
+
+  function isSadminUser() {
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    return String(actor?.email || "").toLowerCase() === "marvinlabre@gmail.com";
+  }
+
+  function sadminClearTodayCheckins() {
+    if (!isSadminUser()) {
+      return { data: null, error: { message: "sadmin_required" } };
+    }
+    const deletedIds = [];
+    for (let index = db.checkins.length - 1; index >= 0; index -= 1) {
+      const checkin = db.checkins[index];
+      if (String(checkin.checked_in_at || "").slice(0, 10) === todayIso) {
+        deletedIds.push(checkin.id);
+        db.checkins.splice(index, 1);
+      }
+    }
+    let deletedAuditLogs = 0;
+    for (let index = db.audit_logs.length - 1; index >= 0; index -= 1) {
+      const log = db.audit_logs[index];
+      if (log.target_type === "checkin" && deletedIds.includes(log.target_id)) {
+        deletedAuditLogs += 1;
+        db.audit_logs.splice(index, 1);
+      }
+    }
+    const actor = db.profiles.find((item) => item.id === currentUser?.id);
+    db.audit_logs.push({
+      id: "audit-" + idCounter++,
+      created_at: new Date().toISOString(),
+      actor_id: actor?.id || "",
+      actor_name: actor?.name || "",
+      actor_role: actor?.role || "",
+      action_type: "checkins_cleared",
+      target_type: "checkin",
+      target_id: null,
+      target_name: "Check-ins de hoje",
+      details: "SADMIN zerou os check-ins do dia.",
+      metadata: { date: todayIso, deleted_checkins: deletedIds.length, deleted_audit_logs: deletedAuditLogs }
+    });
+    return { data: { ok: true, date: todayIso, deleted_checkins: deletedIds.length, deleted_audit_logs: deletedAuditLogs }, error: null };
   }
 
   function adminLinkFamilyResponsible(anchorProfileId, targetEmail) {
@@ -748,6 +790,9 @@ function createMockSupabaseScript() {
           if (!row.id) {
             row.id = this.table + "-" + idCounter++;
           }
+          if (this.table === "rooms" && !Object.prototype.hasOwnProperty.call(row, "is_test")) {
+            row.is_test = false;
+          }
           if (this.table === "checkins" && !row.checked_in_at) {
             row.checked_in_at = new Date().toISOString();
           }
@@ -900,6 +945,9 @@ function createMockSupabaseScript() {
           }
           if (name === "admin_unlink_family_responsible") {
             return adminUnlinkFamilyResponsible(params?.target_profile_id);
+          }
+          if (name === "sadmin_clear_today_checkins") {
+            return sadminClearTodayCheckins();
           }
           if (name === "parent_checkin_with_presence") {
             return parentCheckinWithPresence(params?.target_student_id, params?.presence_token);

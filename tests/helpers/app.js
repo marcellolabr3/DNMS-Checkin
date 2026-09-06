@@ -25,6 +25,11 @@ async function openApp(page, options = {}) {
       window.confirmMessages.push(String(message));
       return true;
     };
+    window.promptMessages = [];
+    window.prompt = (message) => {
+      window.promptMessages.push(String(message));
+      return window.promptResponse || "ZERAR";
+    };
     Object.defineProperty(navigator, "serviceWorker", {
       configurable: true,
       value: undefined
