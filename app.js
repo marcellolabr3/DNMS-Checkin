@@ -1641,6 +1641,44 @@ async function recordAuditLog(actionType, targetType, targetId, targetName, deta
   return entry;
 }
 
+function normalizeAuditComparableValue(value) {
+  if (typeof value === "boolean") {
+    return value ? "Sim" : "Nao";
+  }
+  return String(value ?? "").trim();
+}
+
+function buildAuditChanges(previousValues, nextValues, labels = {}) {
+  return Object.keys(labels)
+    .map((key) => {
+      const before = normalizeAuditComparableValue(previousValues?.[key]);
+      const after = normalizeAuditComparableValue(nextValues?.[key]);
+      if (before === after) {
+        return null;
+      }
+      return {
+        field: key,
+        label: labels[key],
+        before,
+        after
+      };
+    })
+    .filter(Boolean);
+}
+
+function formatAuditChangeValue(value) {
+  return value || "-";
+}
+
+function formatAuditChanges(changes) {
+  if (!changes?.length) {
+    return "Nenhum dado alterado.";
+  }
+  return changes
+    .map((change) => `${change.label}: ${formatAuditChangeValue(change.before)} -> ${formatAuditChangeValue(change.after)}`)
+    .join("; ");
+}
+
 function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
   const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
@@ -5551,14 +5589,28 @@ async function saveFamilyProfile(profileId) {
   if (!confirm("Confirma salvar as alteracoes do responsavel?")) {
     return;
   }
+  const changes = buildAuditChanges(
+    {
+      name: profile.name || "",
+      phone: formatPhoneForStorage(profile.phone || ""),
+      address: profile.address || ""
+    },
+    { name, phone, address },
+    {
+      name: "Nome",
+      phone: "Telefone",
+      address: "Endereco"
+    }
+  );
   const { error } = await supabaseClient.from("profiles").update({ name, nome: name, phone, address }).eq("id", profileId);
   if (error) {
     alert(`Falha ao salvar responsavel: ${error.message || "erro inesperado"}`);
     return;
   }
-  await recordAuditLog("user_updated", "profile", profileId, name, `Dados do usuario ${name} alterados.`, {
+  await recordAuditLog("user_updated", "profile", profileId, name, `Dados do usuario ${name} alterados: ${formatAuditChanges(changes)}`, {
     phone,
-    address
+    address,
+    changes
   });
   await fetchProfiles();
   render();
@@ -6831,6 +6883,48 @@ async function saveStudent(event) {
     payload.phone = formatPhoneForStorage(guardianResolution.profile.phone);
   }
   const photoFile = getSelectedStudentPhotoFile();
+  const studentChanges = existing
+    ? buildAuditChanges(
+        {
+          name: existing.name || "",
+          birth: existing.birth || "",
+          className: existing.className || getClassForBirth(existing.birth),
+          guardian: existing.guardian || existing.owner || "",
+          phone: formatPhoneForStorage(existing.phone || ""),
+          address: existing.address || "",
+          notes: existing.notes || "",
+          isVisitor: Boolean(existing.isVisitor)
+        },
+        {
+          name: payload.name,
+          birth: payload.birth,
+          className: payload.className,
+          guardian: payload.guardian,
+          phone: payload.phone,
+          address: payload.address,
+          notes: payload.notes,
+          isVisitor: Boolean(payload.isVisitor)
+        },
+        {
+          name: "Nome",
+          birth: "Nascimento",
+          className: "Turma",
+          guardian: "Responsavel principal",
+          phone: "Telefone",
+          address: "Endereco",
+          notes: "Observacoes",
+          isVisitor: "Visitante"
+        }
+      )
+    : [];
+  if (existing && photoFile) {
+    studentChanges.push({
+      field: "photo",
+      label: "Foto",
+      before: existing.photoUrl ? "cadastrada" : "-",
+      after: "atualizada"
+    });
+  }
 
   const missingCommon = !payload.name || !payload.birth || !payload.className;
   const missingAdminFields = !isResponsavel && (!payload.guardian || !payload.phone || !payload.address);
@@ -6910,12 +7004,13 @@ async function saveStudent(event) {
         "student",
         data.id,
         payload.name,
-        existing?.id ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
+        existing?.id ? `Cadastro da crianca ${payload.name} alterado: ${formatAuditChanges(studentChanges)}` : `Crianca ${payload.name} cadastrada.`,
         {
           className: payload.className,
           guardianName: payload.guardian,
           guardianProfileId,
-          isVisitor: payload.isVisitor
+          isVisitor: payload.isVisitor,
+          changes: studentChanges
         }
       );
       await fetchStudents();
@@ -6937,8 +7032,8 @@ async function saveStudent(event) {
         "student",
         payload.id,
         payload.name,
-        index >= 0 ? `Cadastro da crianca ${payload.name} alterado.` : `Crianca ${payload.name} cadastrada.`,
-        { className: payload.className, guardianName: payload.guardian, guardianProfileId, isVisitor: payload.isVisitor }
+        index >= 0 ? `Cadastro da crianca ${payload.name} alterado: ${formatAuditChanges(studentChanges)}` : `Crianca ${payload.name} cadastrada.`,
+        { className: payload.className, guardianName: payload.guardian, guardianProfileId, isVisitor: payload.isVisitor, changes: studentChanges }
       );
     }
 

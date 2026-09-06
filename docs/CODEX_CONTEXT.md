@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v172`, `app.js?v=20260905a`, `print.js?v=20260905a`, `styles.css?v=20260901a`.
+- Cache atual: `checkin-cache-v174`, `app.js?v=20260906a`, `print.js?v=20260905a`, `styles.css?v=20260906a`.
 
 ## Regras criticas
 
@@ -54,12 +54,13 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-09-05, `npm.cmd test` passou com 178 testes.
+- Em 2026-09-06, `npm.cmd test` passou com 184 testes.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
 - A conexao do Print Service com o banco passou a funcionar corretamente usando o pooler Supabase no `.codex-secrets.env`.
+- Em 2026-09-06, log de alteracoes de cadastro passou a registrar campos alterados de responsaveis e criancas em `details`/`metadata.changes`.
 
 ## Pendencias reais
 

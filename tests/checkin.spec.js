@@ -1177,6 +1177,44 @@ test("log gera relatorio de cadastro de criancas", async ({ page }) => {
   await expect(page.locator("#btnExport")).toBeEnabled();
 });
 
+test("log mostra campos alterados no cadastro da crianca", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentPhone", "11912345678");
+  await page.fill("#studentAddress", "Rua Alterada");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType", "changes");
+
+  await expect(page.locator("#logList")).toContainText("Cadastro da crianca Ana Kids alterado");
+  await expect(page.locator("#logList")).toContainText("Telefone: +55 (11) 98888-0000 -> +55 (11) 91234-5678");
+  await expect(page.locator("#logList")).toContainText("Endereco: Rua Familia -> Rua Alterada");
+});
+
+test("log mostra campos alterados no cadastro do responsavel", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openFamiliesPanel(page);
+
+  await page.fill("#familySearch", "Responsavel Teste");
+  await page.fill("#familyEditPhone", "11922223333");
+  await page.fill("#familyEditAddress", "Rua Responsavel Alterada");
+  await page.click("#btnFamilySaveProfile");
+
+  await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType", "changes");
+
+  await expect(page.locator("#logList")).toContainText("Dados do usuario Responsavel Teste alterados");
+  await expect(page.locator("#logList")).toContainText("Telefone: +55 (11) 98888-0000 -> +55 (11) 92222-3333");
+  await expect(page.locator("#logList")).toContainText("Endereco: Rua Familia -> Rua Responsavel Alterada");
+});
+
 test("exportacao do log usa formato legivel para planilhas", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
