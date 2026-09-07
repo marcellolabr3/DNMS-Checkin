@@ -9,6 +9,7 @@ test("cargas principais do Supabase usam colunas explicitas", async () => {
   expect(app).toContain("STUDENT_SELECT_COLUMNS");
   expect(app).toContain("ROOM_SELECT_COLUMNS");
   expect(app).toContain("ROOM_SELECT_COLUMNS_WITH_TEST");
+  expect(app).toContain("ROOM_SELECT_COLUMNS_WITH_TEST_AND_LIMIT");
   expect(app).toContain("CHECKIN_SELECT_COLUMNS");
   expect(app).toContain("AUDIT_LOG_SELECT_COLUMNS");
   expect(app).toContain("SCHEDULE_SELECT_COLUMNS");
@@ -28,6 +29,9 @@ test("setup do Supabase inclui schema e policies atuais de mensagens", async () 
   expect(setup).toContain("create policy tip_reads_delete_admin on public.tip_reads");
   expect(setup).toContain("lower(coalesce(p.email, '')) = 'marvinlabre@gmail.com'");
   expect(setup).toContain("add column if not exists is_test boolean not null default false");
+  expect(setup).toContain("add column if not exists max_checkins integer null");
+  expect(setup).toContain("create or replace function public.prevent_checkin_over_room_limit");
+  expect(setup).toContain("create trigger prevent_checkin_over_room_limit_trigger");
   expect(setup).toContain("create or replace function public.is_sadmin_user");
   expect(setup).toContain("create or replace function public.sadmin_clear_today_checkins");
   expect(setup).toContain("create trigger enforce_room_test_sadmin_trigger");

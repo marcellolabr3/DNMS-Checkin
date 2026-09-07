@@ -20,6 +20,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
 const ROOM_SELECT_COLUMNS = "id,name,date,start_time,time,end_time,class_target,status,opened_at,closed_at";
 const ROOM_SELECT_COLUMNS_WITH_TEST = `${ROOM_SELECT_COLUMNS},is_test`;
+const ROOM_SELECT_COLUMNS_WITH_TEST_AND_LIMIT = `${ROOM_SELECT_COLUMNS_WITH_TEST},max_checkins`;
 const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at,printed_at";
 const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,action_type,target_type,target_id,target_name,details,metadata";
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
@@ -98,6 +99,7 @@ const els = {
   dashboardInfoText: document.getElementById("dashboardInfoText"),
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
   btnClearTodayCheckins: document.getElementById("btnClearTodayCheckins"),
+  btnClearTodayCheckinsLog: document.getElementById("btnClearTodayCheckinsLog"),
   tipsCard: document.getElementById("tipsCard"),
   btnTipsBackHome: document.getElementById("btnTipsBackHome"),
   scheduleFileInput: document.getElementById("scheduleFileInput"),
@@ -119,6 +121,7 @@ const els = {
   roomDate: document.getElementById("roomDate"),
   roomStartTime: document.getElementById("roomStartTime"),
   roomEndTime: document.getElementById("roomEndTime"),
+  roomMaxCheckins: document.getElementById("roomMaxCheckins"),
   roomClass: document.getElementById("roomClass"),
   roomRecurrence: document.getElementById("roomRecurrence"),
   roomTestField: document.getElementById("roomTestField"),
@@ -396,6 +399,7 @@ function bindEvents() {
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
   els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
   els.btnClearTodayCheckins?.addEventListener("click", clearTodayCheckinsAsSadmin);
+  els.btnClearTodayCheckinsLog?.addEventListener("click", clearTodayCheckinsAsSadmin);
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSaveScheduleSheetUrl?.addEventListener("click", saveScheduleSheetUrl);
   els.btnSyncScheduleSheet?.addEventListener("click", () => syncSchedulesFromGoogleSheet({ manual: true }));
@@ -1492,7 +1496,10 @@ async function fetchStudents() {
 }
 
 async function fetchRooms() {
-  let { data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS_WITH_TEST);
+  let { data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS_WITH_TEST_AND_LIMIT);
+  if (error && isMissingRoomMaxCheckinsColumnError(error)) {
+    ({ data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS_WITH_TEST));
+  }
   if (error && String(error.message || "").toLowerCase().includes("is_test")) {
     ({ data, error } = await supabaseClient.from("rooms").select(ROOM_SELECT_COLUMNS));
   }
@@ -1551,6 +1558,7 @@ async function fetchRooms() {
       classTarget: room.class_target,
       status: room.status,
       isTest: Boolean(room.is_test),
+      maxCheckins: normalizeRoomMaxCheckins(room.max_checkins),
       openedAt: room.opened_at ? formatTimeFromIso(room.opened_at) : "",
       closedAt: room.closed_at ? formatTimeFromIso(room.closed_at) : ""
     };
@@ -1774,6 +1782,7 @@ function renderPastRooms(rooms, canManageRoom, selectedSet) {
 
 function createRoomListItem(room, canManageRoom, selectedSet) {
   const canSelectRoom = canOperateRooms() && room.status !== "Fechada" && !isRoomPast(room);
+  const limitLabel = room.maxCheckins ? `${getCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
   const item = document.createElement("div");
   item.className = "list-item";
   item.innerHTML = `
@@ -1783,7 +1792,7 @@ function createRoomListItem(room, canManageRoom, selectedSet) {
         : ""
     }
     <strong>${escapeHtml(room.date)} ${escapeHtml(room.startTime || "")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""} - ${escapeHtml(room.name)}${room.isTest ? " [TESTE]" : ""}</strong>
-    <span class="muted">Turma: ${escapeHtml(room.classTarget || "-")} | Status: ${escapeHtml(room.status)}${room.isTest ? " | Sala teste" : ""}</span>
+    <span class="muted">Turma: ${escapeHtml(room.classTarget || "-")} | Status: ${escapeHtml(room.status)} | Limite: ${escapeHtml(limitLabel)}${room.isTest ? " | Sala teste" : ""}</span>
     <span class="muted">Abertura: ${escapeHtml(room.openedAt || "-")} | Fechamento: ${escapeHtml(room.closedAt || "-")}</span>
   `;
   item.addEventListener("click", (event) => {
@@ -2315,6 +2324,14 @@ function buildEventSummary(checkins) {
   };
 }
 
+function formatEventSummaryDisplayLine(group) {
+  return `${group.label}: ${group.total} check-in(s)`;
+}
+
+function formatEventSummaryDisplayTotals(summary) {
+  return `Total geral: ${summary.totalCheckins} check-in(s), ${summary.uniqueStudents} crianca(s)`;
+}
+
 function createEventSummaryGroup(label) {
   return { label, total: 0, active: 0, checkedOut: 0, pendingPrint: 0 };
 }
@@ -2362,11 +2379,11 @@ function getLogPeriodLabel() {
 function buildEventSummaryTextLines(summary, periodLabel = getLogPeriodLabel()) {
   return [
     `Resumo do evento (${periodLabel})`,
-    formatEventSummaryTotals(summary),
+    formatEventSummaryDisplayTotals(summary),
     "Por turma:",
-    ...(summary.byClass.length ? summary.byClass.map((group) => `- ${formatEventSummaryLine(group)}`) : ["- Nenhum check-in"]),
+    ...(summary.byClass.length ? summary.byClass.map((group) => `- ${formatEventSummaryDisplayLine(group)}`) : ["- Nenhum check-in"]),
     "Por sala:",
-    ...(summary.byRoom.length ? summary.byRoom.map((group) => `- ${formatEventSummaryLine(group)}`) : ["- Nenhum check-in"])
+    ...(summary.byRoom.length ? summary.byRoom.map((group) => `- ${formatEventSummaryDisplayLine(group)}`) : ["- Nenhum check-in"])
   ];
 }
 
@@ -2385,11 +2402,11 @@ function renderDashboardEventSummary() {
   const today = formatToday();
   const summary = buildEventSummary(getTodayCheckins());
   const classLines = summary.byClass.length
-    ? summary.byClass.slice(0, 4).map((group) => escapeHtml(formatEventSummaryLine(group))).join("<br />")
+    ? summary.byClass.slice(0, 4).map((group) => escapeHtml(formatEventSummaryDisplayLine(group))).join("<br />")
     : "Nenhum check-in hoje.";
   els.dashboardEventSummary.innerHTML = `
     <strong>Resumo do dia (${escapeHtml(today)})</strong><br />
-    ${escapeHtml(formatEventSummaryTotals(summary))}<br />
+    ${escapeHtml(formatEventSummaryDisplayTotals(summary))}<br />
     ${classLines}
   `;
 }
@@ -2784,6 +2801,9 @@ function renderAdminDashboardTools() {
   if (els.btnClearTodayCheckins) {
     els.btnClearTodayCheckins.style.display = isSadmin() ? "inline-flex" : "none";
   }
+  if (els.btnClearTodayCheckinsLog) {
+    els.btnClearTodayCheckinsLog.style.display = isSadmin() ? "inline-flex" : "none";
+  }
 }
 
 function renderRoleVisibility() {
@@ -3080,8 +3100,8 @@ function renderEventSummaryReport() {
     return;
   }
 
-  els.logSummary.textContent = `Resumo do evento: ${formatEventSummaryTotals(summary)}.`;
-  els.logCounts.textContent = summary.byClass.map(formatEventSummaryLine).join(" | ");
+  els.logSummary.textContent = `Resumo do evento: ${formatEventSummaryDisplayTotals(summary)}.`;
+  els.logCounts.textContent = summary.byClass.map(formatEventSummaryDisplayLine).join(" | ");
   appendEventSummarySection("Por turma", summary.byClass);
   appendEventSummarySection("Por sala", summary.byRoom);
   els.btnExport.disabled = false;
@@ -3103,7 +3123,7 @@ function appendEventSummarySection(title, groups) {
     item.className = "list-item";
     item.innerHTML = `
       <strong>${escapeHtml(group.label)}</strong>
-      <span class="muted">Total: ${group.total} | Ativos: ${group.active} | Check-outs: ${group.checkedOut} | Impressao pendente: ${group.pendingPrint}</span>
+      <span class="muted">Total: ${group.total} check-in(s)</span>
     `;
     list.appendChild(item);
   });
@@ -3207,7 +3227,7 @@ async function clearTodayCheckinsAsSadmin() {
     return;
   }
   const todayIso = formatTodayIso();
-  const todayCount = (state.checkins || []).filter((checkin) => String(checkin.checkedInAt || "").slice(0, 10) === todayIso).length;
+  const todayCount = (state.checkins || []).filter((checkin) => getCheckinDateIso(checkin) === todayIso).length;
   if (!todayCount) {
     alert("Nao ha check-ins de hoje para zerar.");
     return;
@@ -3222,6 +3242,9 @@ async function clearTodayCheckinsAsSadmin() {
   }
   if (els.btnClearTodayCheckins) {
     els.btnClearTodayCheckins.disabled = true;
+  }
+  if (els.btnClearTodayCheckinsLog) {
+    els.btnClearTodayCheckinsLog.disabled = true;
   }
   try {
     const { data, error } = await supabaseClient.rpc("sadmin_clear_today_checkins");
@@ -3238,6 +3261,9 @@ async function clearTodayCheckinsAsSadmin() {
   } finally {
     if (els.btnClearTodayCheckins) {
       els.btnClearTodayCheckins.disabled = false;
+    }
+    if (els.btnClearTodayCheckinsLog) {
+      els.btnClearTodayCheckinsLog.disabled = false;
     }
   }
 }
@@ -6171,9 +6197,14 @@ async function createRooms() {
   const recurrence = els.roomRecurrence.value;
   const isEditing = Boolean(roomFormContext.editingId);
   const isTestRoom = isSadmin() && Boolean(els.roomIsTest?.checked);
+  const maxCheckins = getRoomMaxCheckinsFromForm();
 
   if (!dateValue || !startTimeValue || !endTimeValue || !classTargets.length) {
     alert("Informe data, horario de inicio, horario de termino e ao menos uma turma do evento.");
+    return;
+  }
+  if (maxCheckins === false) {
+    alert("Informe um limite de check-ins inteiro e maior que zero, ou deixe em branco para nao limitar.");
     return;
   }
   if (isEditing && classTargets.length !== 1) {
@@ -6200,7 +6231,8 @@ async function createRooms() {
         time: startTimeValue,
         start_time: startTimeValue,
         end_time: endTimeValue,
-        class_target: classTarget
+        class_target: classTarget,
+        max_checkins: maxCheckins
       };
       if (isSadmin()) {
         payload.is_test = isTestRoom;
@@ -6212,6 +6244,14 @@ async function createRooms() {
       if (error && isMissingRoomTestColumnError(error)) {
         const fallbackPayload = { ...payload };
         delete fallbackPayload.is_test;
+        ({ error } = await supabaseClient
+          .from("rooms")
+          .update(fallbackPayload)
+          .eq("id", roomFormContext.editingId));
+      }
+      if (error && isMissingRoomMaxCheckinsColumnError(error)) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.max_checkins;
         ({ error } = await supabaseClient
           .from("rooms")
           .update(fallbackPayload)
@@ -6233,6 +6273,7 @@ async function createRooms() {
         room.endTime = endTimeValue;
         room.classTarget = classTarget;
         room.isTest = isTestRoom;
+        room.maxCheckins = maxCheckins;
       }
     }
     roomFormContext.editingId = "";
@@ -6245,6 +6286,9 @@ async function createRooms() {
     }
     if (els.roomIsTest) {
       els.roomIsTest.checked = false;
+    }
+    if (els.roomMaxCheckins) {
+      els.roomMaxCheckins.value = "";
     }
     render();
     alert("Sala atualizada com sucesso.");
@@ -6283,6 +6327,7 @@ async function createRooms() {
           start_time: startTimeValue,
           end_time: endTimeValue,
           class_target: targetClass,
+          max_checkins: maxCheckins,
           status: "Programada",
           created_by: state.session?.id || null
         };
@@ -6293,6 +6338,11 @@ async function createRooms() {
         if (error && isMissingRoomTestColumnError(error)) {
           const fallbackPayload = { ...payload };
           delete fallbackPayload.is_test;
+          ({ error } = await supabaseClient.from("rooms").insert(fallbackPayload));
+        }
+        if (error && isMissingRoomMaxCheckinsColumnError(error)) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.max_checkins;
           ({ error } = await supabaseClient.from("rooms").insert(fallbackPayload));
         }
         if (error) {
@@ -6318,6 +6368,9 @@ async function createRooms() {
   if (els.roomIsTest) {
     els.roomIsTest.checked = false;
   }
+  if (els.roomMaxCheckins) {
+    els.roomMaxCheckins.value = "";
+  }
   render();
   if (failedCount) {
     alert(
@@ -6337,6 +6390,28 @@ async function createRooms() {
 function isMissingRoomTestColumnError(error) {
   const message = String(error?.message || "").toLowerCase();
   return message.includes("is_test") || message.includes("column") && message.includes("not found");
+}
+
+function isMissingRoomMaxCheckinsColumnError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("max_checkins") || message.includes("column") && message.includes("not found");
+}
+
+function normalizeRoomMaxCheckins(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getRoomMaxCheckinsFromForm() {
+  const raw = String(els.roomMaxCheckins?.value || "").trim();
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return String(parsed) === raw && parsed > 0 ? parsed : false;
 }
 
 function getSelectedRoomClasses() {
@@ -6612,6 +6687,7 @@ function renderRoomDetailsDialog(room) {
   const canManageRoom = canManageRooms();
   const canOperateRoom = canOperateRooms();
   const students = getRoomCheckinStudents(room.id);
+  const limitLabel = room.maxCheckins ? `${getCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
   if (els.roomDetailsTitle) {
     els.roomDetailsTitle.textContent = `Turma ${room.classTarget || "-"} (${room.status})`;
   }
@@ -6621,6 +6697,7 @@ function renderRoomDetailsDialog(room) {
       <strong>Data:</strong> ${escapeHtml(room.date)}<br />
       <strong>Horario:</strong> ${escapeHtml(room.startTime || "-")}${room.endTime ? ` - ${escapeHtml(room.endTime)}` : ""}<br />
       <strong>Turma:</strong> ${escapeHtml(room.classTarget || "-")}<br />
+      <strong>Limite de check-ins:</strong> ${escapeHtml(limitLabel)}<br />
       <strong>Tipo:</strong> ${room.isTest ? "Sala teste" : "Operacional"}<br />
       <strong>Abertura:</strong> ${escapeHtml(room.openedAt || "-")} | <strong>Fechamento:</strong> ${escapeHtml(room.closedAt || "-")}
     `;
@@ -6715,6 +6792,9 @@ function startRoomEdit(room) {
   els.roomDate.value = room.dateIso || "";
   els.roomStartTime.value = room.startTime || room.time || "";
   els.roomEndTime.value = room.endTime || "";
+  if (els.roomMaxCheckins) {
+    els.roomMaxCheckins.value = room.maxCheckins || "";
+  }
   setSelectedRoomClasses([room.classTarget || ""]);
   if (els.roomRecurrence) {
     els.roomRecurrence.value = "none";
@@ -6746,6 +6826,9 @@ async function handleDeleteRoomFromEdit() {
   }
   if (els.roomIsTest) {
     els.roomIsTest.checked = false;
+  }
+  if (els.roomMaxCheckins) {
+    els.roomMaxCheckins.value = "";
   }
   setSelectedRoomClasses([]);
 }
@@ -7872,6 +7955,10 @@ async function handleManualCheckin(studentId, options = {}) {
   if (already) {
     return fail("Este aluno ja fez check-in nesta sala.");
   }
+  const roomLimit = getRoomCapacityValidation(room);
+  if (!roomLimit.ok) {
+    return fail(roomLimit.message);
+  }
   let record = {
     id: uid(),
     roomId: room.id,
@@ -7927,6 +8014,9 @@ async function handleManualCheckin(studentId, options = {}) {
       }
       if (message.includes("student_age_out_of_range") || message.includes("student_class_mismatch_for_age")) {
         return fail("Crianca fora da faixa de idade para participacao neste ano.");
+      }
+      if (message.includes("room_checkin_limit_reached")) {
+        return fail("Limite de check-ins atingido para esta sala.");
       }
       return fail(`Falha ao registrar check-in: ${error.message || "erro inesperado"}`);
     }
@@ -9154,13 +9244,31 @@ function getMinistryYearAgeFromBirth(birth, referenceDate = new Date()) {
   return referenceDate.getFullYear() - year - 1;
 }
 
+function getAgeFromBirthAtDate(birth, referenceDate = new Date()) {
+  if (!birth) {
+    return null;
+  }
+  const [year, month, day] = birth.split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day) {
+    return null;
+  }
+  let age = referenceDate.getFullYear() - year;
+  const hasHadBirthday =
+    referenceDate.getMonth() > month - 1 ||
+    (referenceDate.getMonth() === month - 1 && referenceDate.getDate() >= day);
+  if (!hasHadBirthday) {
+    age -= 1;
+  }
+  return age;
+}
+
 function getStudentAgeEligibility(student, referenceDate = new Date()) {
   const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
-  const ministryYearAge = getMinistryYearAgeFromBirth(birth, referenceDate);
-  if (ministryYearAge === null) {
+  const age = getAgeFromBirthAtDate(birth, referenceDate);
+  if (age === null) {
     return { ok: false, message: "Data de nascimento invalida para check-in." };
   }
-  if (ministryYearAge < 2 || ministryYearAge > 14) {
+  if (age < 2 || age > 14) {
     return {
       ok: false,
       message: "Crianca fora da faixa de idade para participacao neste ano."
@@ -9169,8 +9277,8 @@ function getStudentAgeEligibility(student, referenceDate = new Date()) {
   return { ok: true, message: "" };
 }
 
-function getClassForBirth(birth) {
-  const age = getMinistryYearAgeFromBirth(birth);
+function getClassForBirth(birth, referenceDate = new Date()) {
+  const age = getAgeFromBirthAtDate(birth, referenceDate);
   if (age === null) {
     return "Indefinida";
   }
@@ -9557,10 +9665,27 @@ function getAvailableCheckinRoomForClass(className) {
     return null;
   }
   const activeRoom = getActiveRoom();
-  if (activeRoom && activeRoom.classTarget === className && getCheckinWindowValidation(activeRoom).ok) {
+  if (
+    activeRoom &&
+    activeRoom.classTarget === className &&
+    getCheckinWindowValidation(activeRoom).ok &&
+    getRoomCapacityValidation(activeRoom).ok
+  ) {
     return activeRoom;
   }
-  return openRooms.find((room) => getCheckinWindowValidation(room).ok) || null;
+  return openRooms.find((room) => getCheckinWindowValidation(room).ok && getRoomCapacityValidation(room).ok) || null;
+}
+
+function getRoomCapacityValidation(room) {
+  const maxCheckins = normalizeRoomMaxCheckins(room?.maxCheckins);
+  if (!maxCheckins) {
+    return { ok: true, message: "" };
+  }
+  const total = getCheckinsForRoom(room.id).length;
+  if (total >= maxCheckins) {
+    return { ok: false, message: "Limite de check-ins atingido para esta sala." };
+  }
+  return { ok: true, message: "" };
 }
 
 function getCheckinWindowValidation(room, now = new Date()) {

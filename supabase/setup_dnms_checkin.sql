@@ -54,6 +54,7 @@ create table if not exists public.rooms (
   time text not null,
   class_target text not null,
   status text not null default 'Programada' check (status in ('Programada', 'Aberta', 'Fechada')),
+  max_checkins integer null check (max_checkins is null or max_checkins > 0),
   opened_at timestamptz null,
   closed_at timestamptz null,
   created_by uuid null references public.profiles (id) on delete set null,
@@ -80,20 +81,32 @@ returns text
 language sql
 stable
 as $$
+  with age_calc as (
+    select date_part('year', age(reference_date, birth_date))::int as completed_age
+  )
   select case
     when birth_date is null or reference_date is null then 'Indefinida'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 2 and 3 then 'Maternal'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 4 and 6 then 'Kids'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 7 and 10 then 'Juniors'
-    when extract(year from reference_date)::int - extract(year from birth_date)::int - 1 between 11 and 14 then 'Teens'
+    when completed_age between 2 and 3 then 'Maternal'
+    when completed_age between 4 and 6 then 'Kids'
+    when completed_age between 7 and 10 then 'Juniors'
+    when completed_age between 11 and 14 then 'Teens'
     else 'Fora da faixa'
   end
+  from age_calc
 $$;
 
 alter table public.rooms
   add column if not exists start_time text null,
   add column if not exists end_time text null,
-  add column if not exists is_test boolean not null default false;
+  add column if not exists is_test boolean not null default false,
+  add column if not exists max_checkins integer null;
+
+alter table public.rooms
+  drop constraint if exists rooms_max_checkins_positive;
+
+alter table public.rooms
+  add constraint rooms_max_checkins_positive
+  check (max_checkins is null or max_checkins > 0);
 
 alter table public.checkins
   add column if not exists room_name_snapshot text null;
@@ -2304,6 +2317,45 @@ create trigger prevent_checkin_outside_student_age_range_trigger
 before insert or update of student_id, room_id on public.checkins
 for each row execute function public.prevent_checkin_outside_student_age_range();
 
+create or replace function public.prevent_checkin_over_room_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  room_limit integer;
+  current_total integer;
+begin
+  select r.max_checkins
+    into room_limit
+    from public.rooms r
+   where r.id = new.room_id
+   limit 1;
+
+  if room_limit is null then
+    return new;
+  end if;
+
+  select count(*)::integer
+    into current_total
+    from public.checkins c
+   where c.room_id = new.room_id
+     and (tg_op = 'INSERT' or c.id <> new.id);
+
+  if current_total >= room_limit then
+    raise exception 'room_checkin_limit_reached';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_checkin_over_room_limit_trigger on public.checkins;
+create trigger prevent_checkin_over_room_limit_trigger
+before insert or update of room_id on public.checkins
+for each row execute function public.prevent_checkin_over_room_limit();
+
 create or replace function public.parent_checkin_with_presence(
   target_student_id uuid,
   presence_token text
@@ -2375,6 +2427,14 @@ begin
     from public.rooms
    where rooms.status = 'Aberta'
      and rooms.class_target = public.get_student_class_for_birth_year(target_student.birth_date, rooms.date)
+     and (
+       rooms.max_checkins is null
+       or (
+         select count(*)::integer
+           from public.checkins c
+          where c.room_id = rooms.id
+       ) < rooms.max_checkins
+     )
    order by
      case when public.is_room_checkin_window_open(rooms.id, now()) then 0 else 1 end,
      rooms.date asc,

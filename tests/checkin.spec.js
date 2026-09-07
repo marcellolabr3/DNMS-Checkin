@@ -46,6 +46,15 @@ function shortDateLabel(isoDate) {
   return `${day}/${month}`;
 }
 
+function birthInputYearsAgo(years) {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - years);
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function timeOffset(minutes) {
   const date = new Date(Date.now() + minutes * 60000);
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -235,7 +244,7 @@ test("dashboard alerta e encerra check-ins ativos antigos", async ({ page }) => 
   expect(alerts).toContain("1 check-in(s) antigo(s) encerrado(s).");
 });
 
-test("turma muda somente no ano seguinte ao aniversario", async ({ page }) => {
+test("turma usa idade completa na data atual", async ({ page }) => {
   const year = new Date().getFullYear();
   await openApp(page);
   await page.evaluate(
@@ -594,6 +603,7 @@ test("evento criado para hoje permanece programado ate abertura manual", async (
   await page.fill("#roomDate", todayIso());
   await page.fill("#roomStartTime", timeOffset(-10));
   await page.fill("#roomEndTime", timeOffset(60));
+  await page.fill("#roomMaxCheckins", "12");
   await page.locator('#roomClass input[value="Kids"]').check();
   await page.click("#btnCreateRoom");
 
@@ -601,10 +611,44 @@ test("evento criado para hoje permanece programado ate abertura manual", async (
     .poll(() =>
       page.evaluate(() => {
         const room = window.__mockDnmsDb.rooms.find((item) => item.name.startsWith("Culto Manual "));
-        return room ? { status: room.status, openedAt: room.opened_at || null } : null;
+        return room ? { status: room.status, openedAt: room.opened_at || null, maxCheckins: room.max_checkins } : null;
       })
     )
-    .toEqual({ status: "Programada", openedAt: null });
+    .toEqual({ status: "Programada", openedAt: null, maxCheckins: 12 });
+});
+
+test("limite de check-ins da sala bloqueia novas entradas", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const room = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+    room.max_checkins = 1;
+    window.__mockDnmsDb.students.push({
+      id: "student-kids-limit",
+      name: "Caio Kids",
+      birth_date: window.__mockDnmsDb.students.find((item) => item.id === "student-kids").birth_date,
+      class_name: "Kids",
+      primary_guardian_name: "Responsavel Teste",
+      phone: "11988880000",
+      address: "Rua Familia",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+  });
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.filter((item) => item.room_id === "room-kids").length))
+    .toBe(1);
+
+  await studentItem(page, "Caio Kids").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.filter((item) => item.room_id === "room-kids").length))
+    .toBe(1);
+  const alerts = await getAlerts(page);
+  expect(alerts).toContain("Limite de check-ins atingido para esta sala.");
 });
 
 test("sala criada hoje abre manualmente, permanece visivel e libera check-in", async ({ page }) => {
@@ -649,6 +693,29 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
   await expect
     .poll(() => page.evaluate((name) => window.__mockDnmsDb.rooms.some((room) => room.name === name), shortDateLabel(date)))
     .toBe(true);
+});
+
+test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "Bebe Maternal");
+  await page.fill("#studentBirth", birthInputYearsAgo(2));
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Maternal");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await expect(studentItem(page, "Bebe Maternal")).toContainText("Turma: Maternal");
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.name === "Bebe Maternal")?.class_name)
+    )
+    .toBe("Maternal");
 });
 
 test("salas passadas ficam no historico ocultavel por ate 16 dias", async ({ page }) => {
@@ -1291,7 +1358,9 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   await page.click("#btnShareWhatsapp");
   const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
   expect(whatsappText).toContain("Resumo do evento");
-  expect(whatsappText).toContain("Total geral: 1 check-in(s), 1 crianca(s), 1 ativo(s), 0 checkout(s), Impressao pendente: 1");
+  expect(whatsappText).toContain("Total geral: 1 check-in(s), 1 crianca(s)");
+  expect(whatsappText).not.toContain("checkout");
+  expect(whatsappText).not.toContain("Impressao pendente");
   expect(whatsappText).toContain("Frequencia detalhada");
   expect(whatsappText).toContain("Ana Kids | Kids |");
 });
@@ -1329,14 +1398,15 @@ test("log gera resumo do evento com pendencias de impressao e exporta csv", asyn
   await loginAs(page, "admin@dnms.test");
 
   await expect(page.locator("#dashboardEventSummary")).toContainText("Total geral: 2");
-  await expect(page.locator("#dashboardEventSummary")).toContainText("Impressao pendente: 1");
+  await expect(page.locator("#dashboardEventSummary")).not.toContainText("Impressao pendente");
 
   await page.click("#btnLogPanel");
   await page.selectOption("#logReportType", "event_summary");
-  await expect(page.locator("#logSummary")).toContainText("Resumo do evento: Total geral: 2 check-in(s), 2 crianca(s), 1 ativo(s), 1 checkout(s), Impressao pendente: 1.");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
+  await expect(page.locator("#logSummary")).toContainText("Resumo do evento: Total geral: 2 check-in(s), 2 crianca(s).");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s)");
   await expect(page.locator("#logList")).toContainText("Por turma");
   await expect(page.locator("#logList")).toContainText("Culto Juniors");
+  await expect(page.locator("#logList")).not.toContainText("Impressao pendente");
   await expect(page.locator("#btnShareWhatsapp")).toBeEnabled();
 
   const downloadPromise = page.waitForEvent("download");
@@ -1362,10 +1432,12 @@ test("log gera resumo do evento com pendencias de impressao e exporta csv", asyn
   await page.click("#btnShareWhatsapp");
   const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
   expect(whatsappText).toContain(`Resumo do evento (${todayIso()})`);
-  expect(whatsappText).toContain("Total geral: 2 check-in(s), 2 crianca(s), 1 ativo(s), 1 checkout(s), Impressao pendente: 1");
+  expect(whatsappText).toContain("Total geral: 2 check-in(s), 2 crianca(s)");
   expect(whatsappText).toContain("Por turma:");
-  expect(whatsappText).toContain("- Kids: 1 check-in(s), 1 ativo(s), 0 checkout(s), 1 pendente(s) de impressao");
-  expect(whatsappText).toContain("- Culto Juniors: 1 check-in(s), 0 ativo(s), 1 checkout(s), 0 pendente(s) de impressao");
+  expect(whatsappText).toContain("- Kids: 1 check-in(s)");
+  expect(whatsappText).toContain("- Culto Juniors: 1 check-in(s)");
+  expect(whatsappText).not.toContain("checkout");
+  expect(whatsappText).not.toContain("impressao");
 });
 
 test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {
@@ -1599,7 +1671,9 @@ test("sadmin zera check-ins de hoje com confirmacao forte", async ({ page }) => 
 
   await page.click("#btnHomePanel");
   await expect(page.locator("#btnClearTodayCheckins")).toBeVisible();
-  await page.click("#btnClearTodayCheckins");
+  await page.click("#btnLogPanel");
+  await expect(page.locator("#btnClearTodayCheckinsLog")).toBeVisible();
+  await page.click("#btnClearTodayCheckinsLog");
 
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.length))

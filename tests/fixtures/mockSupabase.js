@@ -36,8 +36,8 @@ function createMockSupabaseScript() {
       { id: "parent-2", name: "Responsavel Secundario", role: "responsavel", email: "secundario@dnms.test", phone: "11955550000", address: "Rua Secundaria", photo_url: "", family_id: "parent-2" }
     ],
     rooms: [
-      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false },
-      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false }
+      { id: "room-kids", name: "Culto Kids", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Kids", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false, max_checkins: null },
+      { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false, max_checkins: null }
     ],
     students: [
       { id: "student-kids", name: "Ana Kids", birth_date: (yyyy - 5) + "-04-10", class_name: "Kids", primary_guardian_name: "Responsavel Teste", phone: "11988880000", address: "Rua Familia", notes: "Alergia leve", is_visitor: false, photo_url: "" },
@@ -260,6 +260,9 @@ function createMockSupabaseScript() {
     if (!room) {
       return { data: null, error: { message: "Nao ha sala aberta para a turma deste aluno." } };
     }
+    if (room.max_checkins && db.checkins.filter((item) => item.room_id === room.id).length >= room.max_checkins) {
+      return { data: null, error: { message: "room_checkin_limit_reached" } };
+    }
     if (!isRoomCheckinWindowOpen(room)) {
       return { data: null, error: { message: "Horario de check-in encerrado para esta aula." } };
     }
@@ -355,6 +358,17 @@ function createMockSupabaseScript() {
     return String(actor?.email || "").toLowerCase() === "marvinlabre@gmail.com";
   }
 
+  function isoDateFromTimestamp(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return yyyy + "-" + mm + "-" + dd;
+  }
+
   function sadminClearTodayCheckins() {
     if (!isSadminUser()) {
       return { data: null, error: { message: "sadmin_required" } };
@@ -362,7 +376,7 @@ function createMockSupabaseScript() {
     const deletedIds = [];
     for (let index = db.checkins.length - 1; index >= 0; index -= 1) {
       const checkin = db.checkins[index];
-      if (String(checkin.checked_in_at || "").slice(0, 10) === todayIso) {
+      if (isoDateFromTimestamp(checkin.checked_in_at) === todayIso) {
         deletedIds.push(checkin.id);
         db.checkins.splice(index, 1);
       }
@@ -784,6 +798,13 @@ function createMockSupabaseScript() {
           if (invalid) {
             return { data: null, error: { message: "checkin_window_closed", code: "P0001" } };
           }
+          const overLimit = entries.find((entry) => {
+            const room = db.rooms.find((item) => item.id === entry.room_id);
+            return room?.max_checkins && db.checkins.filter((item) => item.room_id === room.id).length >= room.max_checkins;
+          });
+          if (overLimit) {
+            return { data: null, error: { message: "room_checkin_limit_reached", code: "P0001" } };
+          }
         }
         const inserted = entries.map((entry) => {
           const row = { ...entry };
@@ -792,6 +813,9 @@ function createMockSupabaseScript() {
           }
           if (this.table === "rooms" && !Object.prototype.hasOwnProperty.call(row, "is_test")) {
             row.is_test = false;
+          }
+          if (this.table === "rooms" && !Object.prototype.hasOwnProperty.call(row, "max_checkins")) {
+            row.max_checkins = null;
           }
           if (this.table === "checkins" && !row.checked_in_at) {
             row.checked_in_at = new Date().toISOString();

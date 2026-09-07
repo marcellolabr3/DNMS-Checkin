@@ -142,6 +142,9 @@
           <label class="field">Horario de termino
             <input id="roomEndTime" type="time" />
           </label>
+          <label class="field">Limite de check-ins
+            <input id="roomMaxCheckins" type="number" min="1" step="1" placeholder="Sem limite" />
+          </label>
           <fieldset class="field room-class-field">
             <legend>Turmas</legend>
             <div id="roomClass" class="room-class-options">
@@ -227,6 +230,7 @@
         <div class="actions">
           <button id="btnExport" class="ghost">Exportar planilha</button>
           <button id="btnShareWhatsapp" class="ghost">Enviar WhatsApp</button>
+          <button id="btnClearTodayCheckinsLog" class="danger" type="button" style="display:none">Zerar check-ins de hoje</button>
         </div>
       </div>
       <div class="filters">
@@ -640,6 +644,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20260906c"></script>
+  <script src="app.js?v=20260907a"></script>
 </body>
 </html>

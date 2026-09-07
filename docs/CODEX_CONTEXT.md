@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v176`, `app.js?v=20260906c`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v177`, `app.js?v=20260907a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -26,6 +26,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
 - Salas podem ser marcadas como teste somente por SADMIN; check-ins dessas salas nao entram em relatorios operacionais e nao disparam autoimpressao.
+- Salas aceitam `max_checkins` opcional; `null` significa sem limite. Check-in deve ser bloqueado quando a sala atinge a capacidade.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
 - Service worker deve cachear apenas assets estaticos locais explicitamente listados.
@@ -35,6 +36,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
 - Patch aplicado em producao em 2026-09-06: `supabase/patch_sadmin_test_rooms_clear_checkins.sql` adiciona `rooms.is_test`, trigger SADMIN e RPC `sadmin_clear_today_checkins`.
+- Patch pendente para producao: `supabase/patch_room_checkin_limit_and_age.sql` adiciona `rooms.max_checkins`, bloqueio server-side de capacidade e corrige regra de idade para aniversario completo.
 - Supabase guarda familias, criancas, check-ins, historico, reimpressoes e auditoria.
 - Conexao local do Print Service com Postgres deve usar o pooler Supabase `aws-1-us-east-1.pooler.supabase.com:5432/postgres` com usuario `postgres.<project-ref>`; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
@@ -57,7 +59,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-09-06, `npm.cmd test` passou com 186 testes apos adicionar polling visual de impressao, sala teste SADMIN e limpeza SADMIN de check-ins do dia.
+- Em 2026-09-07, `npm.cmd test` passou com 190 testes apos ajustar WhatsApp/relatorio, idade Maternal por aniversario completo, botao de zerar check-ins no Log e limite de check-ins por sala.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
@@ -67,6 +69,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Pendencias reais
 
+- Aplicar em producao `supabase/patch_room_checkin_limit_and_age.sql`; depois validar limite de sala e crianca de 2 anos no Maternal com SADMIN.
 - Auditar Supabase/producao e `setup_dnms_checkin.sql`; limpar fotos orfas do Storage.
 - Validar cadastro duplicado e recuperacao de senha em ambiente real; documentar ajuste operacional de responsaveis.
 - Impressao: proxima fase e robustez operacional, com listagem de jobs recentes, retry manual seguro antes do spooler, retention do SQLite e diagnostico mais claro de impressora/fila externa.
