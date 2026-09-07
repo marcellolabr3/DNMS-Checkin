@@ -1333,7 +1333,7 @@ async function hydrateFromSupabase() {
       id: profile.id,
       name: profile.name,
       role: normalizeRole(profile.role),
-      email: profile.email || "",
+      email: profile.email || session.user.email || "",
       phone: formatPhoneForDisplay(profile.phone || ""),
       address: profile.address || "",
       photoUrl: profile.photo_url || "",
@@ -2801,8 +2801,15 @@ function renderAdminDashboardTools() {
   if (els.btnClearTodayCheckins) {
     els.btnClearTodayCheckins.style.display = isSadmin() ? "inline-flex" : "none";
   }
+}
+
+function renderSadminControls() {
+  const canUseSadminTools = isSadmin();
+  if (els.btnClearTodayCheckins) {
+    els.btnClearTodayCheckins.style.display = canUseSadminTools ? "inline-flex" : "none";
+  }
   if (els.btnClearTodayCheckinsLog) {
-    els.btnClearTodayCheckinsLog.style.display = isSadmin() ? "inline-flex" : "none";
+    els.btnClearTodayCheckinsLog.style.display = canUseSadminTools ? "inline-flex" : "none";
   }
 }
 
@@ -2818,6 +2825,7 @@ function renderRoleVisibility() {
   const authCard = document.getElementById("authCard");
   const bootCard = els.bootCard || document.getElementById("bootCard");
   const isResponsavel = session?.role === "responsavel";
+  renderSadminControls();
   renderRoomTestControls();
 
   if (bootCard) {

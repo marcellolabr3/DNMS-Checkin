@@ -1686,3 +1686,15 @@ test("sadmin zera check-ins de hoje com confirmacao forte", async ({ page }) => 
   const alerts = await getAlerts(page);
   expect(alerts).toContain("Check-ins de hoje zerados: 1.");
 });
+
+test("sadmin ve sala teste e zerar check-ins ao navegar direto", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "marvinlabre@gmail.com");
+
+  await page.click("#btnLogPanel");
+  await expect(page.locator("#btnClearTodayCheckinsLog")).toBeVisible();
+
+  await page.click("#btnRoomsPanel");
+  await expect(page.locator("#roomTestField")).toBeVisible();
+  await expect(page.locator("#roomIsTest")).toBeVisible();
+});

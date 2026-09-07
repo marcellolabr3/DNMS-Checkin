@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v177`, `app.js?v=20260907a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v178`, `app.js?v=20260907b`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -61,6 +61,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Em 2026-09-07, `npm.cmd test` passou com 190 testes apos ajustar WhatsApp/relatorio, idade Maternal por aniversario completo, botao de zerar check-ins no Log e limite de check-ins por sala.
 - Em 2026-09-07, patch `supabase/patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado: coluna, constraint, trigger e crianca com 2 anos completos retornando `Maternal`.
+- Em 2026-09-07, `npm.cmd test` passou com 192 testes apos tornar controles SADMIN globais no render e usar fallback do e-mail do Auth para reconhecer `marvinlabre@gmail.com`.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
@@ -70,7 +71,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Pendencias reais
 
-- Validar em producao via PWA com usuario SADMIN: limite de sala, crianca de 2 anos no Maternal, botao de zerar no Log e visibilidade de sala teste apos atualizacao de cache.
+- Validar em producao via PWA com usuario SADMIN apos deploy/cache: limite de sala, crianca de 2 anos no Maternal, botao de zerar no Log e visibilidade de sala teste.
 - Auditar Supabase/producao e `setup_dnms_checkin.sql`; limpar fotos orfas do Storage.
 - Validar cadastro duplicado e recuperacao de senha em ambiente real; documentar ajuste operacional de responsaveis.
 - Impressao: proxima fase e robustez operacional, com listagem de jobs recentes, retry manual seguro antes do spooler, retention do SQLite e diagnostico mais claro de impressora/fila externa.
