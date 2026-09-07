@@ -36,7 +36,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
 - Patch aplicado em producao em 2026-09-06: `supabase/patch_sadmin_test_rooms_clear_checkins.sql` adiciona `rooms.is_test`, trigger SADMIN e RPC `sadmin_clear_today_checkins`.
-- Patch pendente para producao: `supabase/patch_room_checkin_limit_and_age.sql` adiciona `rooms.max_checkins`, bloqueio server-side de capacidade e corrige regra de idade para aniversario completo.
+- Patch aplicado em producao em 2026-09-07: `supabase/patch_room_checkin_limit_and_age.sql` adiciona `rooms.max_checkins`, bloqueio server-side de capacidade e corrige regra de idade para aniversario completo.
 - Supabase guarda familias, criancas, check-ins, historico, reimpressoes e auditoria.
 - Conexao local do Print Service com Postgres deve usar o pooler Supabase `aws-1-us-east-1.pooler.supabase.com:5432/postgres` com usuario `postgres.<project-ref>`; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
@@ -60,6 +60,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 ## Ultimo estado validado
 
 - Em 2026-09-07, `npm.cmd test` passou com 190 testes apos ajustar WhatsApp/relatorio, idade Maternal por aniversario completo, botao de zerar check-ins no Log e limite de check-ins por sala.
+- Em 2026-09-07, patch `supabase/patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado: coluna, constraint, trigger e crianca com 2 anos completos retornando `Maternal`.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
@@ -69,7 +70,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Pendencias reais
 
-- Aplicar em producao `supabase/patch_room_checkin_limit_and_age.sql`; depois validar limite de sala e crianca de 2 anos no Maternal com SADMIN.
+- Validar em producao via PWA com usuario SADMIN: limite de sala, crianca de 2 anos no Maternal, botao de zerar no Log e visibilidade de sala teste apos atualizacao de cache.
 - Auditar Supabase/producao e `setup_dnms_checkin.sql`; limpar fotos orfas do Storage.
 - Validar cadastro duplicado e recuperacao de senha em ambiente real; documentar ajuste operacional de responsaveis.
 - Impressao: proxima fase e robustez operacional, com listagem de jobs recentes, retry manual seguro antes do spooler, retention do SQLite e diagnostico mais claro de impressora/fila externa.

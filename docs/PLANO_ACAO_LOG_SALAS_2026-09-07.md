@@ -27,8 +27,9 @@
 
 - `npx.cmd playwright test tests/checkin.spec.js tests/supabase-payload.spec.js tests/service-worker.spec.js`: 102 passed.
 - `npm.cmd test`: 190 passed.
+- Patch `supabase/patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao em 2026-09-07.
+- Verificacao no banco confirmou `rooms.max_checkins`, constraint positiva, trigger de limite e crianca com 2 anos completos classificada como `Maternal`.
 
 ## Pendencias
 
-- Aplicar `supabase/patch_room_checkin_limit_and_age.sql` no Supabase de producao antes de depender do limite no banco.
-- Revalidar em producao com usuario SADMIN para confirmar visibilidade de "Sala teste" e "Zerar check-ins de hoje" apos atualizar cache do PWA.
+- Revalidar em producao pelo PWA com usuario SADMIN para confirmar visibilidade de "Sala teste", "Zerar check-ins de hoje" no Log e bloqueio visual de limite apos atualizar cache do PWA.
