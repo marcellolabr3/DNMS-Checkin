@@ -1306,7 +1306,7 @@ test("vincular crianca existente adiciona segundo responsavel sem trocar o princ
   await expect(page.locator("#logList")).toContainText("Responsavel Secundario vinculado a crianca Duas Familias");
 });
 
-test("log gera relatorio de cadastro de criancas", async ({ page }) => {
+test("log inclui cadastro de criancas em alteracoes de dados", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -1323,9 +1323,11 @@ test("log gera relatorio de cadastro de criancas", async ({ page }) => {
 
   await page.click("#btnLogPanel");
   await expect(page.locator("#logCard")).toBeVisible();
-  await page.selectOption("#logReportType", "child_created");
+  await expect(page.locator('#logReportType option[value="child_created"]')).toHaveCount(0);
+  await expect(page.locator('#logReportType option[value="user_deleted"]')).toHaveCount(0);
+  await page.selectOption("#logReportType", "changes");
 
-  await expect(page.locator("#logSummary")).toContainText("Cadastro de criancas");
+  await expect(page.locator("#logSummary")).toContainText("Alteracoes de dados");
   await expect(page.locator("#logList")).toContainText("Relatorio Teste");
   await expect(page.locator("#logList")).toContainText("Crianca cadastrada");
   await expect(page.locator("#btnExport")).toBeEnabled();
@@ -1386,7 +1388,7 @@ test("exportacao do log usa formato legivel para planilhas", async ({ page }) =>
 
   await page.click("#btnLogPanel");
   await expect(page.locator("#logCard")).toBeVisible();
-  await page.selectOption("#logReportType", "child_created");
+  await page.selectOption("#logReportType", "changes");
 
   const downloadPromise = page.waitForEvent("download");
   await page.click("#btnExport");
@@ -1397,6 +1399,7 @@ test("exportacao do log usa formato legivel para planilhas", async ({ page }) =>
 
   expect(Array.from(buffer.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
   expect(csv).toContain("Data;Relatorio;Acao;Alvo;Autor;Perfil;Detalhes");
+  expect(csv).toContain("Alteracoes de dados");
   expect(csv).toContain("José Exportação");
   expect(csv).not.toContain("Data,Relatorio,Acao");
 });
@@ -1708,6 +1711,12 @@ test("exclusao de usuario remove filhos somente quando ele e responsavel princip
   await expect
     .poll(() => page.evaluate(() => Boolean(window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-kids"))))
     .toBe(false);
+
+  await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType", "changes");
+  await expect(page.locator("#logSummary")).toContainText("Alteracoes de dados");
+  await expect(page.locator("#logList")).toContainText("Usuario excluido");
+  await expect(page.locator("#logList")).toContainText("Responsavel Teste");
 });
 
 test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {

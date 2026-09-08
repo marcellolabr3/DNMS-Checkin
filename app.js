@@ -9468,14 +9468,17 @@ function getFilteredAuditRows(reportType = getLogReportType()) {
     if (reportType === "audit_all") {
       return true;
     }
-    if (reportType === "child_created") {
-      return row.actionType === "child_created";
-    }
-    if (reportType === "user_deleted") {
-      return row.actionType === "user_deleted";
-    }
     if (reportType === "changes") {
-      return ["child_updated", "user_updated", "room_opened", "room_closed"].includes(row.actionType);
+      return [
+        "child_created",
+        "child_updated",
+        "child_deleted",
+        "user_created",
+        "user_updated",
+        "user_deleted",
+        "room_opened",
+        "room_closed"
+      ].includes(row.actionType);
     }
     return false;
   });
@@ -9492,8 +9495,6 @@ function buildAuditCountsLabel(rows) {
 
 function formatReportType(type) {
   if (type === "event_summary") return "Resumo do evento";
-  if (type === "child_created") return "Cadastro de criancas";
-  if (type === "user_deleted") return "Exclusoes de usuarios";
   if (type === "changes") return "Alteracoes de dados";
   if (type === "audit_all") return "Todos os eventos";
   return "Assiduidade";

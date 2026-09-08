@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v181`, `app.js?v=20260908b`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v182`, `app.js?v=20260908c`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -55,6 +55,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
+- Em 2026-09-08, `npm.cmd test` passou com 198 testes apos consolidar cadastro/exclusao de criancas/usuarios no relatorio `Alteracoes de dados` da aba Log e remover filtros redundantes.
 - Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos polir instalacao/atualizacao Windows.
 - Em 2026-09-08, parser PowerShell dos scripts portable, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos criar validacao continua do ambiente real.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos melhorar diagnosticos do servico de impressao.
