@@ -757,6 +757,33 @@ test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
     .toBe("Maternal");
 });
 
+test("turma defasada no banco e recalculada pelo nascimento", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((birthDate) => {
+    window.__mockDnmsDb.students.push({
+      id: "student-stale-maternal",
+      name: "Bebe Defasado",
+      birth_date: birthDate,
+      class_name: "Fora da faixa",
+      primary_guardian_name: "Responsavel Teste",
+      phone: "11999990000",
+      address: "Rua Maternal",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.student_guardians.push({
+      student_id: "student-stale-maternal",
+      guardian_id: "parent-1"
+    });
+  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 2)));
+
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await expect(studentItem(page, "Bebe Defasado")).toContainText("Turma: Maternal");
+});
+
 test("salas passadas ficam no historico ocultavel por ate 16 dias", async ({ page }) => {
   await openApp(page);
   await page.evaluate(({ past, oldPast, futureA, futureB }) => {

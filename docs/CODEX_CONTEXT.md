@@ -34,53 +34,37 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 ## Banco e operacao
 
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
-- `supabase/setup_dnms_checkin.sql` precisa ser auditado/reconstruido como schema canonico para novos ambientes.
-- Patch aplicado em producao em 2026-09-06: `supabase/patch_sadmin_test_rooms_clear_checkins.sql` adiciona `rooms.is_test`, trigger SADMIN e RPC `sadmin_clear_today_checkins`.
-- Patch aplicado em producao em 2026-09-07: `supabase/patch_room_checkin_limit_and_age.sql` adiciona `rooms.max_checkins`, bloqueio server-side de capacidade e corrige regra de idade para aniversario completo.
-- Supabase guarda familias, criancas, check-ins, historico, reimpressoes e auditoria.
-- Conexao local do Print Service com Postgres deve usar o pooler Supabase `aws-1-us-east-1.pooler.supabase.com:5432/postgres` com usuario `postgres.<project-ref>`; senha somente em `.codex-secrets.env`.
+- `supabase/setup_dnms_checkin.sql` precisa ser mantido como schema canonico para novos ambientes.
+- Patches aplicados: `patch_sadmin_test_rooms_clear_checkins.sql` (SADMIN/teste/zerar), `patch_room_checkin_limit_and_age.sql` (limite/idade/check-in), `patch_sync_student_class_names.sql` (sincroniza `students.class_name`).
+- Supabase guarda familias, criancas, check-ins, historico, reimpressao e auditoria.
+- Conexao local do Print Service com Postgres deve usar pooler Supabase; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
 - Backup local do banco criado em 2026-09-01 em `D:\Dev\BCK_CHEK\dnms-supabase-20260901-073529` e `.zip`.
 
 ## Print Service
 
-- Fase 1 implementada: `POST /print` e `POST /reprint` validam, persistem `PrintJob` em SQLite e respondem rapido com `202 Accepted` e `{ success, jobId, status }`.
-- Endpoints disponiveis: `GET /print/:jobId`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado.
+- Fase 1 implementada: `POST /print` e `POST /reprint` enfileiram em SQLite e retornam `202 Accepted`.
+- Endpoints: `GET /print/:jobId`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado.
 - Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
-- SQLite padrao: `Servico de impressao/data/print-service.sqlite`; sobrescrevivel por `PRINT_JOB_DB_PATH`; pasta/arquivos SQLite ignorados pelo Git.
-- Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao devem voltar a imprimir diretamente por caminhos independentes.
-- PWA/painel local consultam `GET /print/:jobId` apos enfileirar e exibem status operacional: `QUEUED`, `PRINTING`, `SENT_TO_SPOOLER`, `SPOOLER_DONE`, `FAILED`, `CANCELLED`.
-- `PrintWorker` processa 1 job por vez, marca `SENT_TO_SPOOLER` apos aceite do adapter e `SPOOLER_DONE` quando o spooler remove o job.
+- Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao voltar a imprimir por caminhos independentes.
 - Retry automatico somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
-- Recuperacao apos reinicio: jobs `PRINTING` voltam para `QUEUED`; jobs `SENT_TO_SPOOLER` viram `FAILED` com `completedReason = "spooler_status_ambiguous_no_retry"` para nao ficarem abertos nem serem reenfileirados automaticamente.
-- Mecanismo preservado: Chromium/Puppeteer persistente com nova Page por job, PDF, Sumatra, Windows Spooler, Brother QL-810W.
-- ZIP portable: `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`. O script inclui `.codex-secrets.env` no pacote quando o arquivo local existe; tratar o ZIP como artefato privado.
-- Nao versionar `IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip`: Cloudflare Pages falha porque suporta arquivos publicados ate 25 MiB e o ZIP tem cerca de 38 MiB.
-- SQLite no `.exe` usa binding nativo externo em `dist/native/sqlite3/node_sqlite3.node`; se faltar, o portable falha com "could not locate the bindings file".
+- ZIP portable fica em `Servico de impressao/dist-pacote/` como artefato privado. Nao versionar `IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip`; Cloudflare Pages limita arquivo publicado a 25 MiB e o ZIP tem cerca de 38 MiB.
 
 ## Ultimo estado validado
 
-- Em 2026-09-07, `npm.cmd test` passou com 190 testes apos ajustar WhatsApp/relatorio, idade Maternal por aniversario completo, botao de zerar check-ins no Log e limite de check-ins por sala.
-- Em 2026-09-07, patch `supabase/patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado: coluna, constraint, trigger e crianca com 2 anos completos retornando `Maternal`.
-- Em 2026-09-07, `npm.cmd test` passou com 192 testes apos tornar controles SADMIN globais no render e usar fallback do e-mail do Auth para reconhecer `marvinlabre@gmail.com`.
-- Em 2026-09-08, `npm.cmd test` passou com 194 testes; cache/querystring do PWA foram atualizados para publicar o JS que exibe controles SADMIN.
+- Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o ZIP versionado que quebrava Cloudflare Pages.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o botao "Zerar check-ins de hoje" do Dashboard e manter somente na aba Log.
-- Em 2026-09-08, ZIP portable de `IMPRESSÂO/` foi removido do Git e ignorado para destravar deploy no Cloudflare Pages.
-- Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
-- Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
-- Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
+- Em 2026-09-08, `npm.cmd test` passou com 196 testes; patch de Maternal foi aplicado em producao, 3 criancas de 2024 passaram para `Maternal`, divergencias de `students.class_name` ficaram em 0 e trigger ficou ativo.
+- Em 2026-09-07, patch `patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
-- A conexao do Print Service com o banco passou a funcionar corretamente usando o pooler Supabase no `.codex-secrets.env`.
-- Em 2026-09-06, log de alteracoes de cadastro passou a registrar campos alterados de responsaveis e criancas em `details`/`metadata.changes`.
 
 ## Fila de coisas a fazer
 
 1. Confirmar deploy externo/publicacao apos push para GitHub; este repo nao tem workflow de deploy do app, apenas `.github/workflows/keepalive.yml`.
-2. Reabrir o problema do Maternal: criancas nascidas em 2024 continuam fora da faixa em producao; diagnosticar SQL/frontend com dados reais.
-3. Cadastro de crianca: aceitar ano de nascimento com os 2 ultimos digitos, alem do formato com 4 digitos; normalizar e validar para evitar datas ambiguas.
-4. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
-5. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
-6. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
-7. Servico de impressao: diagnostico mais claro para Brother offline, fila travada, Sumatra/Chrome ausente, porta ocupada ou token/origem mal configurado.
-8. Servico de impressao: fluxo de instalacao/atualizacao Windows mais polido para ZIP portable, `.cmd` e validacao pos-instalacao.
-9. Servico de impressao: validacao continua em ambiente real, especialmente apos mudancas em check-in, reimpressao, cache do PWA ou schema Supabase.
+2. Cadastro de crianca: aceitar ano de nascimento com os 2 ultimos digitos, alem do formato com 4 digitos; normalizar e validar para evitar datas ambiguas.
+3. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
+4. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
+5. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
+6. Servico de impressao: diagnostico mais claro para Brother offline, fila travada, Sumatra/Chrome ausente, porta ocupada ou token/origem mal configurado.
+7. Servico de impressao: fluxo de instalacao/atualizacao Windows mais polido para ZIP portable, `.cmd` e validacao pos-instalacao.
+8. Servico de impressao: validacao continua em ambiente real, especialmente apos mudancas em check-in, reimpressao, cache do PWA ou schema Supabase.

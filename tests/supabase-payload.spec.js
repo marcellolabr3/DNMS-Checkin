@@ -30,6 +30,8 @@ test("setup do Supabase inclui schema e policies atuais de mensagens", async () 
   expect(setup).toContain("lower(coalesce(p.email, '')) = 'marvinlabre@gmail.com'");
   expect(setup).toContain("add column if not exists is_test boolean not null default false");
   expect(setup).toContain("add column if not exists max_checkins integer null");
+  expect(setup).toContain("create or replace function public.sync_student_class_name_from_birth");
+  expect(setup).toContain("create trigger sync_student_class_name_from_birth_trigger");
   expect(setup).toContain("create or replace function public.prevent_checkin_over_room_limit");
   expect(setup).toContain("create trigger prevent_checkin_over_room_limit_trigger");
   expect(setup).toContain("create or replace function public.is_sadmin_user");
