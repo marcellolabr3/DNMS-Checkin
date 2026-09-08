@@ -222,14 +222,30 @@ cmd /c npm run package:portable
 `dist-pacote\DNMS-Servico-de-impressao-portable.zip`
 
 3. Extraia o ZIP no computador que ficara ligado a impressora.
-4. Se existir `.codex-secrets.env` no computador que gerou o pacote, ele sera incluido no ZIP local para preservar `DATABASE_URL`, token e portas. Esse arquivo continua ignorado pelo Git.
-5. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
-6. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, confirme que `.codex-secrets.env` existe na pasta extraida e contem `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`.
-7. Inicie com duplo clique em:
+4. Para instalar ou atualizar, execute com duplo clique:
+
+`DNMS Instalar Atualizar.cmd`
+
+Esse comando encerra uma instancia anterior, valida arquivos obrigatorios, cria/atualiza o atalho da area de trabalho e inicia o servico.
+
+5. Se existir `.codex-secrets.env` no computador que gerou o pacote, ele sera incluido no ZIP local para preservar `DATABASE_URL`, token e portas. Esse arquivo continua ignorado pelo Git.
+6. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
+7. Se quiser imprimir check-ins feitos por celular ou outro computador na Brother deste desktop, confirme que `.codex-secrets.env` existe na pasta extraida e contem `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`.
+8. Para validar a instalacao a qualquer momento, execute:
+
+`DNMS Validar Instalacao.cmd`
+
+9. Para acompanhar continuamente a saude no computador da Brother, execute:
+
+`DNMS Validacao Continua.cmd`
+
+Esse monitor abre o status e consulta `/health` em ciclos. Ele nao imprime etiqueta de teste por padrao.
+
+10. Para iniciar normalmente depois da instalacao, use o atalho criado ou execute:
 
 `DNMS Impressao.cmd`
 
-8. Valide em:
+11. Valide em:
 
 `http://localhost:3001/status`
 
@@ -237,6 +253,20 @@ O servico esta operacional quando o painel mostrar bolinha verde para servico lo
 Para check-ins feitos no celular/outro computador, a linha "Autoimpressao do celular" precisa aparecer como ativa.
 
 Se o painel mostrar etiquetas pendentes na fila da Brother, limpe ou libere a fila pelo Windows antes de continuar. O servico bloqueia novas impressoes enquanto houver jobs pendentes e so marca `printed_at` depois que o Windows confirma que a etiqueta saiu da fila.
+
+## Validacao continua em ambiente real
+
+Rode `DNMS Validacao Continua.cmd` no computador conectado a Brother depois de qualquer mudanca em check-in, reimpressao, cache do PWA, schema Supabase ou pacote portable.
+
+A validacao automatica cobre:
+
+- arquivos obrigatorios do pacote;
+- Chrome/Edge e SumatraPDF;
+- porta local, token e configuracao admin local;
+- resposta de `/health`;
+- estado da Brother, fila do Windows, autoimpressao e reimpressao.
+
+A validacao fisica ainda precisa de um check-in/reimpressao real observado no local, porque `SPOOLER_DONE` confirma apenas que o Windows removeu o job da fila.
 
 ## Requisito para o executavel
 
@@ -271,16 +301,22 @@ cmd /c npm install
 cmd /c npm run build:exe
 ```
 
-3. Iniciar servico:
+3. Validar instalacao local:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\validate-install.ps1"
+```
+
+4. Iniciar servico:
 
 duplo clique em `DNMS Impressao.cmd`
 
-4. Validar:
+5. Validar:
 
 abra `http://localhost:3001/status` e confirme bolinha verde para a impressora Brother.
 Se a Brother aparecer em vermelho, abra a fila/impressora no Windows e verifique se ela esta ligada, sem erro e sem modo offline.
 
-5. Encerrar servico:
+6. Encerrar servico:
 
 clique com o botao direito no icone da area de notificacao e escolha `Encerrar servico`.
 
@@ -294,6 +330,17 @@ Faca:
 2. Rodar novamente `npm run build:exe`
 3. Iniciar pelo `DNMS Impressao.cmd` da mesma pasta
 4. Confirmar no `netstat`/Gerenciador de Tarefas se o processo ativo aponta para o caminho correto desta pasta (e nao outro clone do projeto)
+
+O painel `http://localhost:3001/status` tambem mostra um bloco `Diagnostico` com codigos objetivos:
+
+- `BROTHER_NOT_FOUND`: a Brother QL-810W nao foi encontrada no Windows.
+- `BROTHER_NOT_READY`: a Brother foi encontrada, mas esta offline, pausada ou com erro.
+- `BROTHER_QUEUE_BLOCKED`: existe etiqueta presa na fila da Brother.
+- `CHROMIUM_MISSING`: Chrome/Edge nao foi encontrado para gerar o PDF.
+- `SUMATRA_MISSING`: SumatraPDF nao foi encontrado para enviar o PDF ao spooler.
+- `ADMIN_DATA_ACCESS_MISSING`: autoimpressao do celular sem `DATABASE_URL` ou Service Role local.
+
+Erros HTTP tambem retornam `code`: `PRINT_TOKEN_MISSING_OR_INVALID` para token ausente/invalido e `PRINT_ORIGIN_DENIED` para origem fora de `PRINT_ALLOWED_ORIGINS`.
 
 ## Logs
 

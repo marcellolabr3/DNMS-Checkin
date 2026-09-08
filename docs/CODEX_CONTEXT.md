@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v180`, `app.js?v=20260908a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v181`, `app.js?v=20260908b`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -45,26 +45,30 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Fase 1 implementada: `POST /print` e `POST /reprint` enfileiram em SQLite e retornam `202 Accepted`.
 - Endpoints: `GET /print/:jobId`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado.
+- `/health` e `/status` exibem diagnosticos operacionais para Brother offline/ausente, fila travada, Chrome/Edge ausente, Sumatra ausente, porta ocupada, token/origem mal configurados e acesso admin ausente.
 - Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
 - Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao voltar a imprimir por caminhos independentes.
 - Retry automatico somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
+- ZIP portable inclui `DNMS Instalar Atualizar.cmd`, `DNMS Validar Instalacao.cmd` e scripts de validacao/atalho; usar o instalador para atualizar, criar atalho e validar pos-start.
+- Validacao continua do ambiente real: `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1` monitoram instalacao, `/health`, Brother, fila, autoimpressao e reimpressao sem imprimir etiqueta por padrao.
 - ZIP portable fica em `Servico de impressao/dist-pacote/` como artefato privado. Nao versionar `IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip`; Cloudflare Pages limita arquivo publicado a 25 MiB e o ZIP tem cerca de 38 MiB.
 
 ## Ultimo estado validado
 
+- Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos polir instalacao/atualizacao Windows.
+- Em 2026-09-08, parser PowerShell dos scripts portable, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos criar validacao continua do ambiente real.
+- Em 2026-09-08, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos melhorar diagnosticos do servico de impressao.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o ZIP versionado que quebrava Cloudflare Pages.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o botao "Zerar check-ins de hoje" do Dashboard e manter somente na aba Log.
 - Em 2026-09-08, `npm.cmd test` passou com 196 testes; patch de Maternal foi aplicado em producao, 3 criancas de 2024 passaram para `Maternal`, divergencias de `students.class_name` ficaram em 0 e trigger ficou ativo.
+- Em 2026-09-08, `npm.cmd test` passou com 198 testes apos cadastro de crianca aceitar `dd/mm/aa` e `dd/mm/aaaa`; ano curto resolve para o seculo atual se nao for futuro, senao para o seculo anterior.
 - Em 2026-09-07, patch `patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
 
 ## Fila de coisas a fazer
 
 1. Confirmar deploy externo/publicacao apos push para GitHub; este repo nao tem workflow de deploy do app, apenas `.github/workflows/keepalive.yml`.
-2. Cadastro de crianca: aceitar ano de nascimento com os 2 ultimos digitos, alem do formato com 4 digitos; normalizar e validar para evitar datas ambiguas.
-3. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
-4. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
-5. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
-6. Servico de impressao: diagnostico mais claro para Brother offline, fila travada, Sumatra/Chrome ausente, porta ocupada ou token/origem mal configurado.
-7. Servico de impressao: fluxo de instalacao/atualizacao Windows mais polido para ZIP portable, `.cmd` e validacao pos-instalacao.
-8. Servico de impressao: validacao continua em ambiente real, especialmente apos mudancas em check-in, reimpressao, cache do PWA ou schema Supabase.
+2. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
+3. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
+4. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
+5. Servico de impressao: executar validacao presencial no notebook real com Brother apos gerar novo ZIP/exe, incluindo check-in e reimpressao observados fisicamente.

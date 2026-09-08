@@ -757,6 +757,27 @@ test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
     .toBe("Maternal");
 });
 
+test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "Bebe Ano Curto");
+  await page.fill("#studentBirth", "10/01/24");
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Ano Curto");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await expect(studentItem(page, "Bebe Ano Curto")).toContainText("Turma: Maternal");
+  const saved = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.name === "Bebe Ano Curto"));
+  expect(saved.birth_date).toBe("2024-01-10");
+  expect(saved.class_name).toBe("Maternal");
+});
+
 test("turma defasada no banco e recalculada pelo nascimento", async ({ page }) => {
   await openApp(page);
   await page.evaluate((birthDate) => {

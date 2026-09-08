@@ -38,6 +38,9 @@ $items = @(
   "bin",
   "scripts",
   "DNMS Impressao.cmd",
+  "DNMS Instalar Atualizar.cmd",
+  "DNMS Validar Instalacao.cmd",
+  "DNMS Validacao Continua.cmd",
   "README.md",
   ".codex-secrets.example.env"
 )

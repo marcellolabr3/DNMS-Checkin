@@ -20,6 +20,9 @@ const envDiagnostics = {
   loadedFiles: [],
   skippedExistingKeys: []
 };
+const configDiagnostics = {
+  allowedOriginWarnings: []
+};
 loadEnvFromFiles();
 const PORT = Number(process.env.PRINT_SERVICE_PORT || 3001);
 const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1";
@@ -72,7 +75,12 @@ const app = express();
 app.use((req, res, next) => {
   const origin = req.headers.origin || "";
   if (origin && PRINT_ALLOWED_ORIGINS.size && !PRINT_ALLOWED_ORIGINS.has(origin)) {
-    res.status(403).json({ ok: false, error: "Origem nao autorizada para impressao local." });
+    res.status(403).json({
+      ok: false,
+      code: "PRINT_ORIGIN_DENIED",
+      error: "Origem nao autorizada para impressao local.",
+      detail: `Origem recebida: ${origin}. Configure PRINT_ALLOWED_ORIGINS no servico local.`
+    });
     return;
   }
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
@@ -558,6 +566,26 @@ async function closeSharedBrowser() {
 }
 
 function resolveBrowserExecutablePath() {
+  const found = findBrowserExecutablePath();
+  if (!found) {
+    throw new Error(
+      "Navegador Chromium nao encontrado. Instale Google Chrome ou Edge, ou defina CHROME_PATH."
+    );
+  }
+  return found;
+}
+
+function resolveSumatraPdfPath() {
+  const found = findSumatraPdfPath();
+  if (!found) {
+    throw new Error(
+      "SumatraPDF nao encontrado. Execute 'cmd /c npm run prepare:sumatra' para copiar o binario."
+    );
+  }
+  return found;
+}
+
+function findBrowserExecutablePath() {
   const custom = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
   if (custom && fsSync.existsSync(custom)) {
     return custom;
@@ -570,29 +598,17 @@ function resolveBrowserExecutablePath() {
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
   ];
 
-  const found = candidates.find((item) => fsSync.existsSync(item));
-  if (!found) {
-    throw new Error(
-      "Navegador Chromium nao encontrado. Instale Google Chrome ou Edge, ou defina CHROME_PATH."
-    );
-  }
-  return found;
+  return candidates.find((item) => fsSync.existsSync(item)) || "";
 }
 
-function resolveSumatraPdfPath() {
+function findSumatraPdfPath() {
   const candidates = [
     path.join(process.cwd(), "bin", "SumatraPDF.exe"),
     path.join(__dirname, "bin", "SumatraPDF.exe"),
     path.join(process.cwd(), "node_modules", "pdf-to-printer", "dist", "SumatraPDF-3.4.6-32.exe"),
     path.join(__dirname, "node_modules", "pdf-to-printer", "dist", "SumatraPDF-3.4.6-32.exe")
   ];
-  const found = candidates.find((item) => fsSync.existsSync(item));
-  if (!found) {
-    throw new Error(
-      "SumatraPDF nao encontrado. Execute 'cmd /c npm run prepare:sumatra' para copiar o binario."
-    );
-  }
-  return found;
+  return candidates.find((item) => fsSync.existsSync(item)) || "";
 }
 
 function buildLabelDocumentHtml({ studentName, className, guardian, notes }) {
@@ -744,8 +760,19 @@ async function buildHealthPayload() {
   const printerStatus = await getTargetPrinterStatus();
   const printerQueue = printerStatus.name ? await readWindowsPrintJobs(printerStatus.name) : [];
   const printJobSummary = jobStore ? await jobStore.getQueueSummary() : {};
+  const runtimeDiagnostics = buildRuntimeDiagnostics();
+  const httpDiagnostics = buildHttpDiagnostics();
+  const dataAccessDiagnostics = buildDataAccessDiagnostics();
+  const diagnosticItems = buildDiagnosticItems({
+    printerStatus,
+    printerQueue,
+    printJobSummary,
+    runtimeDiagnostics,
+    httpDiagnostics,
+    dataAccessDiagnostics
+  });
   return {
-    ok: Boolean(printerStatus.installed && printerStatus.ready),
+    ok: diagnosticItems.every((item) => item.severity !== "error"),
     status: printerStatus.ready ? "online" : printerStatus.status,
     target_printer: printerStatus.name || "",
     printer_installed: Boolean(printerStatus.installed),
@@ -754,6 +781,10 @@ async function buildHealthPayload() {
     printer_status_detail: printerStatus.detail,
     printer_windows_status: printerStatus.windows_status || null,
     printer_queue_length: printerQueue.length,
+    printer_queue_jobs: printerQueue.map(serializeWindowsPrintJob),
+    runtime_diagnostics: runtimeDiagnostics,
+    http_diagnostics: httpDiagnostics,
+    diagnostics: diagnosticItems,
     auto_print_listener: Boolean(canUseAutoPrintDataAccess),
     auto_print_realtime_status: realtimeStatus,
     auto_print_polling: Boolean(autoPrintPollTimer),
@@ -766,8 +797,134 @@ async function buildHealthPayload() {
     print_service_queue: printJobSummary,
     print_worker_running: Boolean(printWorker && !printWorker.stopped),
     supabase_role: resolveServiceDataRole(),
-    data_access_diagnostics: buildDataAccessDiagnostics(),
+    data_access_diagnostics: dataAccessDiagnostics,
     database_direct: canUseDirectDatabase
+  };
+}
+
+function buildRuntimeDiagnostics() {
+  const browserPath = findBrowserExecutablePath();
+  const sumatraPath = findSumatraPdfPath();
+  return {
+    platform: process.platform,
+    chrome_available: Boolean(browserPath),
+    chrome_path: browserPath ? path.basename(browserPath) : "",
+    sumatra_available: Boolean(sumatraPath),
+    sumatra_path: sumatraPath ? path.basename(sumatraPath) : ""
+  };
+}
+
+function buildHttpDiagnostics() {
+  return {
+    host: HOST,
+    port: PORT,
+    token_required: Boolean(PRINT_SERVICE_TOKEN),
+    allowed_origins_mode: PRINT_ALLOWED_ORIGINS.size ? "allowlist" : "compatibility",
+    allowed_origins_count: PRINT_ALLOWED_ORIGINS.size,
+    allowed_origin_warnings: configDiagnostics.allowedOriginWarnings.slice()
+  };
+}
+
+function buildDiagnosticItems({ printerStatus, printerQueue, printJobSummary, runtimeDiagnostics, httpDiagnostics, dataAccessDiagnostics }) {
+  const items = [];
+  if (!printerStatus.installed) {
+    items.push({
+      code: "BROTHER_NOT_FOUND",
+      severity: "error",
+      message: printerStatus.detail || `Impressora ${REQUIRED_PRINTER_HINT} nao encontrada.`,
+      action: "Instale ou conecte a Brother QL-810W e confirme o nome da impressora no Windows."
+    });
+  } else if (!printerStatus.ready) {
+    items.push({
+      code: "BROTHER_NOT_READY",
+      severity: "error",
+      message: printerStatus.detail || "Brother indisponivel.",
+      action: "Abra a fila da impressora no Windows, tire do modo offline/pausado e corrija erro de papel, tampa ou conexao."
+    });
+  }
+
+  if (printerQueue.length) {
+    items.push({
+      code: "BROTHER_QUEUE_BLOCKED",
+      severity: "error",
+      message: `Fila da Brother possui ${printerQueue.length} etiqueta(s) pendente(s).`,
+      action: "Limpe ou libere a fila no Windows antes de imprimir novos check-ins."
+    });
+  }
+
+  if (!runtimeDiagnostics.chrome_available) {
+    items.push({
+      code: "CHROMIUM_MISSING",
+      severity: "error",
+      message: "Chrome ou Edge nao encontrado para gerar o PDF da etiqueta.",
+      action: "Instale Google Chrome/Edge ou configure CHROME_PATH no servico local."
+    });
+  }
+
+  if (!runtimeDiagnostics.sumatra_available) {
+    items.push({
+      code: "SUMATRA_MISSING",
+      severity: "error",
+      message: "SumatraPDF nao encontrado para enviar o PDF ao Windows.",
+      action: "Execute 'cmd /c npm run prepare:sumatra' na pasta do servico ou gere novamente o pacote portable."
+    });
+  }
+
+  if (!printWorker || printWorker.stopped) {
+    items.push({
+      code: "PRINT_WORKER_STOPPED",
+      severity: "error",
+      message: "Worker interno de impressao parado.",
+      action: "Reinicie o DNMS Impressao."
+    });
+  }
+
+  const activeInternalJobs = Number(printJobSummary.PRINTING || 0) + Number(printJobSummary.SENT_TO_SPOOLER || 0);
+  if (activeInternalJobs > 0) {
+    items.push({
+      code: "PRINT_QUEUE_BUSY",
+      severity: "info",
+      message: `${activeInternalJobs} job(s) em processamento ou ja enviado(s) ao spooler.`,
+      action: "Aguarde alguns segundos e atualize o status; se nao mudar, confira a fila da Brother no Windows."
+    });
+  }
+
+  if (dataAccessDiagnostics.mode === "anon") {
+    items.push({
+      code: "ADMIN_DATA_ACCESS_MISSING",
+      severity: "warning",
+      message: "Autoimpressao de check-ins feitos pelo celular esta inativa.",
+      action: "Configure DATABASE_URL ou Service Role somente no servico local."
+    });
+  }
+
+  httpDiagnostics.allowed_origin_warnings.forEach((warning) => {
+    items.push({
+      code: "PRINT_ALLOWED_ORIGIN_INVALID",
+      severity: "warning",
+      message: warning,
+      action: "Revise PRINT_ALLOWED_ORIGINS e use origens completas como https://dominio.com ou http://localhost:porta."
+    });
+  });
+
+  if (!items.length) {
+    items.push({
+      code: "OK",
+      severity: "info",
+      message: "Servico local pronto para imprimir.",
+      action: "Nenhuma acao necessaria."
+    });
+  }
+  return items;
+}
+
+function serializeWindowsPrintJob(job) {
+  return {
+    id: job?.ID ?? null,
+    document_name: path.basename(String(job?.DocumentName || "")),
+    status: String(job?.JobStatus || ""),
+    submitted_time: job?.SubmittedTime || null,
+    size: job?.Size ?? null
   };
 }
 
@@ -1020,11 +1177,11 @@ function buildStatusPageHtml() {
         const health = await response.json();
         const printingBusy = Boolean(health.auto_print_processing || health.reprint_queue_processing);
         const printerQueueLength = Number(health.printer_queue_length || 0);
-        setItems([
+        const items = [
           {
             state: "ok",
             label: "Servico local",
-            detail: "Online e recebendo pedidos neste computador."
+            detail: buildServiceDetail(health)
           },
           {
             state: health.printer_ready && !printerQueueLength ? "ok" : "off",
@@ -1051,7 +1208,16 @@ function buildStatusPageHtml() {
               ? printerQueueLength + " etiqueta(s) presa(s). Limpe/libere a fila no Windows."
               : "Sem etiquetas pendentes na fila local."
           }
-        ]);
+        ];
+        const diagnostics = Array.isArray(health.diagnostics) ? health.diagnostics : [];
+        if (diagnostics.length) {
+          items.push({
+            state: diagnostics.some((item) => item.severity === "error") ? "off" : "ok",
+            label: "Diagnostico",
+            detail: diagnostics.map(formatDiagnosticItem).join(" ")
+          });
+        }
+        setItems(items);
       } catch (error) {
         setItems([
           {
@@ -1061,6 +1227,22 @@ function buildStatusPageHtml() {
           }
         ]);
       }
+    }
+
+    function buildServiceDetail(health) {
+      const http = health.http_diagnostics || {};
+      const runtime = health.runtime_diagnostics || {};
+      return "Online em " + (http.host || "127.0.0.1") + ":" + (http.port || 3001) +
+        ". Token: " + (http.token_required ? "obrigatorio" : "nao configurado") +
+        ". Origens: " + (http.allowed_origins_mode === "allowlist" ? "lista permitida" : "compatibilidade") +
+        ". Chrome/Edge: " + (runtime.chrome_available ? "ok" : "ausente") +
+        ". SumatraPDF: " + (runtime.sumatra_available ? "ok" : "ausente") + ".";
+    }
+
+    function formatDiagnosticItem(item) {
+      const code = item.code ? "[" + item.code + "] " : "";
+      const action = item.action ? " Acao: " + item.action : "";
+      return code + (item.message || "") + action;
     }
 
     function buildAutoPrintDetail(health, printingBusy) {
@@ -1470,6 +1652,19 @@ function parseAllowedOrigins(value) {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean)
+      .filter((item) => {
+        try {
+          const parsed = new URL(item);
+          const isValidOrigin = parsed.origin === item && (parsed.protocol === "http:" || parsed.protocol === "https:");
+          if (!isValidOrigin) {
+            configDiagnostics.allowedOriginWarnings.push(`Origem ignorada em PRINT_ALLOWED_ORIGINS: ${item}`);
+          }
+          return isValidOrigin;
+        } catch (_error) {
+          configDiagnostics.allowedOriginWarnings.push(`Origem ignorada em PRINT_ALLOWED_ORIGINS: ${item}`);
+          return false;
+        }
+      })
   );
 }
 
@@ -1481,7 +1676,12 @@ function authorizePrintRequest(req, res) {
   if (token && token === PRINT_SERVICE_TOKEN) {
     return true;
   }
-  res.status(401).json({ ok: false, error: "Token de impressao local invalido ou ausente." });
+  res.status(401).json({
+    ok: false,
+    code: "PRINT_TOKEN_MISSING_OR_INVALID",
+    error: "Token de impressao local invalido ou ausente.",
+    detail: "Configure o mesmo token no DNMS Check-in e no servico local; o valor esperado nao e exibido por seguranca."
+  });
   return false;
 }
 
@@ -1623,23 +1823,37 @@ async function initializePrintServices() {
 }
 
 initializePrintServices().then(() => {
-  app.listen(PORT, HOST, () => {
-  console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
-  console.log(`[Servico de impressao] Acesso a dados: ${resolveServiceDataRole()}`);
-  console.log(
-    `[Servico de impressao] Protecao HTTP: ${PRINT_SERVICE_TOKEN ? "token ativo" : "token nao configurado"}; origens permitidas: ${
-      PRINT_ALLOWED_ORIGINS.size ? Array.from(PRINT_ALLOWED_ORIGINS).join(", ") : "modo compatibilidade"
-    }`
-  );
-  startAutoPrintPolling();
-  startReprintJobPolling();
-  warmSharedBrowser();
-  startRealtimeAutoPrint().catch((error) => {
-    console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`[Servico de impressao] online em http://${HOST}:${PORT}`);
+    console.log(`[Servico de impressao] Acesso a dados: ${resolveServiceDataRole()}`);
+    console.log(
+      `[Servico de impressao] Protecao HTTP: ${PRINT_SERVICE_TOKEN ? "token ativo" : "token nao configurado"}; origens permitidas: ${
+        PRINT_ALLOWED_ORIGINS.size ? Array.from(PRINT_ALLOWED_ORIGINS).join(", ") : "modo compatibilidade"
+      }`
+    );
+    startAutoPrintPolling();
+    startReprintJobPolling();
+    warmSharedBrowser();
+    startRealtimeAutoPrint().catch((error) => {
+      console.warn("[Servico de impressao] falha ao iniciar listener de auto-print:", error?.message || error);
+    });
+    startRealtimeReprintJobs().catch((error) => {
+      console.warn("[Servico de impressao] falha ao iniciar listener de reimpressao:", error?.message || error);
+    });
   });
-  startRealtimeReprintJobs().catch((error) => {
-    console.warn("[Servico de impressao] falha ao iniciar listener de reimpressao:", error?.message || error);
-  });
+  server.on("error", (error) => {
+    if (error?.code === "EADDRINUSE") {
+      console.error(
+        `[Servico de impressao] porta ocupada: ${HOST}:${PORT}. Feche outra instancia do DNMS Impressao ou defina PRINT_SERVICE_PORT.`
+      );
+    } else if (error?.code === "EACCES") {
+      console.error(
+        `[Servico de impressao] sem permissao para abrir ${HOST}:${PORT}. Use outra porta em PRINT_SERVICE_PORT.`
+      );
+    } else {
+      console.error("[Servico de impressao] falha ao abrir porta HTTP:", error?.stack || error);
+    }
+    process.exit(1);
   });
 }).catch((error) => {
   console.error("[Servico de impressao] falha ao iniciar servico:", error?.stack || error);

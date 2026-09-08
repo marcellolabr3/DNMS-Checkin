@@ -9,6 +9,39 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
     path.join(__dirname, "..", "Servico de impressao", "src", "windows-pdf-print-adapter.js"),
     "utf8"
   );
+  const packagePortable = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "scripts", "package-portable.ps1"),
+    "utf8"
+  );
+  const startServiceUi = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "scripts", "start-service-ui.ps1"),
+    "utf8"
+  );
+  const validateInstall = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "scripts", "validate-install.ps1"),
+    "utf8"
+  );
+  const validateRealEnvironment = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "scripts", "validate-real-environment.ps1"),
+    "utf8"
+  );
+  const installPortable = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "scripts", "install-portable.ps1"),
+    "utf8"
+  );
+  const launcher = fs.readFileSync(path.join(__dirname, "..", "Servico de impressao", "DNMS Impressao.cmd"), "utf8");
+  const installCmd = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "DNMS Instalar Atualizar.cmd"),
+    "utf8"
+  );
+  const validateCmd = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "DNMS Validar Instalacao.cmd"),
+    "utf8"
+  );
+  const continuousValidationCmd = fs.readFileSync(
+    path.join(__dirname, "..", "Servico de impressao", "DNMS Validacao Continua.cmd"),
+    "utf8"
+  );
   const app = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
   const print = fs.readFileSync(path.join(__dirname, "..", "print.js"), "utf8");
 
@@ -51,6 +84,17 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(adapter).toContain("hooks.onSpoolerAccepted");
   expect(server).toContain("readWindowsPrintJobs");
   expect(server).toContain("printer_queue_length");
+  expect(server).toContain("printer_queue_jobs");
+  expect(server).toContain("runtime_diagnostics");
+  expect(server).toContain("http_diagnostics");
+  expect(server).toContain("diagnostics: diagnosticItems");
+  expect(server).toContain("BROTHER_NOT_FOUND");
+  expect(server).toContain("BROTHER_QUEUE_BLOCKED");
+  expect(server).toContain("CHROMIUM_MISSING");
+  expect(server).toContain("SUMATRA_MISSING");
+  expect(server).toContain("PRINT_TOKEN_MISSING_OR_INVALID");
+  expect(server).toContain("PRINT_ORIGIN_DENIED");
+  expect(server).toContain("EADDRINUSE");
   expect(server).toContain("Etiqueta enviada para a fila da Brother, mas o Windows nao confirmou a saida da fila.");
   expect(server).toContain("printer_ready");
   expect(server).toContain("printer_status_detail");
@@ -95,4 +139,29 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(printJob).toContain("completedReason");
   expect(printJob).toContain("spoolerAcceptedAt");
   expect(printJob).not.toContain('PRINTED: "PRINTED"');
+
+  expect(packagePortable).toContain("DNMS Instalar Atualizar.cmd");
+  expect(packagePortable).toContain("DNMS Validar Instalacao.cmd");
+  expect(packagePortable).toContain("DNMS Validacao Continua.cmd");
+  expect(startServiceUi).toContain("PRINT_SERVICE_PORT");
+  expect(startServiceUi).toContain("Validar instalacao");
+  expect(startServiceUi).toContain("validate-install.ps1");
+  expect(validateInstall).toContain("DNMS Impressao - validacao da instalacao");
+  expect(validateInstall).toContain("EXE_MISSING");
+  expect(validateInstall).toContain("SUMATRA_MISSING");
+  expect(validateInstall).toContain("CHROMIUM_MISSING");
+  expect(validateInstall).toContain("ADMIN_DATA_MISSING");
+  expect(validateInstall).not.toContain("DATABASE_URL=");
+  expect(validateRealEnvironment).toContain("DNMS Impressao - validacao continua");
+  expect(validateRealEnvironment).toContain("Invoke-HealthValidation");
+  expect(validateRealEnvironment).toContain("printer_queue_length");
+  expect(validateRealEnvironment).toContain("SPOOLER_DONE");
+  expect(validateRealEnvironment).not.toContain("DATABASE_URL=");
+  expect(installPortable).toContain("Atalho criado/atualizado");
+  expect(installPortable).toContain("Validacao falhou");
+  expect(launcher).toContain("Extraia novamente o ZIP portable completo.");
+  expect(installCmd).toContain("install-portable.ps1");
+  expect(validateCmd).toContain("validate-install.ps1");
+  expect(continuousValidationCmd).toContain("validate-real-environment.ps1");
+  expect(continuousValidationCmd).toContain("-Watch");
 });

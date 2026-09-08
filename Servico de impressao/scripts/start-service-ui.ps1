@@ -11,8 +11,49 @@ if (-not $createdMutex) {
 $root = Split-Path -Parent $PSScriptRoot
 $pidFile = Join-Path $root ".service.pid"
 $exePath = Join-Path $root "dist\\Servico-de-impressao.exe"
-$statusUrl = "http://localhost:3001/status"
-$healthUrl = "http://localhost:3001/health"
+$validatorPath = Join-Path $PSScriptRoot "validate-install.ps1"
+
+function Get-EnvFileValue {
+  param(
+    [string]$Key,
+    [string]$Default = ""
+  )
+
+  $processValue = [Environment]::GetEnvironmentVariable($Key)
+  if ($processValue) {
+    return $processValue
+  }
+
+  $envFile = Join-Path $root ".codex-secrets.env"
+  if (-not (Test-Path $envFile)) {
+    return $Default
+  }
+
+  try {
+    foreach ($line in (Get-Content -LiteralPath $envFile -ErrorAction Stop)) {
+      $trimmed = ([string]$line).Trim()
+      if (-not $trimmed -or $trimmed.StartsWith("#") -or -not $trimmed.Contains("=")) {
+        continue
+      }
+      $idx = $trimmed.IndexOf("=")
+      $currentKey = $trimmed.Substring(0, $idx).Trim()
+      if ($currentKey -eq $Key) {
+        return $trimmed.Substring($idx + 1).Trim().Trim('"')
+      }
+    }
+  } catch {}
+
+  return $Default
+}
+
+$serviceHost = Get-EnvFileValue -Key "PRINT_SERVICE_HOST" -Default "127.0.0.1"
+$servicePortText = Get-EnvFileValue -Key "PRINT_SERVICE_PORT" -Default "3001"
+$servicePort = 3001
+if (-not [int]::TryParse($servicePortText, [ref]$servicePort)) {
+  $servicePort = 3001
+}
+$statusUrl = "http://$serviceHost`:$servicePort/status"
+$healthUrl = "http://$serviceHost`:$servicePort/health"
 
 function Set-NotifyText {
   param(
@@ -52,7 +93,7 @@ function Get-ServiceProcessFromPidFile {
 
 function Get-ServiceProcessFromPort {
   try {
-    $connection = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction Stop | Select-Object -First 1
+    $connection = Get-NetTCPConnection -LocalPort $servicePort -State Listen -ErrorAction Stop | Select-Object -First 1
     if ($connection -and $connection.OwningProcess) {
       return Get-Process -Id $connection.OwningProcess -ErrorAction Stop
     }
@@ -116,6 +157,7 @@ $notify.ShowBalloonTip(2000)
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusItem = $menu.Items.Add("Abrir status")
+$validateItem = $menu.Items.Add("Validar instalacao")
 $exitItem = $menu.Items.Add("Encerrar servico")
 $notify.ContextMenuStrip = $menu
 
@@ -128,6 +170,22 @@ $timer.Add_Tick({
 
 $statusItem.Add_Click({
   Start-Process $statusUrl
+})
+
+$validateItem.Add_Click({
+  if (Test-Path $validatorPath) {
+    Start-Process powershell -ArgumentList @(
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-NoExit",
+      "-File",
+      $validatorPath,
+      "-RequireRunning"
+    )
+  } else {
+    Start-Process $statusUrl
+  }
 })
 
 $exitItem.Add_Click({

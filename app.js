@@ -4288,7 +4288,7 @@ async function handleSignupSubmit(event) {
     return;
   }
   if (!isInviteFlow && birthDateRaw && !birthDate) {
-    alert("Data de nascimento invalida. Use dd/mm/aaaa.");
+    alert("Data de nascimento invalida. Use dd/mm/aa ou dd/mm/aaaa.");
     return;
   }
   if (!isInviteFlow && phoneNational.length < 10) {
@@ -7060,7 +7060,7 @@ async function saveStudent(event) {
   const birthRaw = els.studentBirth.value;
   const birthIso = normalizeBirthDateInput(birthRaw);
   if (birthRaw && !birthIso) {
-    alert("Data de nascimento invalida. Use dd/mm/aaaa.");
+    alert("Data de nascimento invalida. Use dd/mm/aa ou dd/mm/aaaa.");
     return;
   }
   const payload = {
@@ -9127,17 +9127,31 @@ function normalizeBirthDateInput(value) {
     const day = Number.parseInt(isoMatch[3], 10);
     return isValidDateParts(year, month, day) ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` : "";
   }
-  const brMatch = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+  const brMatch = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{2}|\d{4})$/);
   if (!brMatch) {
     return "";
   }
   const day = Number.parseInt(brMatch[1], 10);
   const month = Number.parseInt(brMatch[2], 10);
-  const year = Number.parseInt(brMatch[3], 10);
+  const year = normalizeBirthYearPart(brMatch[3]);
   if (!isValidDateParts(year, month, day)) {
     return "";
   }
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeBirthYearPart(value, referenceDate = new Date()) {
+  const yearText = String(value || "").trim();
+  if (/^\d{4}$/.test(yearText)) {
+    return Number.parseInt(yearText, 10);
+  }
+  if (!/^\d{2}$/.test(yearText)) {
+    return Number.NaN;
+  }
+  const shortYear = Number.parseInt(yearText, 10);
+  const currentCentury = Math.floor(referenceDate.getFullYear() / 100) * 100;
+  const currentCenturyYear = currentCentury + shortYear;
+  return currentCenturyYear <= referenceDate.getFullYear() ? currentCenturyYear : currentCenturyYear - 100;
 }
 
 function applyBirthDateMask(value) {
