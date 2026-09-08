@@ -98,7 +98,6 @@ const els = {
   dashboardAdminTools: document.getElementById("dashboardAdminTools"),
   dashboardInfoText: document.getElementById("dashboardInfoText"),
   btnSaveDashboardInfo: document.getElementById("btnSaveDashboardInfo"),
-  btnClearTodayCheckins: document.getElementById("btnClearTodayCheckins"),
   btnClearTodayCheckinsLog: document.getElementById("btnClearTodayCheckinsLog"),
   tipsCard: document.getElementById("tipsCard"),
   btnTipsBackHome: document.getElementById("btnTipsBackHome"),
@@ -398,7 +397,6 @@ function bindEvents() {
   els.btnRoomDialogEdit?.addEventListener("click", handleRoomDialogEdit);
   els.btnRoomDialogClose?.addEventListener("click", handleRoomDialogClose);
   els.btnSaveDashboardInfo?.addEventListener("click", saveDashboardInfo);
-  els.btnClearTodayCheckins?.addEventListener("click", clearTodayCheckinsAsSadmin);
   els.btnClearTodayCheckinsLog?.addEventListener("click", clearTodayCheckinsAsSadmin);
   els.btnImportScheduleFile?.addEventListener("click", importScheduleFromFile);
   els.btnSaveScheduleSheetUrl?.addEventListener("click", saveScheduleSheetUrl);
@@ -2799,16 +2797,10 @@ function renderAdminDashboardTools() {
   if (els.dashboardInfoText) {
     els.dashboardInfoText.value = state.dashboardInfo || "";
   }
-  if (els.btnClearTodayCheckins) {
-    els.btnClearTodayCheckins.style.display = isSadmin() ? "inline-flex" : "none";
-  }
 }
 
 function renderSadminControls() {
   const canUseSadminTools = isSadmin();
-  if (els.btnClearTodayCheckins) {
-    els.btnClearTodayCheckins.style.display = canUseSadminTools ? "inline-flex" : "none";
-  }
   if (els.btnClearTodayCheckinsLog) {
     els.btnClearTodayCheckinsLog.style.display = canUseSadminTools ? "inline-flex" : "none";
   }
@@ -3249,9 +3241,6 @@ async function clearTodayCheckinsAsSadmin() {
     alert("Confirmacao cancelada.");
     return;
   }
-  if (els.btnClearTodayCheckins) {
-    els.btnClearTodayCheckins.disabled = true;
-  }
   if (els.btnClearTodayCheckinsLog) {
     els.btnClearTodayCheckinsLog.disabled = true;
   }
@@ -3268,9 +3257,6 @@ async function clearTodayCheckinsAsSadmin() {
   } catch (error) {
     alert(`Falha ao zerar check-ins de hoje: ${error?.message || "erro inesperado"}`);
   } finally {
-    if (els.btnClearTodayCheckins) {
-      els.btnClearTodayCheckins.disabled = false;
-    }
     if (els.btnClearTodayCheckinsLog) {
       els.btnClearTodayCheckinsLog.disabled = false;
     }

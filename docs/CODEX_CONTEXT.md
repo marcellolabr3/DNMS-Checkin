@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v179`, `app.js?v=20260907c`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v180`, `app.js?v=20260908a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -63,6 +63,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Em 2026-09-07, patch `supabase/patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado: coluna, constraint, trigger e crianca com 2 anos completos retornando `Maternal`.
 - Em 2026-09-07, `npm.cmd test` passou com 192 testes apos tornar controles SADMIN globais no render e usar fallback do e-mail do Auth para reconhecer `marvinlabre@gmail.com`.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes; cache/querystring do PWA foram atualizados para publicar o JS que exibe controles SADMIN.
+- Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o botao "Zerar check-ins de hoje" do Dashboard e manter somente na aba Log.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
@@ -73,12 +74,11 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 ## Fila de coisas a fazer
 
 1. Confirmar deploy externo/publicacao apos push para GitHub; este repo nao tem workflow de deploy do app, apenas `.github/workflows/keepalive.yml`.
-2. Manter o botao "Zerar check-ins de hoje" somente na aba Log, nao no Dashboard.
-3. Reabrir o problema do Maternal: criancas nascidas em 2024 continuam fora da faixa em producao; diagnosticar SQL/frontend com dados reais.
-4. Cadastro de crianca: aceitar ano de nascimento com os 2 ultimos digitos, alem do formato com 4 digitos; normalizar e validar para evitar datas ambiguas.
-5. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
-6. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
-7. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
-8. Servico de impressao: diagnostico mais claro para Brother offline, fila travada, Sumatra/Chrome ausente, porta ocupada ou token/origem mal configurado.
-9. Servico de impressao: fluxo de instalacao/atualizacao Windows mais polido para ZIP portable, `.cmd` e validacao pos-instalacao.
-10. Servico de impressao: validacao continua em ambiente real, especialmente apos mudancas em check-in, reimpressao, cache do PWA ou schema Supabase.
+2. Reabrir o problema do Maternal: criancas nascidas em 2024 continuam fora da faixa em producao; diagnosticar SQL/frontend com dados reais.
+3. Cadastro de crianca: aceitar ano de nascimento com os 2 ultimos digitos, alem do formato com 4 digitos; normalizar e validar para evitar datas ambiguas.
+4. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
+5. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
+6. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
+7. Servico de impressao: diagnostico mais claro para Brother offline, fila travada, Sumatra/Chrome ausente, porta ocupada ou token/origem mal configurado.
+8. Servico de impressao: fluxo de instalacao/atualizacao Windows mais polido para ZIP portable, `.cmd` e validacao pos-instalacao.
+9. Servico de impressao: validacao continua em ambiente real, especialmente apos mudancas em check-in, reimpressao, cache do PWA ou schema Supabase.

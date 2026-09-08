@@ -1709,7 +1709,7 @@ test("sadmin zera check-ins de hoje com confirmacao forte", async ({ page }) => 
     .toBe(1);
 
   await page.click("#btnHomePanel");
-  await expect(page.locator("#btnClearTodayCheckins")).toBeVisible();
+  await expect(page.locator("#btnClearTodayCheckins")).toHaveCount(0);
   await page.click("#btnLogPanel");
   await expect(page.locator("#btnClearTodayCheckinsLog")).toBeVisible();
   await page.click("#btnClearTodayCheckinsLog");
