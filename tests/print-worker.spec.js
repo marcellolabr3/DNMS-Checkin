@@ -6,7 +6,7 @@ const path = require("path");
 const { JobStore } = require("../Servico de impressao/src/job-store");
 const { PrintQueue } = require("../Servico de impressao/src/print-queue");
 const { PrintWorker } = require("../Servico de impressao/src/print-worker");
-const { PRINT_JOB_STATUS } = require("../Servico de impressao/src/print-job");
+const { PRINT_JOB_SOURCE, PRINT_JOB_STATUS, buildDefaultDedupeKey } = require("../Servico de impressao/src/print-job");
 
 test("JobStore recupera PRINTING como QUEUED apos reinicio", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dnms-job-store-test-"));
@@ -74,6 +74,37 @@ test("JobStore reutiliza PrintJob aberto pela mesma dedupeKey", async () => {
   await fs.rm(tempDir, { recursive: true, force: true });
 
   expect(second.id).toBe(first.id);
+});
+
+test("PrintJob usa mesma dedupeKey para impressao normal de origens diferentes", async () => {
+  const payload = { checkin_id: "same-checkin", conteudo: '<!doctype html><div class="label"></div>' };
+
+  expect(buildDefaultDedupeKey({ source: PRINT_JOB_SOURCE.HTTP, type: "print", payload })).toBe("print:same-checkin");
+  expect(buildDefaultDedupeKey({ source: PRINT_JOB_SOURCE.AUTO_PRINT, type: "print", payload })).toBe("print:same-checkin");
+  expect(buildDefaultDedupeKey({ source: PRINT_JOB_SOURCE.HTTP, type: "reprint", payload })).toBe(
+    "http:reprint:same-checkin"
+  );
+});
+
+test("JobStore deduplica impressao normal do mesmo checkin em origens diferentes", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dnms-job-cross-source-dedupe-test-"));
+  const store = await new JobStore({ dbPath: path.join(tempDir, "jobs.sqlite") }).open();
+  const payload = { checkin_id: "cross-source", conteudo: '<!doctype html><div class="label"></div>' };
+  const fromHttp = await store.insertJob({
+    source: PRINT_JOB_SOURCE.HTTP,
+    type: "print",
+    payload
+  });
+  const fromAutoPrint = await store.insertJob({
+    source: PRINT_JOB_SOURCE.AUTO_PRINT,
+    type: "print",
+    payload
+  });
+  await store.close();
+  await fs.rm(tempDir, { recursive: true, force: true });
+
+  expect(fromAutoPrint.id).toBe(fromHttp.id);
+  expect(fromAutoPrint.dedupeKey).toBe("print:cross-source");
 });
 
 test("PrintWorker processa um job por vez e conclui no spooler", async () => {

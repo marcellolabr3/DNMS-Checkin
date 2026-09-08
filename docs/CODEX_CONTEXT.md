@@ -48,6 +48,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - `/health` e `/status` exibem diagnosticos operacionais para Brother offline/ausente, fila travada, Chrome/Edge ausente, Sumatra ausente, porta ocupada, token/origem mal configurados e acesso admin ausente.
 - Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
 - Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao voltar a imprimir por caminhos independentes.
+- Impressao normal deduplica por `checkin_id` independentemente da origem (`/print`, listener ou polling) para evitar etiqueta 2x quando frontend desktop e autoimpressao veem o mesmo check-in.
 - Retry automatico somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
 - ZIP portable inclui `DNMS Instalar Atualizar.cmd`, `DNMS Validar Instalacao.cmd` e scripts de validacao/atalho; usar o instalador para atualizar, criar atalho e validar pos-start.
 - Validacao continua do ambiente real: `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1` monitoram instalacao, `/health`, Brother, fila, autoimpressao e reimpressao sem imprimir etiqueta por padrao.
@@ -56,6 +57,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 ## Ultimo estado validado
 
 - Em 2026-09-08, `npm.cmd test` passou com 198 testes apos consolidar cadastro/exclusao de criancas/usuarios no relatorio `Alteracoes de dados` da aba Log e remover filtros redundantes.
+- Em 2026-09-08, `npm.cmd test` passou com 202 testes apos corrigir dedupe de impressao normal por `checkin_id` para evitar duplicidade entre `/print` e autoimpressao.
 - Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos polir instalacao/atualizacao Windows.
 - Em 2026-09-08, parser PowerShell dos scripts portable, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos criar validacao continua do ambiente real.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos melhorar diagnosticos do servico de impressao.

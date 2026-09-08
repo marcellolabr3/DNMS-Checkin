@@ -743,7 +743,7 @@ async function enqueueCheckinPrintJob(checkinId, options = {}) {
       tipo: type
     },
     remoteJobId: options.remoteJobId || null,
-    dedupeKey: options.remoteJobId ? `${source}:${type}:${options.remoteJobId}` : `${source}:${type}:${checkinId}`,
+    dedupeKey: options.remoteJobId ? `${source}:${type}:${options.remoteJobId}` : `${type}:${checkinId}`,
     maxAttempts: 3
   });
   logPrint({

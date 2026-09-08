@@ -101,6 +101,9 @@ function normalizePositiveInteger(value, fallback) {
 
 function buildDefaultDedupeKey({ source, type, payload }) {
   const checkinId = payload?.checkin_id || "";
+  if (type === PRINT_JOB_TYPE.PRINT) {
+    return [type, checkinId].join(":");
+  }
   return [source, type, checkinId].join(":");
 }
 

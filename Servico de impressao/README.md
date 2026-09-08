@@ -124,6 +124,8 @@ Estados do `PrintJob`:
 
 O worker processa 1 job por vez. Ao reiniciar o servico, jobs que estavam em `PRINTING` voltam para `QUEUED`. Jobs que chegaram a `SENT_TO_SPOOLER` sao tratados como ambiguos e nao recebem retry automatico, para evitar etiquetas duplicadas.
 
+Impressao normal usa deduplicacao por `checkin_id`, independente da origem (`/print`, autoimpressao por listener ou polling). Isso evita duas etiquetas quando o check-in feito no computador da Brother e a autoimpressao do servico enxergam o mesmo registro quase ao mesmo tempo.
+
 `SPOOLER_DONE` significa que o Windows removeu/concluiu o job no spooler. Nao e confirmacao fisica de etiqueta impressa/cortada.
 
 ## Motor de impressao

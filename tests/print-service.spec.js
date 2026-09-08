@@ -135,6 +135,7 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(printJob).toContain('CANCELLED: "CANCELLED"');
   expect(printJob).toContain("createPrintJob");
   expect(printJob).toContain("dedupeKey");
+  expect(printJob).toContain('return [type, checkinId].join(":")');
   expect(printJob).toContain("windowsJobId");
   expect(printJob).toContain("completedReason");
   expect(printJob).toContain("spoolerAcceptedAt");
