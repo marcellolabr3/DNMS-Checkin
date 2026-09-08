@@ -1,6 +1,6 @@
 # DNMS - Servico de Impressao
 
-Esta pasta contem o pacote portable publico do servico local de impressao.
+Esta pasta contem instrucoes para distribuir o pacote portable do servico local de impressao. O ZIP gerado nao fica versionado no Git porque excede o limite de tamanho do Cloudflare Pages.
 
 ## Instalar em outro computador
 

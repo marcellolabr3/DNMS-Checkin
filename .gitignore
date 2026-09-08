@@ -7,9 +7,17 @@ test-results/
 *.pid
 .codex-secrets.env
 docs/CODEX_CONTEXT.local.md
+IMPRESSÃ‚O/.codex-secrets.env
+IMPRESSÃ‚O/bin/
+IMPRESSÃ‚O/dist/
+IMPRESSÃ‚O/scripts/
+IMPRESSÃ‚O/DNMS Impressao.cmd
+IMPRESSÃ‚O/README.md
 IMPRESSÂO/.codex-secrets.env
+IMPRESSÂO/.service.pid
 IMPRESSÂO/bin/
 IMPRESSÂO/dist/
 IMPRESSÂO/scripts/
 IMPRESSÂO/DNMS Impressao.cmd
+IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip
 IMPRESSÂO/README.md

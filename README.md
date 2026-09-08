@@ -187,7 +187,7 @@ Para evitar que testes contaminem relatorios reais:
 * Somente o SADMIN pode marcar uma sala como `Sala teste`.
 * Check-ins de sala teste nao entram nos relatorios operacionais e nao disparam autoimpressao.
 * O banco protege essa marcacao com trigger; admin/equipe nao conseguem forcar `is_test`.
-* O SADMIN tambem tem o botao `Zerar check-ins de hoje` no Painel do ADM.
+* O SADMIN tambem tem o botao `Zerar check-ins de hoje` na aba Log.
 * A limpeza exige confirmacao dupla e digitacao de `ZERAR`.
 * A limpeza remove os check-ins do dia e os logs de check-in vinculados, mantendo um registro de auditoria `checkins_cleared`.
 

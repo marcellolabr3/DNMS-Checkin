@@ -55,6 +55,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Recuperacao apos reinicio: jobs `PRINTING` voltam para `QUEUED`; jobs `SENT_TO_SPOOLER` viram `FAILED` com `completedReason = "spooler_status_ambiguous_no_retry"` para nao ficarem abertos nem serem reenfileirados automaticamente.
 - Mecanismo preservado: Chromium/Puppeteer persistente com nova Page por job, PDF, Sumatra, Windows Spooler, Brother QL-810W.
 - ZIP portable: `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`. O script inclui `.codex-secrets.env` no pacote quando o arquivo local existe; tratar o ZIP como artefato privado.
+- Nao versionar `IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip`: Cloudflare Pages falha porque suporta arquivos publicados ate 25 MiB e o ZIP tem cerca de 38 MiB.
 - SQLite no `.exe` usa binding nativo externo em `dist/native/sqlite3/node_sqlite3.node`; se faltar, o portable falha com "could not locate the bindings file".
 
 ## Ultimo estado validado
@@ -64,6 +65,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Em 2026-09-07, `npm.cmd test` passou com 192 testes apos tornar controles SADMIN globais no render e usar fallback do e-mail do Auth para reconhecer `marvinlabre@gmail.com`.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes; cache/querystring do PWA foram atualizados para publicar o JS que exibe controles SADMIN.
 - Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o botao "Zerar check-ins de hoje" do Dashboard e manter somente na aba Log.
+- Em 2026-09-08, ZIP portable de `IMPRESSÂO/` foi removido do Git e ignorado para destravar deploy no Cloudflare Pages.
 - Em 2026-09-05, `npm.cmd run build:exe` passou; houve apenas aviso nao fatal conhecido do `pkg` sobre bytecode de `.d.ts`.
 - Em 2026-09-05, `npm.cmd run package:portable` regenerou o ZIP portable apos incluir o binding nativo do SQLite no pacote.
 - Smoke test do `.exe`/portable em porta temporaria respondeu `/status`, criou SQLite e confirmou fila local; nenhuma impressao foi enviada.
