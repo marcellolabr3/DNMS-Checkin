@@ -1321,6 +1321,7 @@ async function hydrateFromSupabase() {
       render();
       return;
     }
+    const authEmail = await getAuthenticatedUserEmail(session);
     const profile = await fetchProfileWithRetry(session.user.id);
     if (!profile) {
       await supabaseClient.auth.signOut();
@@ -1333,7 +1334,7 @@ async function hydrateFromSupabase() {
       id: profile.id,
       name: profile.name,
       role: normalizeRole(profile.role),
-      email: profile.email || session.user.email || "",
+      email: profile.email || authEmail,
       phone: formatPhoneForDisplay(profile.phone || ""),
       address: profile.address || "",
       photoUrl: profile.photo_url || "",
@@ -1509,7 +1510,7 @@ async function fetchRooms() {
   }
   let rows = data || [];
   const expiredOpenIds = rows
-    .filter((room) => room?.status === "Aberta" && isIsoDateBeforeToday(room.date))
+    .filter((room) => canOperateRooms() && isOpenRoomExpired(room))
     .map((room) => room.id)
     .filter(Boolean);
   if (expiredOpenIds.length) {
@@ -8612,6 +8613,22 @@ function isSadmin() {
   return String(state.session?.email || "").trim().toLowerCase() === SADMIN_EMAIL;
 }
 
+async function getAuthenticatedUserEmail(session) {
+  const sessionEmail = String(session?.user?.email || "").trim();
+  if (sessionEmail) {
+    return sessionEmail;
+  }
+  if (!supabaseClient?.auth?.getUser) {
+    return "";
+  }
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error) {
+    console.warn("Falha ao carregar email do usuario autenticado", error);
+    return "";
+  }
+  return String(data?.user?.email || "").trim();
+}
+
 function canAccessManagementPanel() {
   return isSadmin() || isAdmin();
 }
@@ -9022,6 +9039,48 @@ function buildRoomNameForDate(name, date) {
 function isIsoDateBeforeToday(value) {
   const date = String(value || "").slice(0, 10);
   return Boolean(date) && date < formatTodayIso();
+}
+
+function getRoomDateIsoValue(room) {
+  if (!room) {
+    return "";
+  }
+  if (room.dateIso) {
+    return String(room.dateIso || "").slice(0, 10);
+  }
+  const rawDate = String(room.date || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+    return rawDate.slice(0, 10);
+  }
+  const dateObj = parseRoomDate(rawDate);
+  return dateObj ? formatDateIso(dateObj) : "";
+}
+
+function isOpenRoomExpired(room, now = new Date()) {
+  if (!room || room.status !== "Aberta") {
+    return false;
+  }
+  const roomDate = getRoomDateIsoValue(room);
+  if (!roomDate) {
+    return false;
+  }
+  const today = formatDateIso(now);
+  if (roomDate < today) {
+    return true;
+  }
+  if (roomDate > today) {
+    return false;
+  }
+  const endTime = String(room.end_time || room.endTime || "").trim();
+  if (!/^\d{1,2}:\d{2}$/.test(endTime)) {
+    return false;
+  }
+  const startTime = String(room.start_time || room.startTime || room.time || "").trim();
+  if (/^\d{1,2}:\d{2}$/.test(startTime) && endTime < startTime) {
+    return false;
+  }
+  const current = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return current >= endTime;
 }
 
 function isRoomPast(room) {

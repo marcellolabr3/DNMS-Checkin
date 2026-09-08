@@ -100,7 +100,7 @@ test("check-in fica bloqueado antes de 30 minutos do inicio da aula", async ({ p
   await expect(button).toHaveAttribute("title", /Check-in disponivel a partir de/);
 });
 
-test("check-in fica bloqueado no horario de termino mesmo com sala aberta", async ({ page }) => {
+test("sala aberta fecha automaticamente no horario de termino", async ({ page }) => {
   await openApp(page);
   await page.evaluate(
     ({ start, end }) => {
@@ -115,9 +115,10 @@ test("check-in fica bloqueado no horario de termino mesmo com sala aberta", asyn
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
 
-  const button = studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in encerrado" });
-  await expect(button).toBeDisabled();
-  await expect(button).toHaveAttribute("title", "Horario de check-in encerrado para esta aula.");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids")?.status))
+    .toBe("Fechada");
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in indisponivel" })).toBeDisabled();
 });
 
 test("fechar sala faz checkout automatico dos alunos ativos", async ({ page }) => {
@@ -385,6 +386,44 @@ test("sala vencida aberta faz checkout automatico antes de novo check-in", async
   await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
 });
 
+test("sala aberta de hoje fecha automaticamente apos horario de termino", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(
+    ({ todayDate, startTime, endTime }) => {
+      const room = window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids");
+      room.date = todayDate;
+      room.start_time = startTime;
+      room.time = startTime;
+      room.end_time = endTime;
+      room.status = "Aberta";
+      room.closed_at = null;
+      window.__mockDnmsDb.checkins.push({
+        id: "checkin-today-expired-active",
+        student_id: "student-kids",
+        room_id: room.id,
+        room_name_snapshot: room.name,
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${todayDate}T12:00:00.000Z`,
+        checked_out_at: null
+      });
+    },
+    { todayDate: todayIso(), startTime: timeOffset(-90), endTime: timeOffset(-1) }
+  );
+
+  await loginAs(page, "admin@dnms.test");
+
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.rooms.find((item) => item.id === "room-kids")?.status))
+    .toBe("Fechada");
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.id === "checkin-today-expired-active")?.checked_out_at)
+    )
+    .not.toBeNull();
+});
+
 test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -601,8 +640,8 @@ test("evento criado para hoje permanece programado ate abertura manual", async (
 
   await page.fill("#roomName", "Culto Manual");
   await page.fill("#roomDate", todayIso());
-  await page.fill("#roomStartTime", timeOffset(-10));
-  await page.fill("#roomEndTime", timeOffset(60));
+  await page.fill("#roomStartTime", "00:00");
+  await page.fill("#roomEndTime", "23:59");
   await page.fill("#roomMaxCheckins", "12");
   await page.locator('#roomClass input[value="Kids"]').check();
   await page.click("#btnCreateRoom");
@@ -659,8 +698,8 @@ test("sala criada hoje abre manualmente, permanece visivel e libera check-in", a
 
   await page.fill("#roomName", "Culto Visivel");
   await page.fill("#roomDate", todayIso());
-  await page.fill("#roomStartTime", timeOffset(-10));
-  await page.fill("#roomEndTime", timeOffset(60));
+  await page.fill("#roomStartTime", "00:00");
+  await page.fill("#roomEndTime", "23:59");
   await page.locator('#roomClass input[value="Kids"]').check();
   await page.click("#btnCreateRoom");
 
