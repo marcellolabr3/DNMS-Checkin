@@ -53,14 +53,14 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Impressao normal deduplica por `checkin_id` independentemente da origem (`/print`, listener ou polling) para evitar etiqueta 2x quando frontend desktop e autoimpressao veem o mesmo check-in.
 - Retry automatico/manual somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
 - ZIP portable inclui `DNMS Instalar Atualizar.cmd`, `DNMS Validar Instalacao.cmd` e scripts de validacao/atalho; usar o instalador para atualizar, criar atalho e validar pos-start.
-- `scripts/package-portable.ps1` gera `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip` como unico pacote exportavel local e limpa a pasta temporaria.
+- `scripts/package-portable.ps1` gera `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip` como unico pacote exportavel local e limpa a pasta temporaria e o `dist/` intermediario.
 - Validacao continua do ambiente real: `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1` monitoram instalacao, `/health`, Brother, fila, autoimpressao e reimpressao sem imprimir etiqueta por padrao.
 - ZIP/exe/binarios sao artefatos privados e ignorados; nao versionar porque Cloudflare Pages limita arquivo publicado a 25 MiB.
 
 ## Ultimo estado validado
 
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
-- Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` limpa a pasta temporaria apos gerar o ZIP.
+- Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` foi validado gerando um unico ZIP em `dist-pacote/` e removendo `dist/`.
 - Em 2026-09-08, `npm.cmd test` passou com 202 testes apos corrigir dedupe de impressao normal por `checkin_id` para evitar duplicidade entre `/print` e autoimpressao.
 - Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram apos polir instalacao/atualizacao Windows.
 - Em 2026-09-08, `npm.cmd test` passou apos cadastro de crianca aceitar `dd/mm/aa` e `dd/mm/aaaa`; ano curto resolve para o seculo atual se nao for futuro, senao para o seculo anterior.

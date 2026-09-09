@@ -71,5 +71,6 @@ if (Test-Path $localSecrets) {
 
 Compress-Archive -LiteralPath $staging -DestinationPath $zipPath -Force
 Remove-Item -LiteralPath $staging -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $root "dist") -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "Pacote gerado em: $zipPath"
