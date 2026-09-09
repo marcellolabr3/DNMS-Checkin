@@ -70,8 +70,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Fila de coisas a fazer
 
-1. Confirmar deploy externo/publicacao apos push para GitHub; este repo nao tem workflow de deploy do app, apenas `.github/workflows/keepalive.yml`.
-2. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
-3. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
-4. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
-5. Servico de impressao: executar validacao presencial no notebook real com Brother apos gerar novo ZIP/exe, incluindo check-in e reimpressao observados fisicamente.
+1. Servico de impressao: painel de jobs recentes mostrando historico local com pendente, imprimindo, enviado ao spooler, falhou e cancelado.
+2. Servico de impressao: retry manual seguro somente para jobs que ainda nao chegaram ao spooler; manter `SENT_TO_SPOOLER` sem retry automatico para evitar duplicidade.
+3. Servico de impressao: retencao/limpeza do SQLite para remover jobs tecnicos antigos sem apagar dados operacionais do Supabase.
+4. Servico de impressao: executar validacao presencial no notebook real com Brother apos gerar novo ZIP/exe, incluindo check-in e reimpressao observados fisicamente.
