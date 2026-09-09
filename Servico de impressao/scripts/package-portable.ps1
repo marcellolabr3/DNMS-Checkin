@@ -70,5 +70,6 @@ if (Test-Path $localSecrets) {
 }
 
 Compress-Archive -LiteralPath $staging -DestinationPath $zipPath -Force
+Remove-Item -LiteralPath $staging -Recurse -Force
 
 Write-Host "Pacote gerado em: $zipPath"

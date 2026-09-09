@@ -43,6 +43,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Print Service
 
+- Fonte unica do servico de impressao: `Servico de impressao/`; a pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida.
 - Fase 1 implementada: `POST /print` e `POST /reprint` enfileiram em SQLite e retornam `202 Accepted`.
 - Endpoints: `GET /print/:jobId`, `POST /print/:jobId/retry`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado para consultas/acoes de jobs.
 - `/status` mostra painel operacional com diagnosticos e jobs recentes do SQLite local; retry manual aparece somente para falhas antes do spooler.
@@ -52,26 +53,21 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Impressao normal deduplica por `checkin_id` independentemente da origem (`/print`, listener ou polling) para evitar etiqueta 2x quando frontend desktop e autoimpressao veem o mesmo check-in.
 - Retry automatico/manual somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
 - ZIP portable inclui `DNMS Instalar Atualizar.cmd`, `DNMS Validar Instalacao.cmd` e scripts de validacao/atalho; usar o instalador para atualizar, criar atalho e validar pos-start.
+- `scripts/package-portable.ps1` gera `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip` como unico pacote exportavel local e limpa a pasta temporaria.
 - Validacao continua do ambiente real: `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1` monitoram instalacao, `/health`, Brother, fila, autoimpressao e reimpressao sem imprimir etiqueta por padrao.
-- ZIP portable fica em `Servico de impressao/dist-pacote/` como artefato privado. Nao versionar `IMPRESSÂO/DNMS-Servico-de-impressao-portable.zip`; Cloudflare Pages limita arquivo publicado a 25 MiB e o ZIP tem cerca de 38 MiB.
+- ZIP/exe/binarios sao artefatos privados e ignorados; nao versionar porque Cloudflare Pages limita arquivo publicado a 25 MiB.
 
 ## Ultimo estado validado
 
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
-- Em 2026-09-08, `npm.cmd test` passou com 198 testes apos consolidar cadastro/exclusao de criancas/usuarios no relatorio `Alteracoes de dados` da aba Log e remover filtros redundantes.
+- Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` limpa a pasta temporaria apos gerar o ZIP.
 - Em 2026-09-08, `npm.cmd test` passou com 202 testes apos corrigir dedupe de impressao normal por `checkin_id` para evitar duplicidade entre `/print` e autoimpressao.
-- Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos polir instalacao/atualizacao Windows.
-- Em 2026-09-08, parser PowerShell dos scripts portable, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos criar validacao continua do ambiente real.
-- Em 2026-09-08, `node --check server.js` e `npm.cmd test` passaram com 198 testes apos melhorar diagnosticos do servico de impressao.
-- Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o ZIP versionado que quebrava Cloudflare Pages.
-- Em 2026-09-08, `npm.cmd test` passou com 194 testes apos remover o botao "Zerar check-ins de hoje" do Dashboard e manter somente na aba Log.
-- Em 2026-09-08, `npm.cmd test` passou com 196 testes; patch de Maternal foi aplicado em producao, 3 criancas de 2024 passaram para `Maternal`, divergencias de `students.class_name` ficaram em 0 e trigger ficou ativo.
-- Em 2026-09-08, `npm.cmd test` passou com 198 testes apos cadastro de crianca aceitar `dd/mm/aa` e `dd/mm/aaaa`; ano curto resolve para o seculo atual se nao for futuro, senao para o seculo anterior.
+- Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram apos polir instalacao/atualizacao Windows.
+- Em 2026-09-08, `npm.cmd test` passou apos cadastro de crianca aceitar `dd/mm/aa` e `dd/mm/aaaa`; ano curto resolve para o seculo atual se nao for futuro, senao para o seculo anterior.
 - Em 2026-09-07, patch `patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
 
 ## Fila de coisas a fazer
 
-1. Limpar duplicidade da pasta antiga `IMPRESSAO`/`IMPRESSÂO`, mantendo `Servico de impressao` como fonte unica e um ZIP portable privado para exportar ao notebook.
-2. Servico de impressao: retencao/limpeza do SQLite e melhoria nao critica; impacta crescimento do arquivo local e performance futura do historico, mas nao bloqueia operacao atual.
-3. Servico de impressao: executar validacao presencial no notebook real com Brother apos gerar novo ZIP/exe, incluindo check-in e reimpressao observados fisicamente.
+1. Servico de impressao: retencao/limpeza do SQLite e melhoria nao critica; impacta crescimento do arquivo local e performance futura do historico, mas nao bloqueia operacao atual.
+2. Servico de impressao: executar validacao presencial no notebook real com Brother apos gerar novo ZIP/exe, incluindo check-in e reimpressao observados fisicamente.
