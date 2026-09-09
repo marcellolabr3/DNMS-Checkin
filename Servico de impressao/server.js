@@ -760,6 +760,7 @@ async function buildHealthPayload() {
   const printerStatus = await getTargetPrinterStatus();
   const printerQueue = printerStatus.name ? await readWindowsPrintJobs(printerStatus.name) : [];
   const printJobSummary = jobStore ? await jobStore.getQueueSummary() : {};
+  const recentPrintJobs = jobStore ? await jobStore.listRecentJobs(25) : [];
   const runtimeDiagnostics = buildRuntimeDiagnostics();
   const httpDiagnostics = buildHttpDiagnostics();
   const dataAccessDiagnostics = buildDataAccessDiagnostics();
@@ -795,6 +796,7 @@ async function buildHealthPayload() {
     reprint_queue_polling: Boolean(reprintJobPollTimer),
     reprint_queue_processing: Boolean(reprintJobProcessing),
     print_service_queue: printJobSummary,
+    recent_print_jobs: recentPrintJobs.map(serializePrintJobForResponse),
     print_worker_running: Boolean(printWorker && !printWorker.stopped),
     supabase_role: resolveServiceDataRole(),
     data_access_diagnostics: dataAccessDiagnostics,
@@ -1106,6 +1108,79 @@ function buildStatusPageHtml() {
       line-height: 1.35;
       overflow-wrap: anywhere;
     }
+    .jobs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .jobs-count {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .jobs-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 740px;
+    }
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      background: #fbfcfb;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status-pill.ok {
+      color: #166534;
+      border-color: rgba(31, 157, 85, 0.35);
+      background: rgba(31, 157, 85, 0.08);
+    }
+    .status-pill.busy {
+      color: #1d4ed8;
+      border-color: rgba(31, 111, 235, 0.35);
+      background: rgba(31, 111, 235, 0.08);
+    }
+    .status-pill.off {
+      color: #991b1b;
+      border-color: rgba(199, 52, 52, 0.35);
+      background: rgba(199, 52, 52, 0.08);
+    }
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
     .actions {
       display: flex;
       gap: 10px;
@@ -1137,6 +1212,29 @@ function buildStatusPageHtml() {
     <section class="panel" aria-label="Status do servico">
       <ul id="statusList" class="status-list"></ul>
     </section>
+    <section class="panel" aria-label="Jobs recentes">
+      <div class="jobs-header">
+        <h2>Jobs recentes</h2>
+        <span id="jobsCount" class="jobs-count">0 encontrados</span>
+      </div>
+      <div id="jobsEmpty" class="empty">Nenhum job local registrado.</div>
+      <div class="jobs-table-wrap">
+        <table id="jobsTable" hidden>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Tipo</th>
+              <th>Origem</th>
+              <th>Check-in</th>
+              <th>Tentativas</th>
+              <th>Criado</th>
+              <th>Erro/resultado</th>
+            </tr>
+          </thead>
+          <tbody id="jobsBody"></tbody>
+        </table>
+      </div>
+    </section>
     <div class="actions">
       <button type="button" id="refreshButton">Atualizar agora</button>
     </div>
@@ -1145,6 +1243,10 @@ function buildStatusPageHtml() {
     const list = document.getElementById("statusList");
     const updated = document.getElementById("updated");
     const refreshButton = document.getElementById("refreshButton");
+    const jobsCount = document.getElementById("jobsCount");
+    const jobsEmpty = document.getElementById("jobsEmpty");
+    const jobsTable = document.getElementById("jobsTable");
+    const jobsBody = document.getElementById("jobsBody");
 
     function statusItem(state, label, detail) {
       const item = document.createElement("li");
@@ -1218,6 +1320,7 @@ function buildStatusPageHtml() {
           });
         }
         setItems(items);
+        setRecentJobs(Array.isArray(health.recent_print_jobs) ? health.recent_print_jobs : []);
       } catch (error) {
         setItems([
           {
@@ -1226,7 +1329,81 @@ function buildStatusPageHtml() {
             detail: "Nao foi possivel consultar o status. Confirme se o DNMS Impressao esta aberto."
           }
         ]);
+        setRecentJobs([]);
       }
+    }
+
+    function setRecentJobs(jobs) {
+      jobsCount.textContent = jobs.length + " encontrado" + (jobs.length === 1 ? "" : "s");
+      jobsEmpty.hidden = jobs.length > 0;
+      jobsTable.hidden = jobs.length === 0;
+      jobsBody.replaceChildren(...jobs.map(renderJobRow));
+    }
+
+    function renderJobRow(job) {
+      const row = document.createElement("tr");
+      appendCell(row, renderStatusPill(job.status));
+      appendCell(row, formatJobType(job.type));
+      appendCell(row, formatJobSource(job.source));
+      appendCell(row, job.checkinId || "-");
+      appendCell(row, String(job.attempts || 0) + "/" + String(job.maxAttempts || 0));
+      appendCell(row, formatDateTime(job.createdAt));
+      appendCell(row, job.error || job.completedReason || job.windowsJobId || "-");
+      return row;
+    }
+
+    function appendCell(row, value) {
+      const cell = document.createElement("td");
+      if (value instanceof Node) {
+        cell.append(value);
+      } else {
+        cell.textContent = value;
+      }
+      row.append(cell);
+    }
+
+    function renderStatusPill(status) {
+      const pill = document.createElement("span");
+      const state = status === "SPOOLER_DONE" ? "ok" : (status === "FAILED" || status === "CANCELLED" ? "off" : "busy");
+      pill.className = "status-pill " + state;
+      pill.textContent = formatJobStatus(status);
+      return pill;
+    }
+
+    function formatJobStatus(status) {
+      const labels = {
+        QUEUED: "Pendente",
+        PRINTING: "Imprimindo",
+        SENT_TO_SPOOLER: "Enviado ao spooler",
+        SPOOLER_DONE: "Concluido",
+        FAILED: "Falhou",
+        CANCELLED: "Cancelado"
+      };
+      return labels[status] || status || "-";
+    }
+
+    function formatJobType(type) {
+      return type === "reprint" ? "Reimpressao" : "Impressao";
+    }
+
+    function formatJobSource(source) {
+      const labels = {
+        http: "Pagina",
+        auto_print: "Autoimpressao",
+        remote_reprint: "Reimpressao remota"
+      };
+      return labels[source] || source || "-";
+    }
+
+    function formatDateTime(value) {
+      if (!value) {
+        return "-";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+      return date.toLocaleString("pt-BR");
     }
 
     function buildServiceDetail(health) {

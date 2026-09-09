@@ -214,6 +214,19 @@ class JobStore {
     }, {});
   }
 
+  async listRecentJobs(limit = 25) {
+    const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
+    const rows = await this.all(
+      `select *
+       from print_jobs
+       order by coalesce(finished_at, spooler_accepted_at, started_at, queued_at, created_at) desc,
+                created_at desc
+       limit ?`,
+      [safeLimit]
+    );
+    return rows.map(mapRowToJob);
+  }
+
   async exec(sql) {
     await ensureOpen(this);
     return new Promise((resolve, reject) => {

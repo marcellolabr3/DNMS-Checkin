@@ -76,6 +76,11 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain("PrintQueue");
   expect(server).toContain("PrintWorker");
   expect(server).toContain("WindowsPdfPrintAdapter");
+  expect(server).toContain("recent_print_jobs");
+  expect(server).toContain("listRecentJobs(25)");
+  expect(server).toContain("Jobs recentes");
+  expect(server).toContain("renderJobRow");
+  expect(server).toContain("setRecentJobs");
   expect(server).toContain("enqueueCheckinPrintJob");
   expect(server).toContain("waitForPrinterQueueToSettle");
   expect(adapter).toContain("this.waitForPrinterQueueToSettle(printer.name, pdfPath)");
