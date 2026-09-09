@@ -227,6 +227,40 @@ class JobStore {
     return rows.map(mapRowToJob);
   }
 
+  async retryJob(id) {
+    const job = await this.getJob(id);
+    if (!job) {
+      const error = new Error("PrintJob nao encontrado.");
+      error.code = "PRINT_JOB_NOT_FOUND";
+      throw error;
+    }
+    if (!canRetryJob(job)) {
+      const error = new Error("PrintJob nao pode ser reenfileirado com seguranca.");
+      error.code = "PRINT_JOB_RETRY_UNSAFE";
+      throw error;
+    }
+    const existing = await this.getOpenJobByDedupe(job.dedupeKey);
+    if (existing && existing.id !== job.id) {
+      const error = new Error("Ja existe outro PrintJob aberto para a mesma etiqueta.");
+      error.code = "PRINT_JOB_DUPLICATE_OPEN";
+      throw error;
+    }
+    const now = new Date().toISOString();
+    await this.updateJobStatus(job.id, {
+      status: PRINT_JOB_STATUS.QUEUED,
+      attempts: 0,
+      queuedAt: now,
+      startedAt: null,
+      spoolerAcceptedAt: null,
+      finishedAt: null,
+      nextAttemptAt: null,
+      error: null,
+      windowsJobId: null,
+      completedReason: "manual_retry_before_spooler"
+    });
+    return this.getJob(job.id);
+  }
+
   async exec(sql) {
     await ensureOpen(this);
     return new Promise((resolve, reject) => {
@@ -298,7 +332,17 @@ function mapRowToJob(row) {
   };
 }
 
+function canRetryJob(job) {
+  return Boolean(
+    job &&
+      job.status === PRINT_JOB_STATUS.FAILED &&
+      !job.spoolerAcceptedAt &&
+      job.completedReason === "failed_before_spooler"
+  );
+}
+
 module.exports = {
   JobStore,
-  DEFAULT_DB_PATH
+  DEFAULT_DB_PATH,
+  canRetryJob
 };

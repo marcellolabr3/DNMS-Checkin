@@ -130,6 +130,27 @@ app.get("/print/:jobId", async (req, res) => {
   }
 });
 
+app.post("/print/:jobId/retry", async (req, res) => {
+  if (!authorizePrintRequest(req, res)) {
+    return;
+  }
+  try {
+    const jobId = String(req.params.jobId || "").trim();
+    const job = await jobStore.retryJob(jobId);
+    printWorker?.kick();
+    res.json({ ok: true, success: true, job: serializePrintJobForResponse(job) });
+  } catch (error) {
+    const code = String(error?.code || "");
+    const status = code === "PRINT_JOB_NOT_FOUND" ? 404 : 409;
+    res.status(status).json({
+      ok: false,
+      success: false,
+      code: code || "PRINT_JOB_RETRY_FAILED",
+      error: error?.message || "Falha ao reenfileirar PrintJob."
+    });
+  }
+});
+
 app.post("/print", async (req, res) => {
   if (!authorizePrintRequest(req, res)) {
     return;
@@ -1229,6 +1250,7 @@ function buildStatusPageHtml() {
               <th>Tentativas</th>
               <th>Criado</th>
               <th>Erro/resultado</th>
+              <th>Acao</th>
             </tr>
           </thead>
           <tbody id="jobsBody"></tbody>
@@ -1247,6 +1269,7 @@ function buildStatusPageHtml() {
     const jobsEmpty = document.getElementById("jobsEmpty");
     const jobsTable = document.getElementById("jobsTable");
     const jobsBody = document.getElementById("jobsBody");
+    let retryTokenRequired = false;
 
     function statusItem(state, label, detail) {
       const item = document.createElement("li");
@@ -1277,6 +1300,7 @@ function buildStatusPageHtml() {
           throw new Error("HTTP " + response.status);
         }
         const health = await response.json();
+        retryTokenRequired = Boolean(health.http_diagnostics && health.http_diagnostics.token_required);
         const printingBusy = Boolean(health.auto_print_processing || health.reprint_queue_processing);
         const printerQueueLength = Number(health.printer_queue_length || 0);
         const items = [
@@ -1349,6 +1373,7 @@ function buildStatusPageHtml() {
       appendCell(row, String(job.attempts || 0) + "/" + String(job.maxAttempts || 0));
       appendCell(row, formatDateTime(job.createdAt));
       appendCell(row, job.error || job.completedReason || job.windowsJobId || "-");
+      appendCell(row, renderJobAction(job));
       return row;
     }
 
@@ -1368,6 +1393,50 @@ function buildStatusPageHtml() {
       pill.className = "status-pill " + state;
       pill.textContent = formatJobStatus(status);
       return pill;
+    }
+
+    function renderJobAction(job) {
+      if (!job.canRetry) {
+        return "-";
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Tentar novamente";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Enviando...";
+        try {
+          const response = await fetch("/print/" + encodeURIComponent(job.id) + "/retry", {
+            method: "POST",
+            cache: "no-store",
+            headers: getRetryHeaders()
+          });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.error || "Falha ao reenfileirar.");
+          }
+          await refreshStatus();
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = "Tentar novamente";
+          alert(error.message || "Falha ao reenfileirar.");
+        }
+      });
+      return button;
+    }
+
+    function getRetryHeaders() {
+      if (!retryTokenRequired) {
+        return {};
+      }
+      let token = sessionStorage.getItem("dnms_print_service_token") || "";
+      if (!token) {
+        token = prompt("Token do servico de impressao local") || "";
+        if (token) {
+          sessionStorage.setItem("dnms_print_service_token", token);
+        }
+      }
+      return token ? { "X-DNMS-Print-Token": token } : {};
     }
 
     function formatJobStatus(status) {
@@ -1880,7 +1949,12 @@ function serializePrintJobForResponse(job) {
     windowsJobId: job.windowsJobId,
     printerName: job.printerName,
     completedReason: job.completedReason,
-    checkinId: job.payload?.checkin_id || ""
+    checkinId: job.payload?.checkin_id || "",
+    canRetry: Boolean(
+      job.status === "FAILED" &&
+        !job.spoolerAcceptedAt &&
+        job.completedReason === "failed_before_spooler"
+    )
   };
 }
 

@@ -70,6 +70,12 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain('.is("checked_out_at", null)');
   expect(server).toContain("Check-in ja recebeu checkout; autoimpressao ignorada.");
   expect(server).toContain("printQueue.enqueue");
+  expect(server).toContain('app.post("/print/:jobId/retry"');
+  expect(server).toContain("jobStore.retryJob(jobId)");
+  expect(server).toContain("printWorker?.kick()");
+  expect(server).toContain("canRetry");
+  expect(server).toContain("Tentar novamente");
+  expect(server).toContain("Token do servico de impressao local");
   expect(server).toContain("res.status(202).json");
   expect(server).toContain('app.get("/print/:jobId"');
   expect(server).toContain("JobStore");
@@ -145,6 +151,11 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(printJob).toContain("completedReason");
   expect(printJob).toContain("spoolerAcceptedAt");
   expect(printJob).not.toContain('PRINTED: "PRINTED"');
+  const jobStore = fs.readFileSync(path.join(__dirname, "..", "Servico de impressao", "src", "job-store.js"), "utf8");
+  expect(jobStore).toContain("async retryJob(id)");
+  expect(jobStore).toContain("canRetryJob(job)");
+  expect(jobStore).toContain('completedReason === "failed_before_spooler"');
+  expect(jobStore).toContain('completedReason: "manual_retry_before_spooler"');
 
   expect(packagePortable).toContain("DNMS Instalar Atualizar.cmd");
   expect(packagePortable).toContain("DNMS Validar Instalacao.cmd");
