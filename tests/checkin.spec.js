@@ -245,11 +245,11 @@ test("dashboard alerta e encerra check-ins ativos antigos", async ({ page }) => 
   expect(alerts).toContain("1 check-in(s) antigo(s) encerrado(s).");
 });
 
-test("turma usa idade completa na data atual", async ({ page }) => {
+test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page }) => {
   const year = new Date().getFullYear();
   await openApp(page);
   await page.evaluate(
-    ({ turns7Birth, turns15Birth, turned15LastYearBirth, startedAt, endedAt, today }) => {
+    ({ turns7Birth, turns11Birth, turns15Birth, turned15LastYearBirth, startedAt, endedAt, today }) => {
       window.__mockDnmsDb.rooms.push(
         {
           id: "room-kids-age-rule",
@@ -258,6 +258,17 @@ test("turma usa idade completa na data atual", async ({ page }) => {
           start_time: startedAt,
           end_time: endedAt,
           class_target: "Kids",
+          status: "Aberta",
+          opened_at: today + "T09:00:00.000Z",
+          closed_at: null
+        },
+        {
+          id: "room-juniors-age-rule",
+          name: "Culto Juniors",
+          date: today,
+          start_time: startedAt,
+          end_time: endedAt,
+          class_target: "Juniors",
           status: "Aberta",
           opened_at: today + "T09:00:00.000Z",
           closed_at: null
@@ -279,6 +290,18 @@ test("turma usa idade completa na data atual", async ({ page }) => {
           id: "student-turns-7",
           name: "Arthur Labre",
           birth_date: turns7Birth,
+          class_name: "Juniors",
+          primary_guardian_name: "Responsavel Teste",
+          phone: "11988880000",
+          address: "Rua Familia",
+          notes: "",
+          is_visitor: false,
+          photo_url: ""
+        },
+        {
+          id: "student-turns-11",
+          name: "Arthur Onze",
+          birth_date: turns11Birth,
           class_name: "Juniors",
           primary_guardian_name: "Responsavel Teste",
           phone: "11988880000",
@@ -315,6 +338,7 @@ test("turma usa idade completa na data atual", async ({ page }) => {
     },
     {
       turns7Birth: `${year - 7}-12-27`,
+      turns11Birth: `${year - 11}-01-10`,
       turns15Birth: `${year - 15}-12-31`,
       turned15LastYearBirth: `${year - 16}-12-31`,
       startedAt: timeOffset(-10),
@@ -328,6 +352,8 @@ test("turma usa idade completa na data atual", async ({ page }) => {
 
   await expect(studentItem(page, "Arthur Labre")).toContainText("Turma: Kids");
   await expect(studentItem(page, "Arthur Labre").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await expect(studentItem(page, "Arthur Onze")).toContainText("Turma: Juniors");
+  await expect(studentItem(page, "Arthur Onze").getByRole("button", { name: "Check-in" })).toBeEnabled();
   await expect(studentItem(page, "Clara Quinze")).toContainText("Turma: Teens");
   await expect(studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" })).toBeEnabled();
   await expect(studentItem(page, "Davi Fora")).toContainText("Turma: Fora da faixa");
@@ -337,6 +363,10 @@ test("turma usa idade completa na data atual", async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-7")?.class_name))
     .toBe("Kids");
+  await studentItem(page, "Arthur Onze").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-11")?.class_name))
+    .toBe("Juniors");
   await studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" }).click();
   await expect
     .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-15")?.class_name))
@@ -734,7 +764,7 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
     .toBe(true);
 });
 
-test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
+test("crianca que completou 2 anos no ano anterior entra no Maternal", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -742,7 +772,7 @@ test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
   await page.locator("#btnAddStudent").click();
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "Bebe Maternal");
-  await page.fill("#studentBirth", birthInputYearsAgo(2));
+  await page.fill("#studentBirth", birthInputYearsAgo(3));
   await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11999990000");
   await page.fill("#studentAddress", "Rua Maternal");
@@ -758,6 +788,9 @@ test("crianca com 2 anos completos entra no Maternal", async ({ page }) => {
 });
 
 test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ page }) => {
+  const shortYear = String((new Date().getFullYear() - 3) % 100).padStart(2, "0");
+  const fullYear = String(new Date().getFullYear() - 3);
+
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -765,7 +798,7 @@ test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ p
   await page.locator("#btnAddStudent").click();
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "Bebe Ano Curto");
-  await page.fill("#studentBirth", "10/01/24");
+  await page.fill("#studentBirth", `10/01/${shortYear}`);
   await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11999990000");
   await page.fill("#studentAddress", "Rua Ano Curto");
@@ -774,7 +807,7 @@ test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ p
 
   await expect(studentItem(page, "Bebe Ano Curto")).toContainText("Turma: Maternal");
   const saved = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.name === "Bebe Ano Curto"));
-  expect(saved.birth_date).toBe("2024-01-10");
+  expect(saved.birth_date).toBe(`${fullYear}-01-10`);
   expect(saved.class_name).toBe("Maternal");
 });
 
@@ -797,7 +830,7 @@ test("turma defasada no banco e recalculada pelo nascimento", async ({ page }) =
       student_id: "student-stale-maternal",
       guardian_id: "parent-1"
     });
-  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 2)));
+  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 3)));
 
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);

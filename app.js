@@ -9331,7 +9331,7 @@ function getAgeFromBirthAtDate(birth, referenceDate = new Date()) {
 
 function getStudentAgeEligibility(student, referenceDate = new Date()) {
   const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
-  const age = getAgeFromBirthAtDate(birth, referenceDate);
+  const age = getMinistryYearAgeFromBirth(birth, referenceDate);
   if (age === null) {
     return { ok: false, message: "Data de nascimento invalida para check-in." };
   }
@@ -9345,7 +9345,7 @@ function getStudentAgeEligibility(student, referenceDate = new Date()) {
 }
 
 function getClassForBirth(birth, referenceDate = new Date()) {
-  const age = getAgeFromBirthAtDate(birth, referenceDate);
+  const age = getMinistryYearAgeFromBirth(birth, referenceDate);
   if (age === null) {
     return "Indefinida";
   }
