@@ -1,7 +1,5 @@
--- DNMS Check-in: turma por idade ministerial anual.
--- A crianca entra no Maternal assim que completa 2 anos.
--- Depois disso, permanece na turma vigente durante o ano em que faz aniversario
--- e so muda de turma no ano seguinte.
+-- DNMS Check-in: turma por idade cronologica na data de corte anual.
+-- A data de corte e 31/03 do ano de referencia.
 
 create or replace function public.get_student_class_for_birth_year(
   birth_date date,
@@ -13,14 +11,10 @@ stable
 as $$
   with age_calc as (
     select
-      extract(year from reference_date)::int - extract(year from birth_date)::int - 1 as ministry_year_age,
-      date_part('year', age(reference_date, birth_date))::int as completed_age
+      make_date(extract(year from reference_date)::int, 3, 31) as cutoff_date
   ),
   effective_age as (
-    select case
-      when ministry_year_age < 2 and completed_age >= 2 then 2
-      else ministry_year_age
-    end as class_age
+    select date_part('year', age(cutoff_date, birth_date))::int as class_age
     from age_calc
   )
   select case

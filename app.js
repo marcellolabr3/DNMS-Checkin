@@ -1781,7 +1781,7 @@ function renderPastRooms(rooms, canManageRoom, selectedSet) {
 
 function createRoomListItem(room, canManageRoom, selectedSet) {
   const canSelectRoom = canOperateRooms() && room.status !== "Fechada" && !isRoomPast(room);
-  const limitLabel = room.maxCheckins ? `${getCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
+  const limitLabel = room.maxCheckins ? `${getActiveCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
   const item = document.createElement("div");
   item.className = "list-item";
   item.innerHTML = `
@@ -2186,9 +2186,6 @@ function renderStudents() {
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
     const checkinWindow = getCheckinWindowValidation(getAvailableCheckinRoomForClass(className) || targetRoom);
-    const alreadyInTargetRoom = Boolean(
-      targetRoom && state.checkins.find((checkin) => checkin.roomId === targetRoom.id && checkin.studentId === student.id)
-    );
     const checkoutButton = openCheckin
       ? `<button class="ghost" data-checkout="${escapeAttribute(student.id)}">Checkout</button>`
       : "";
@@ -2242,7 +2239,7 @@ function renderStudents() {
       btnEdit.disabled = true;
     }
 
-    if (openCheckin || alreadyInTargetRoom) {
+    if (openCheckin) {
       btnCheckin.disabled = true;
       btnCheckin.textContent = "Check-in realizado";
     } else if (!ageEligibility.ok) {
@@ -3005,11 +3002,12 @@ function renderLog() {
   }
 
   const items = getFilteredCheckins();
-  const availableStudents = getAvailableLogStudents(items);
+  const currentPresenceItems = getCurrentPresenceCheckins(items);
+  const availableStudents = getAvailableLogStudents(currentPresenceItems);
   const allowedIds = new Set(availableStudents.map((student) => student.id));
   state.ui.logSelectedStudentIds = (state.ui.logSelectedStudentIds || []).filter((id) => allowedIds.has(id));
   renderLogSelectedStudentsSummary(availableStudents);
-  const rows = buildLogFrequencyRows(items);
+  const rows = buildLogFrequencyRows(currentPresenceItems);
   els.logList.innerHTML = "";
 
   const totalRows = rows.length;
@@ -3018,7 +3016,7 @@ function renderLog() {
     els.logSummary.textContent = "Nenhuma frequencia encontrada para o periodo selecionado.";
     els.logCounts.textContent = "";
   } else {
-    const summary = buildEventSummary(items);
+    const summary = buildEventSummary(currentPresenceItems);
     const periodLabel = getLogPeriodLabel();
     els.logSummary.textContent = `Frequencia (${periodLabel}): ${totalRows} crianca(s) com presenca. ${totalCheckins} check-in(s).`;
     els.logCounts.textContent = summary.byClass.map((group) => `${group.label}: ${group.total} check-in(s)`).join(" | ");
@@ -6648,9 +6646,13 @@ function getCheckinsForRoom(roomId) {
   return state.checkins.filter((checkin) => checkin.roomId === roomId);
 }
 
+function getActiveCheckinsForRoom(roomId) {
+  return getCheckinsForRoom(roomId).filter((checkin) => !checkin.checkedOutAt);
+}
+
 function getRoomCheckinStudents(roomId) {
   const map = new Map();
-  getCheckinsForRoom(roomId).forEach((checkin) => {
+  getActiveCheckinsForRoom(roomId).forEach((checkin) => {
     const student = state.students.find((item) => item.id === checkin.studentId) || null;
     const key = student?.id || `unknown:${checkin.studentId || checkin.id}`;
     if (!map.has(key)) {
@@ -6682,7 +6684,7 @@ function renderRoomDetailsDialog(room) {
   const canManageRoom = canManageRooms();
   const canOperateRoom = canOperateRooms();
   const students = getRoomCheckinStudents(room.id);
-  const limitLabel = room.maxCheckins ? `${getCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
+  const limitLabel = room.maxCheckins ? `${getActiveCheckinsForRoom(room.id).length}/${room.maxCheckins}` : "Sem limite";
   if (els.roomDetailsTitle) {
     els.roomDetailsTitle.textContent = `Turma ${room.classTarget || "-"} (${room.status})`;
   }
@@ -7946,10 +7948,6 @@ async function handleManualCheckin(studentId, options = {}) {
   if (activeCheckin) {
     return fail("Este aluno ja possui um check-in ativo. Faça checkout antes de registrar outro check-in.");
   }
-  const already = state.checkins.find((checkin) => checkin.roomId === room.id && checkin.studentId === studentId);
-  if (already) {
-    return fail("Este aluno ja fez check-in nesta sala.");
-  }
   const roomLimit = getRoomCapacityValidation(room);
   if (!roomLimit.ok) {
     return fail(roomLimit.message);
@@ -8323,13 +8321,14 @@ function exportCsv() {
     exportAuditCsv(reportType);
     return;
   }
-  const rows = buildLogFrequencyRows(getFilteredCheckins());
+  const filteredCheckins = getFilteredCheckins();
+  const currentPresenceItems = getCurrentPresenceCheckins(filteredCheckins);
+  const rows = buildLogFrequencyRows(currentPresenceItems);
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para exportar.");
     return;
   }
-  const filteredCheckins = getFilteredCheckins();
-  const summary = buildEventSummary(filteredCheckins);
+  const summary = buildEventSummary(currentPresenceItems);
   const summaryHeader = ["Secao", "Nome", "Total", "Criancas", "Ativos", "Check-outs", "Pendentes de impressao"];
   const detailHeader = ["Aluno", "Turma", "Presencas", "Horarios de check-in"];
   const csvRows = [
@@ -8420,8 +8419,8 @@ function shareLogWhatsapp() {
   }
   const reportType = getLogReportType();
   const filteredCheckins = getFilteredCheckins();
-  const summary = buildEventSummary(filteredCheckins);
   if (reportType === "event_summary") {
+    const summary = buildEventSummary(filteredCheckins);
     if (!summary.totalCheckins) {
       alert("Nenhum resumo de evento encontrado para compartilhar.");
       return;
@@ -8430,11 +8429,13 @@ function shareLogWhatsapp() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     return;
   }
-  const rows = buildLogFrequencyRows(filteredCheckins);
+  const currentPresenceItems = getCurrentPresenceCheckins(filteredCheckins);
+  const rows = buildLogFrequencyRows(currentPresenceItems);
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para compartilhar.");
     return;
   }
+  const summary = buildEventSummary(currentPresenceItems);
   const lines = rows.map((row) => `${row.studentName} | ${row.className} | ${row.timesLabel}`);
   const message = [
     ...buildEventSummaryTextLines(summary, getLogPeriodLabel()),
@@ -9300,17 +9301,6 @@ function getAgeFromBirth(birth) {
   return age;
 }
 
-function getMinistryYearAgeFromBirth(birth, referenceDate = new Date()) {
-  if (!birth) {
-    return null;
-  }
-  const [year, month, day] = birth.split("-").map((item) => Number.parseInt(item, 10));
-  if (!year || !month || !day) {
-    return null;
-  }
-  return referenceDate.getFullYear() - year - 1;
-}
-
 function getAgeFromBirthAtDate(birth, referenceDate = new Date()) {
   if (!birth) {
     return null;
@@ -9329,16 +9319,20 @@ function getAgeFromBirthAtDate(birth, referenceDate = new Date()) {
   return age;
 }
 
-function getClassAgeFromBirth(birth, referenceDate = new Date()) {
-  const ministryYearAge = getMinistryYearAgeFromBirth(birth, referenceDate);
-  if (ministryYearAge === null) {
+function getClassCutoffDate(referenceDate = new Date()) {
+  const baseDate = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  if (Number.isNaN(baseDate.getTime())) {
     return null;
   }
-  const completedAge = getAgeFromBirthAtDate(birth, referenceDate);
-  if (ministryYearAge < 2 && completedAge >= 2) {
-    return 2;
+  return new Date(baseDate.getFullYear(), 2, 31);
+}
+
+function getClassAgeFromBirth(birth, referenceDate = new Date()) {
+  const cutoffDate = getClassCutoffDate(referenceDate);
+  if (!cutoffDate) {
+    return null;
   }
-  return ministryYearAge;
+  return getAgeFromBirthAtDate(birth, cutoffDate);
 }
 
 function getStudentAgeEligibility(student, referenceDate = new Date()) {
@@ -9440,6 +9434,27 @@ function buildLogFrequencyRows(checkins) {
       };
     })
     .sort(compareFrequencyRowsForExport);
+}
+
+function getCheckinTimeValue(checkin) {
+  const date = new Date(checkin?.checkedInAt || "");
+  if (!Number.isNaN(date.getTime())) {
+    return date.getTime();
+  }
+  const parsed = parseLogDateTimeLabel(checkin?.dateTime || "");
+  return parsed ? parsed.getTime() : 0;
+}
+
+function getCurrentPresenceCheckins(checkins) {
+  const latestByRoomAndStudent = new Map();
+  (Array.isArray(checkins) ? checkins : []).forEach((checkin) => {
+    const key = `${checkin.roomId || ""}|${checkin.studentId || checkin.id || ""}`;
+    const current = latestByRoomAndStudent.get(key);
+    if (!current || getCheckinTimeValue(checkin) >= getCheckinTimeValue(current)) {
+      latestByRoomAndStudent.set(key, checkin);
+    }
+  });
+  return Array.from(latestByRoomAndStudent.values()).filter((checkin) => !checkin.checkedOutAt);
 }
 
 function compareFrequencyRowsForExport(a, b) {
@@ -9588,7 +9603,7 @@ function openLogStudentsDialog() {
   if (!els.logStudentsDialog || !els.logStudentsList) {
     return;
   }
-  const students = getAvailableLogStudents(getFilteredCheckins());
+  const students = getAvailableLogStudents(getCurrentPresenceCheckins(getFilteredCheckins()));
   els.logStudentsList.innerHTML = "";
   if (!students.length) {
     els.logStudentsList.innerHTML = `<div class="summary">Nenhuma crianca disponivel para o filtro atual.</div>`;
@@ -9761,7 +9776,7 @@ function getRoomCapacityValidation(room) {
   if (!maxCheckins) {
     return { ok: true, message: "" };
   }
-  const total = getCheckinsForRoom(room.id).length;
+  const total = getActiveCheckinsForRoom(room.id).length;
   if (total >= maxCheckins) {
     return { ok: false, message: "Limite de check-ins atingido para esta sala." };
   }

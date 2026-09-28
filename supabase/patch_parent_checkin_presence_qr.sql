@@ -120,15 +120,6 @@ begin
     raise exception 'Este aluno ja possui um check-in ativo.';
   end if;
 
-  if exists (
-    select 1
-      from public.checkins c
-     where c.student_id = target_student.id
-       and c.room_id = target_room.id
-  ) then
-    raise exception 'Este aluno ja fez check-in nesta sala.';
-  end if;
-
   insert into public.checkins (
     student_id,
     room_id,

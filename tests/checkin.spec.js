@@ -78,7 +78,32 @@ test("check-in e checkout manual atualizam o estado da crianca", async ({ page }
 
   await expect(page.locator("#checkoutDialog")).toBeHidden();
   await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Checkout" })).toHaveCount(0);
-  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in realizado" })).toBeDisabled();
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await expect.poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.filter((item) => item.student_id === "student-kids").length)).toBe(2);
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.filter((item) => item.student_id === "student-kids" && item.checked_out_at === null).length))
+    .toBe(1);
+});
+
+test("checkout sem check-in ativo nao fica disponivel e duplo checkout e bloqueado", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await expect(studentItem(page, "Ana Kids").getByRole("button", { name: "Checkout" })).toHaveCount(0);
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Check-in" }).click();
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Checkout" }).click();
+  await page.click("#btnConfirmCheckout");
+  await expect(page.locator("#checkoutDialog")).toBeHidden();
+
+  await page.evaluate(() => {
+    const firstCheckin = window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-kids");
+    document.querySelector("#checkoutCheckinId").value = firstCheckin?.id || "";
+    document.querySelector("#btnConfirmCheckout").click();
+  });
+  const alerts = await getAlerts(page);
+  expect(alerts).toContain("Checkout nao disponivel.");
 });
 
 test("check-in fica bloqueado antes de 30 minutos do inicio da aula", async ({ page }) => {
@@ -245,23 +270,11 @@ test("dashboard alerta e encerra check-ins ativos antigos", async ({ page }) => 
   expect(alerts).toContain("1 check-in(s) antigo(s) encerrado(s).");
 });
 
-test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page }) => {
-  const year = new Date().getFullYear();
+test("turma usa idade na data de corte de 31/03 do ano de referencia", async ({ page }) => {
   await openApp(page);
   await page.evaluate(
-    ({ turns7Birth, turns11Birth, turns15Birth, turned15LastYearBirth, startedAt, endedAt, today }) => {
+    ({ startedAt, endedAt, today }) => {
       window.__mockDnmsDb.rooms.push(
-        {
-          id: "room-kids-age-rule",
-          name: "Culto Kids",
-          date: today,
-          start_time: startedAt,
-          end_time: endedAt,
-          class_target: "Kids",
-          status: "Aberta",
-          opened_at: today + "T09:00:00.000Z",
-          closed_at: null
-        },
         {
           id: "room-juniors-age-rule",
           name: "Culto Juniors",
@@ -287,9 +300,9 @@ test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page 
       );
       window.__mockDnmsDb.students.push(
         {
-          id: "student-turns-7",
-          name: "Arthur Labre",
-          birth_date: turns7Birth,
+          id: "student-lucas-carrati",
+          name: "Lucas Henriques Carrati",
+          birth_date: "2015-01-20",
           class_name: "Juniors",
           primary_guardian_name: "Responsavel Teste",
           phone: "11988880000",
@@ -299,9 +312,9 @@ test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page 
           photo_url: ""
         },
         {
-          id: "student-turns-11",
-          name: "Arthur Onze",
-          birth_date: turns11Birth,
+          id: "student-arthur-deveza",
+          name: "Arthur Pereira Deveza",
+          birth_date: "2015-04-27",
           class_name: "Juniors",
           primary_guardian_name: "Responsavel Teste",
           phone: "11988880000",
@@ -311,22 +324,22 @@ test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page 
           photo_url: ""
         },
         {
-          id: "student-turns-15",
-          name: "Clara Quinze",
-          birth_date: turns15Birth,
-          class_name: "Fora da faixa",
-          primary_guardian_name: "Responsavel Teste",
-          phone: "11988880000",
-          address: "Rua Familia",
-          notes: "",
-          is_visitor: false,
-          photo_url: ""
-        },
-        {
-          id: "student-turned-15-last-year",
-          name: "Davi Fora",
-          birth_date: turned15LastYearBirth,
+          id: "student-stays-teens",
+          name: "Clara Corte",
+          birth_date: "2011-04-01",
           class_name: "Teens",
+          primary_guardian_name: "Responsavel Teste",
+          phone: "11988880000",
+          address: "Rua Familia",
+          notes: "",
+          is_visitor: false,
+          photo_url: ""
+        },
+        {
+          id: "student-out-of-range",
+          name: "Davi Fora",
+          birth_date: "2011-03-30",
+          class_name: "Fora da faixa",
           primary_guardian_name: "Responsavel Teste",
           phone: "11988880000",
           address: "Rua Familia",
@@ -337,10 +350,6 @@ test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page 
       );
     },
     {
-      turns7Birth: `${year - 7}-12-27`,
-      turns11Birth: `${year - 11}-01-10`,
-      turns15Birth: `${year - 15}-12-31`,
-      turned15LastYearBirth: `${year - 16}-12-31`,
       startedAt: timeOffset(-10),
       endedAt: timeOffset(50),
       today: todayIso()
@@ -350,27 +359,29 @@ test("turma usa idade ministerial e muda apenas no ano seguinte", async ({ page 
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
 
-  await expect(studentItem(page, "Arthur Labre")).toContainText("Turma: Kids");
-  await expect(studentItem(page, "Arthur Labre").getByRole("button", { name: "Check-in" })).toBeEnabled();
-  await expect(studentItem(page, "Arthur Onze")).toContainText("Turma: Juniors");
-  await expect(studentItem(page, "Arthur Onze").getByRole("button", { name: "Check-in" })).toBeEnabled();
-  await expect(studentItem(page, "Clara Quinze")).toContainText("Turma: Teens");
-  await expect(studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await expect(studentItem(page, "Lucas Henriques Carrati")).toContainText("Turma: Teens");
+  await expect(studentItem(page, "Lucas Henriques Carrati").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await expect(studentItem(page, "Arthur Pereira Deveza")).toContainText("Turma: Juniors");
+  await expect(studentItem(page, "Arthur Pereira Deveza").getByRole("button", { name: "Check-in" })).toBeEnabled();
+  await expect(studentItem(page, "Clara Corte")).toContainText("Turma: Teens");
+  await expect(studentItem(page, "Clara Corte").getByRole("button", { name: "Check-in" })).toBeEnabled();
   await expect(studentItem(page, "Davi Fora")).toContainText("Turma: Fora da faixa");
   await expect(studentItem(page, "Davi Fora").getByRole("button", { name: "Fora da faixa" })).toBeDisabled();
 
-  await studentItem(page, "Arthur Labre").getByRole("button", { name: "Check-in" }).click();
+  await studentItem(page, "Lucas Henriques Carrati").getByRole("button", { name: "Check-in" }).click();
   await expect
-    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-7")?.class_name))
-    .toBe("Kids");
-  await studentItem(page, "Arthur Onze").getByRole("button", { name: "Check-in" }).click();
-  await expect
-    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-11")?.class_name))
-    .toBe("Juniors");
-  await studentItem(page, "Clara Quinze").getByRole("button", { name: "Check-in" }).click();
-  await expect
-    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-turns-15")?.class_name))
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-lucas-carrati")?.class_name))
     .toBe("Teens");
+  await studentItem(page, "Arthur Pereira Deveza").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-arthur-deveza")?.class_name))
+    .toBe("Juniors");
+  await studentItem(page, "Clara Corte").getByRole("button", { name: "Check-in" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.checkins.find((item) => item.student_id === "student-stays-teens")?.class_name))
+    .toBe("Teens");
+  const classIn2027 = await page.evaluate(() => getClassForBirth("2015-04-27", new Date("2027-01-10T12:00:00")));
+  expect(classIn2027).toBe("Teens");
 });
 
 test("sala vencida aberta faz checkout automatico antes de novo check-in", async ({ page }) => {
@@ -470,6 +481,23 @@ test("edicao de nascimento substitui o segmento sem deslocar a data", async ({ p
   await page.press("#studentBirth", "1");
   await page.press("#studentBirth", "2");
   await expect(page.locator("#studentBirth")).toHaveValue(/25\/12\/\d{4}/);
+});
+
+test("alteracao da data de nascimento reclassifica a turma", async ({ page }) => {
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await studentItem(page, "Ana Kids").getByRole("button", { name: "Editar" }).click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentBirth", "20/01/2015");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await expect(studentItem(page, "Ana Kids")).toContainText("Turma: Teens");
+  await expect
+    .poll(() => page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.id === "student-kids")?.class_name))
+    .toBe("Teens");
 });
 
 test("nome da crianca e salvo com iniciais maiusculas", async ({ page }) => {
@@ -764,7 +792,8 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
     .toBe(true);
 });
 
-test("crianca que completou 2 anos no ano atual entra no Maternal", async ({ page }) => {
+test("crianca com 2 anos na data de corte entra no Maternal", async ({ page }) => {
+  const cutoffYear = new Date().getFullYear() - 2;
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -772,7 +801,7 @@ test("crianca que completou 2 anos no ano atual entra no Maternal", async ({ pag
   await page.locator("#btnAddStudent").click();
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "Bebe Maternal");
-  await page.fill("#studentBirth", birthInputYearsAgo(2));
+  await page.fill("#studentBirth", `31/03/${cutoffYear}`);
   await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11999990000");
   await page.fill("#studentAddress", "Rua Maternal");
@@ -787,6 +816,26 @@ test("crianca que completou 2 anos no ano atual entra no Maternal", async ({ pag
     .toBe("Maternal");
 });
 
+test("crianca que completa 2 anos depois da data de corte fica fora da faixa no ano", async ({ page }) => {
+  const birthYear = new Date().getFullYear() - 2;
+  await openApp(page);
+  await loginAs(page, "admin@dnms.test");
+  await openStudentsPanel(page);
+
+  await page.locator("#btnAddStudent").click();
+  await expect(page.locator("#studentDialog")).toBeVisible();
+  await page.fill("#studentName", "Bebe Pos Corte");
+  await page.fill("#studentBirth", `01/04/${birthYear}`);
+  await page.fill("#studentGuardian", "Responsavel Teste");
+  await page.fill("#studentPhone", "11999990000");
+  await page.fill("#studentAddress", "Rua Pos Corte");
+  await page.click("#btnSaveStudent");
+  await expect(page.locator("#studentDialog")).toBeHidden();
+
+  await expect(studentItem(page, "Bebe Pos Corte")).toContainText("Turma: Fora da faixa");
+  await expect(studentItem(page, "Bebe Pos Corte").getByRole("button", { name: "Fora da faixa" })).toBeDisabled();
+});
+
 test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ page }) => {
   const shortYear = String((new Date().getFullYear() - 2) % 100).padStart(2, "0");
   const fullYear = String(new Date().getFullYear() - 2);
@@ -798,7 +847,7 @@ test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ p
   await page.locator("#btnAddStudent").click();
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "Bebe Ano Curto");
-  await page.fill("#studentBirth", `10/01/${shortYear}`);
+  await page.fill("#studentBirth", `31/03/${shortYear}`);
   await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11999990000");
   await page.fill("#studentAddress", "Rua Ano Curto");
@@ -807,7 +856,7 @@ test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ p
 
   await expect(studentItem(page, "Bebe Ano Curto")).toContainText("Turma: Maternal");
   const saved = await page.evaluate(() => window.__mockDnmsDb.students.find((item) => item.name === "Bebe Ano Curto"));
-  expect(saved.birth_date).toBe(`${fullYear}-01-10`);
+  expect(saved.birth_date).toBe(`${fullYear}-03-31`);
   expect(saved.class_name).toBe("Maternal");
 });
 
@@ -830,7 +879,7 @@ test("turma defasada no banco e recalculada pelo nascimento", async ({ page }) =
       student_id: "student-stale-maternal",
       guardian_id: "parent-1"
     });
-  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 2)));
+  }, `${new Date().getFullYear() - 2}-03-31`);
 
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -1486,6 +1535,73 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   expect(whatsappText).not.toContain("Impressao pendente");
   expect(whatsappText).toContain("Frequencia detalhada");
   expect(whatsappText).toContain("Ana Kids | Kids |");
+});
+
+test("log de frequencia mostra presenca atual pelo ultimo estado da crianca", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.checkins.push(
+      {
+        id: "checkin-current-closed",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T12:00:00.000Z`,
+        checked_out_at: `${today}T12:20:00.000Z`,
+        printed_at: `${today}T12:01:00.000Z`
+      },
+      {
+        id: "checkin-current-duplicate-active",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T12:30:00.000Z`,
+        checked_out_at: null,
+        printed_at: `${today}T12:31:00.000Z`
+      },
+      {
+        id: "checkin-current-active",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T12:40:00.000Z`,
+        checked_out_at: null,
+        printed_at: null
+      },
+      {
+        id: "checkin-current-absent",
+        student_id: "student-juniors",
+        room_id: "room-juniors",
+        room_name_snapshot: "Culto Juniors",
+        class_name: "Juniors",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T12:10:00.000Z`,
+        checked_out_at: `${today}T12:25:00.000Z`,
+        printed_at: `${today}T12:11:00.000Z`
+      }
+    );
+  }, todayIso());
+
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnLogPanel");
+
+  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 check-in(s).");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s)");
+  await expect(page.locator("#logList")).toContainText("Ana Kids");
+  await expect(page.locator("#logList")).not.toContainText("Bia Juniors");
+  const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
+  await kidsGroup.locator("summary").click();
+  await expect(kidsGroup.locator(".list-item")).toHaveCount(1);
 });
 
 test("log gera resumo do evento com pendencias de impressao e exporta csv", async ({ page }) => {

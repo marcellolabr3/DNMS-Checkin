@@ -1,4 +1,4 @@
--- DNMS Check-in: limite de check-ins por sala e idade ministerial por ano.
+-- DNMS Check-in: limite de check-ins ativos por sala e idade por corte anual.
 -- Execute no Supabase SQL Editor do projeto correto.
 
 alter table public.rooms
@@ -21,14 +21,10 @@ stable
 as $$
   with age_calc as (
     select
-      extract(year from reference_date)::int - extract(year from birth_date)::int - 1 as ministry_year_age,
-      date_part('year', age(reference_date, birth_date))::int as completed_age
+      make_date(extract(year from reference_date)::int, 3, 31) as cutoff_date
   ),
   effective_age as (
-    select case
-      when ministry_year_age < 2 and completed_age >= 2 then 2
-      else ministry_year_age
-    end as class_age
+    select date_part('year', age(cutoff_date, birth_date))::int as class_age
     from age_calc
   )
   select case
@@ -66,6 +62,7 @@ begin
     into current_total
     from public.checkins c
    where c.room_id = new.room_id
+     and c.checked_out_at is null
      and (tg_op = 'INSERT' or c.id <> new.id);
 
   if current_total >= room_limit then
@@ -159,6 +156,7 @@ begin
          select count(*)::integer
            from public.checkins c
           where c.room_id = rooms.id
+            and c.checked_out_at is null
        ) < rooms.max_checkins
      )
    order by
@@ -188,15 +186,6 @@ begin
        and c.checked_out_at is null
   ) then
     raise exception 'Este aluno ja possui um check-in ativo.';
-  end if;
-
-  if exists (
-    select 1
-      from public.checkins c
-     where c.student_id = target_student.id
-       and c.room_id = target_room.id
-  ) then
-    raise exception 'Este aluno ja fez check-in nesta sala.';
   end if;
 
   insert into public.checkins (

@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v185`, `app.js?v=20260922b`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v186`, `app.js?v=20260928a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -26,7 +26,8 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
 - Salas podem ser marcadas como teste somente por SADMIN; check-ins dessas salas nao entram em relatorios operacionais e nao disparam autoimpressao.
-- Turma/faixa etaria usa idade ministerial anual: `ano_referencia - ano_nascimento - 1`; excecao: entrada no Maternal libera assim que a crianca completa 2 anos. Depois disso, permanece na turma durante o ano em que faz aniversario e muda somente no ano seguinte.
+- Turma/faixa etaria usa idade cronologica em 31/03 do ano de referencia. Ex.: em 2026, Lucas Henriques Carrati (`2015-01-20`) fica `Teens`; Arthur Pereira Deveza (`2015-04-27`) fica `Juniors`.
+- Presenca atual nao e cumulativa: considerar o ultimo estado valido por crianca/aula; check-in aberto (`checked_out_at is null`) = presente, checkout = ausente. Historico de check-in/checkout permanece preservado.
 - Salas aceitam `max_checkins` opcional; `null` significa sem limite. Check-in deve ser bloqueado quando a sala atinge a capacidade.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
@@ -36,7 +37,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser mantido como schema canonico para novos ambientes.
-- Patches aplicados: `patch_sadmin_test_rooms_clear_checkins.sql` (SADMIN/teste/zerar), `patch_room_checkin_limit_and_age.sql` (limite/idade/check-in), `patch_sync_student_class_names.sql` (sincroniza `students.class_name`), `patch_ministry_year_class_age.sql` (idade ministerial anual).
+- Patches aplicados: `patch_sadmin_test_rooms_clear_checkins.sql` (SADMIN/teste/zerar), `patch_room_checkin_limit_and_age.sql` (limite/idade/check-in), `patch_sync_student_class_names.sql` (sincroniza `students.class_name`), `patch_ministry_year_class_age.sql` (regra anterior), `patch_class_cutoff_presence_state.sql` (31/03 e presenca ativa).
 - Supabase guarda familias, criancas, check-ins, historico, reimpressao e auditoria.
 - Conexao local do Print Service com Postgres deve usar pooler Supabase; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
@@ -46,28 +47,17 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 - Fonte unica do servico de impressao: `Servico de impressao/`; a pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida.
 - Fase 1 implementada: `POST /print` e `POST /reprint` enfileiram em SQLite e retornam `202 Accepted`.
-- Endpoints: `GET /print/:jobId`, `POST /print/:jobId/retry`, `GET /status`, `GET /health`; token local continua obrigatorio quando configurado para consultas/acoes de jobs.
-- `/status` mostra painel operacional com diagnosticos e jobs recentes do SQLite local; retry manual aparece somente para falhas antes do spooler.
-- `/health` e `/status` exibem diagnosticos operacionais para Brother offline/ausente, fila travada, Chrome/Edge ausente, Sumatra ausente, porta ocupada, token/origem mal configurados e acesso admin ausente.
+- Endpoints: `GET /print/:jobId`, `POST /print/:jobId/retry`, `GET /status`, `GET /health`; token local obrigatorio quando configurado.
 - Arquivos principais: `Servico de impressao/src/print-job.js`, `job-store.js`, `print-queue.js`, `print-worker.js`, `windows-pdf-print-adapter.js`.
-- Autoimpressao e reimpressao remota convergem para o mesmo `PrintWorker`; nao voltar a imprimir por caminhos independentes.
-- Impressao normal deduplica por `checkin_id` independentemente da origem (`/print`, listener ou polling) para evitar etiqueta 2x quando frontend desktop e autoimpressao veem o mesmo check-in.
-- Retry automatico/manual somente antes de `SENT_TO_SPOOLER`; depois do aceite pelo Windows, falha vira ambigua sem retry para evitar etiqueta duplicada.
-- ZIP portable inclui `DNMS Instalar Atualizar.cmd`, `DNMS Validar Instalacao.cmd` e scripts de validacao/atalho; usar o instalador para atualizar, criar atalho e validar pos-start.
-- `scripts/package-portable.ps1` gera `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip` como unico pacote exportavel local e limpa a pasta temporaria e o `dist/` intermediario.
-- Validacao continua do ambiente real: `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1` monitoram instalacao, `/health`, Brother, fila, autoimpressao e reimpressao sem imprimir etiqueta por padrao.
+- Autoimpressao e reimpressao remota convergem para `PrintWorker`; dedupe por `checkin_id`; retry automatico/manual somente antes de `SENT_TO_SPOOLER`.
+- Portable: `scripts/package-portable.ps1` gera `Servico de impressao/dist-pacote/DNMS-Servico-de-impressao-portable.zip`; validar com `DNMS Validacao Continua.cmd` / `scripts/validate-real-environment.ps1`.
 - ZIP/exe/binarios sao artefatos privados e ignorados; nao versionar porque Cloudflare Pages limita arquivo publicado a 25 MiB.
 
 ## Ultimo estado validado
 
-- Em 2026-09-22, regra de turma alterada no frontend e Supabase; patch `patch_ministry_year_class_age.sql` aplicado em producao. Criancas entram no Maternal assim que completam 2 anos; demais mudancas seguem idade ministerial anual. Arthur Pereira Deveza ficou `Juniors` em 2026 e passa para `Teens` em 2027. `npm.cmd test` passou com 202 testes.
+- Em 2026-09-28, regra de turma alterada no frontend e Supabase para idade em 31/03 do ano de referencia; patch `patch_class_cutoff_presence_state.sql` aplicado em producao apos backup `D:\Dev\BCK_CHEK\dnms-rule-fix-backup-20260928-133532.json`. 7 cadastros foram reclassificados. Lucas Henriques Carrati ficou `Teens`; Arthur Pereira Deveza ficou `Juniors`. Log de frequencia passou a mostrar presenca atual por check-in ativo, sem apagar historico. `npm.cmd test` passou com 210 testes.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
-- Em 2026-09-08, seletor do Log ficou sem opcoes separadas para `child_created` e `user_deleted`; esses eventos aparecem apenas em `Alteracoes de dados`, com cache atualizado para forcar refresh do PWA.
 - Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` foi validado gerando um unico ZIP em `dist-pacote/` e removendo `dist/`.
-- Em 2026-09-08, `npm.cmd test` passou com 202 testes apos corrigir dedupe de impressao normal por `checkin_id` para evitar duplicidade entre `/print` e autoimpressao.
-- Em 2026-09-08, parser PowerShell dos scripts portable, `validate-install.ps1 -Json`, `node --check server.js` e `npm.cmd test` passaram apos polir instalacao/atualizacao Windows.
-- Em 2026-09-08, `npm.cmd test` passou apos cadastro de crianca aceitar `dd/mm/aa` e `dd/mm/aaaa`; ano curto resolve para o seculo atual se nao for futuro, senao para o seculo anterior.
-- Em 2026-09-07, patch `patch_room_checkin_limit_and_age.sql` aplicado no Supabase de producao e verificado.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
 
 ## Fila de coisas a fazer

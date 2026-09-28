@@ -156,6 +156,42 @@ function createMockSupabaseScript() {
     return JSON.parse(JSON.stringify(value));
   }
 
+  function getAgeFromBirthAtDate(birth, referenceDate) {
+    if (!birth) {
+      return null;
+    }
+    const parts = String(birth).slice(0, 10).split("-").map((item) => Number.parseInt(item, 10));
+    const year = parts[0];
+    const month = parts[1];
+    const day = parts[2];
+    if (!year || !month || !day) {
+      return null;
+    }
+    let age = referenceDate.getFullYear() - year;
+    const hasHadBirthday =
+      referenceDate.getMonth() > month - 1 ||
+      (referenceDate.getMonth() === month - 1 && referenceDate.getDate() >= day);
+    if (!hasHadBirthday) {
+      age -= 1;
+    }
+    return age;
+  }
+
+  function getClassForBirthAtCutoff(birth, referenceDate = new Date()) {
+    const date = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+    if (Number.isNaN(date.getTime())) {
+      return "Indefinida";
+    }
+    const cutoff = new Date(date.getFullYear(), 2, 31);
+    const age = getAgeFromBirthAtDate(birth, cutoff);
+    if (age === null) return "Indefinida";
+    if (age >= 2 && age <= 3) return "Maternal";
+    if (age >= 4 && age <= 6) return "Kids";
+    if (age >= 7 && age <= 10) return "Juniors";
+    if (age >= 11 && age <= 14) return "Teens";
+    return "Fora da faixa";
+  }
+
   function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -255,12 +291,12 @@ function createMockSupabaseScript() {
       return { data: null, error: { message: "Sem permissao para check-in deste aluno." } };
     }
     const room = db.rooms
-      .filter((item) => item.status === "Aberta" && item.class_target === student.class_name)
+      .filter((item) => item.status === "Aberta" && item.class_target === getClassForBirthAtCutoff(student.birth_date, item.date))
       .sort((a, b) => (isRoomCheckinWindowOpen(a) === isRoomCheckinWindowOpen(b) ? 0 : isRoomCheckinWindowOpen(a) ? -1 : 1))[0];
     if (!room) {
       return { data: null, error: { message: "Nao ha sala aberta para a turma deste aluno." } };
     }
-    if (room.max_checkins && db.checkins.filter((item) => item.room_id === room.id).length >= room.max_checkins) {
+    if (room.max_checkins && db.checkins.filter((item) => item.room_id === room.id && item.checked_out_at === null).length >= room.max_checkins) {
       return { data: null, error: { message: "room_checkin_limit_reached" } };
     }
     if (!isRoomCheckinWindowOpen(room)) {
@@ -274,7 +310,7 @@ function createMockSupabaseScript() {
       student_id: student.id,
       room_id: room.id,
       room_name_snapshot: room.name,
-      class_name: student.class_name,
+      class_name: getClassForBirthAtCutoff(student.birth_date, room.date),
       actor_id: actor.id,
       notes_snapshot: student.notes || "",
       checked_in_at: new Date().toISOString(),
@@ -800,7 +836,7 @@ function createMockSupabaseScript() {
           }
           const overLimit = entries.find((entry) => {
             const room = db.rooms.find((item) => item.id === entry.room_id);
-            return room?.max_checkins && db.checkins.filter((item) => item.room_id === room.id).length >= room.max_checkins;
+            return room?.max_checkins && db.checkins.filter((item) => item.room_id === room.id && item.checked_out_at === null).length >= room.max_checkins;
           });
           if (overLimit) {
             return { data: null, error: { message: "room_checkin_limit_reached", code: "P0001" } };

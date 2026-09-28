@@ -1,3 +1,6 @@
+-- DNMS Check-in: turma por idade em 31/03 e presenca atual por estado ativo.
+-- Execute no Supabase SQL Editor do projeto correto.
+
 create or replace function public.get_student_class_for_birth_year(
   birth_date date,
   reference_date date default current_date
@@ -7,7 +10,8 @@ language sql
 stable
 as $$
   with age_calc as (
-    select make_date(extract(year from reference_date)::int, 3, 31) as cutoff_date
+    select
+      make_date(extract(year from reference_date)::int, 3, 31) as cutoff_date
   ),
   effective_age as (
     select date_part('year', age(cutoff_date, birth_date))::int as class_age
@@ -24,53 +28,44 @@ as $$
   from effective_age
 $$;
 
-create or replace function public.prevent_checkin_outside_student_age_range()
+update public.students
+   set class_name = public.get_student_class_for_birth_year(birth_date, current_date)
+ where class_name is distinct from public.get_student_class_for_birth_year(birth_date, current_date);
+
+create or replace function public.prevent_checkin_over_room_limit()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  student_birth date;
-  room_date date;
-  room_class text;
-  expected_class text;
+  room_limit integer;
+  current_total integer;
 begin
-  select s.birth_date
-    into student_birth
-    from public.students s
-   where s.id = new.student_id
-   limit 1;
-
-  select r.date, r.class_target
-    into room_date, room_class
+  select r.max_checkins
+    into room_limit
     from public.rooms r
    where r.id = new.room_id
    limit 1;
 
-  if student_birth is null or room_date is null then
+  if room_limit is null then
     return new;
   end if;
 
-  expected_class := public.get_student_class_for_birth_year(student_birth, room_date);
+  select count(*)::integer
+    into current_total
+    from public.checkins c
+   where c.room_id = new.room_id
+     and c.checked_out_at is null
+     and (tg_op = 'INSERT' or c.id <> new.id);
 
-  if expected_class = 'Fora da faixa' then
-    raise exception 'student_age_out_of_range';
+  if current_total >= room_limit then
+    raise exception 'room_checkin_limit_reached';
   end if;
 
-  if room_class is distinct from expected_class then
-    raise exception 'student_class_mismatch_for_age';
-  end if;
-
-  new.class_name := expected_class;
   return new;
 end;
 $$;
-
-drop trigger if exists prevent_checkin_outside_student_age_range_trigger on public.checkins;
-create trigger prevent_checkin_outside_student_age_range_trigger
-before insert or update of student_id, room_id on public.checkins
-for each row execute function public.prevent_checkin_outside_student_age_range();
 
 create or replace function public.parent_checkin_with_presence(
   target_student_id uuid,
@@ -96,7 +91,6 @@ declare
   target_room public.rooms%rowtype;
   expected_hash text;
   token_hash text;
-  expected_class text;
   inserted_checkin public.checkins%rowtype;
 begin
   select *
@@ -144,6 +138,15 @@ begin
     from public.rooms
    where rooms.status = 'Aberta'
      and rooms.class_target = public.get_student_class_for_birth_year(target_student.birth_date, rooms.date)
+     and (
+       rooms.max_checkins is null
+       or (
+         select count(*)::integer
+           from public.checkins c
+          where c.room_id = rooms.id
+            and c.checked_out_at is null
+       ) < rooms.max_checkins
+     )
    order by
      case when public.is_room_checkin_window_open(rooms.id, now()) then 0 else 1 end,
      rooms.date asc,
@@ -157,11 +160,6 @@ begin
 
   if not public.is_room_checkin_window_open(target_room.id, now()) then
     raise exception 'Horario de check-in encerrado para esta aula.';
-  end if;
-
-  expected_class := public.get_student_class_for_birth_year(target_student.birth_date, target_room.date);
-  if expected_class = 'Fora da faixa' then
-    raise exception 'student_age_out_of_range';
   end if;
 
   if exists (
@@ -185,7 +183,7 @@ begin
     target_student.id,
     target_room.id,
     target_room.name,
-    expected_class,
+    public.get_student_class_for_birth_year(target_student.birth_date, target_room.date),
     actor_profile.id,
     coalesce(target_student.notes, '')
   )
@@ -204,6 +202,6 @@ begin
 end;
 $$;
 
-revoke all on function public.prevent_checkin_outside_student_age_range() from public;
+revoke all on function public.prevent_checkin_over_room_limit() from public;
 revoke all on function public.parent_checkin_with_presence(uuid, text) from public;
 grant execute on function public.parent_checkin_with_presence(uuid, text) to authenticated;
