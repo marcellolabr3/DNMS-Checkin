@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v184`, `app.js?v=20260922a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v185`, `app.js?v=20260922b`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -26,7 +26,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
 - Salas podem ser marcadas como teste somente por SADMIN; check-ins dessas salas nao entram em relatorios operacionais e nao disparam autoimpressao.
-- Turma/faixa etaria usa idade ministerial anual: `ano_referencia - ano_nascimento - 1`; a crianca permanece na turma durante o ano em que faz aniversario e muda somente no ano seguinte.
+- Turma/faixa etaria usa idade ministerial anual: `ano_referencia - ano_nascimento - 1`; excecao: entrada no Maternal libera assim que a crianca completa 2 anos. Depois disso, permanece na turma durante o ano em que faz aniversario e muda somente no ano seguinte.
 - Salas aceitam `max_checkins` opcional; `null` significa sem limite. Check-in deve ser bloqueado quando a sala atinge a capacidade.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
@@ -60,7 +60,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-09-22, regra de turma alterada para idade ministerial anual no frontend e Supabase; patch `patch_ministry_year_class_age.sql` aplicado em producao. Arthur Pereira Deveza ficou `Juniors` em 2026 e passa para `Teens` em 2027. `npm.cmd test` passou com 202 testes.
+- Em 2026-09-22, regra de turma alterada no frontend e Supabase; patch `patch_ministry_year_class_age.sql` aplicado em producao. Criancas entram no Maternal assim que completam 2 anos; demais mudancas seguem idade ministerial anual. Arthur Pereira Deveza ficou `Juniors` em 2026 e passa para `Teens` em 2027. `npm.cmd test` passou com 202 testes.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
 - Em 2026-09-08, seletor do Log ficou sem opcoes separadas para `child_created` e `user_deleted`; esses eventos aparecem apenas em `Alteracoes de dados`, com cache atualizado para forcar refresh do PWA.
 - Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` foi validado gerando um unico ZIP em `dist-pacote/` e removendo `dist/`.

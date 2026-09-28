@@ -764,7 +764,7 @@ test("evento sem nome usa a data da sala como nome", async ({ page }) => {
     .toBe(true);
 });
 
-test("crianca que completou 2 anos no ano anterior entra no Maternal", async ({ page }) => {
+test("crianca que completou 2 anos no ano atual entra no Maternal", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -772,7 +772,7 @@ test("crianca que completou 2 anos no ano anterior entra no Maternal", async ({ 
   await page.locator("#btnAddStudent").click();
   await expect(page.locator("#studentDialog")).toBeVisible();
   await page.fill("#studentName", "Bebe Maternal");
-  await page.fill("#studentBirth", birthInputYearsAgo(3));
+  await page.fill("#studentBirth", birthInputYearsAgo(2));
   await page.fill("#studentGuardian", "Responsavel Teste");
   await page.fill("#studentPhone", "11999990000");
   await page.fill("#studentAddress", "Rua Maternal");
@@ -788,8 +788,8 @@ test("crianca que completou 2 anos no ano anterior entra no Maternal", async ({ 
 });
 
 test("cadastro de crianca aceita nascimento com ano de dois digitos", async ({ page }) => {
-  const shortYear = String((new Date().getFullYear() - 3) % 100).padStart(2, "0");
-  const fullYear = String(new Date().getFullYear() - 3);
+  const shortYear = String((new Date().getFullYear() - 2) % 100).padStart(2, "0");
+  const fullYear = String(new Date().getFullYear() - 2);
 
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
@@ -830,7 +830,7 @@ test("turma defasada no banco e recalculada pelo nascimento", async ({ page }) =
       student_id: "student-stale-maternal",
       guardian_id: "parent-1"
     });
-  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 3)));
+  }, todayIso().replace(/^\d{4}/, String(new Date().getFullYear() - 2)));
 
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
