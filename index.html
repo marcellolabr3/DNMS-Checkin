@@ -361,6 +361,28 @@
         </div>
         <div id="familyCreateStatus" class="summary"></div>
       </details>
+      <details id="temporaryAssignmentPanel" class="collapsible-panel">
+        <summary>
+          <span>Alocação temporária em evento</span>
+          <span class="collapse-icon" aria-hidden="true"></span>
+        </summary>
+        <div class="grid-2">
+          <label class="field">Aluno
+            <select id="temporaryAssignmentStudent"></select>
+          </label>
+          <label class="field">Evento / sala
+            <select id="temporaryAssignmentRoom"></select>
+          </label>
+        </div>
+        <label class="field">Motivo
+          <input id="temporaryAssignmentReason" placeholder="Ex.: ficará nesta sala excepcionalmente" />
+        </label>
+        <div class="actions">
+          <button id="btnCreateTemporaryAssignment" class="primary" type="button">Criar alocação</button>
+        </div>
+        <div id="temporaryAssignmentStatus" class="summary"></div>
+        <div id="temporaryAssignmentList" class="list"></div>
+      </details>
     </section>
   </main>
 
@@ -403,6 +425,21 @@
         </label>
         <label class="field student-address-field" id="studentAddressField">Endereço
           <input id="studentAddress" required />
+        </label>
+      </div>
+      <div id="studentClassOverrideField" class="grid-2 student-form-grid" style="display:none">
+        <label class="field">Classificação automática
+          <input id="studentAutomaticClass" readonly />
+        </label>
+        <label class="field">Turma oficial
+          <select id="studentOfficialClass">
+            <option value="">Usar classificação automática</option>
+            <option value="Maternal">Maternal</option>
+            <option value="Kids">Kids</option>
+            <option value="Juniors">Juniors</option>
+            <option value="Teens">Teens</option>
+            <option value="Fora da faixa">Fora da faixa</option>
+          </select>
         </label>
       </div>
       <label class="field">Observações
@@ -641,6 +678,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20260928a"></script>
+  <script src="app.js?v=20260929a"></script>
 </body>
 </html>

@@ -17,11 +17,13 @@ const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const CHECKIN_EARLY_WINDOW_MINUTES = 30;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
-const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
+const STUDENT_SELECT_COLUMNS = "id,name,birth_date,class_name,official_class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
+const STUDENT_SELECT_COLUMNS_LEGACY = "id,name,birth_date,class_name,primary_guardian_name,phone,address,notes,is_visitor,photo_url";
 const ROOM_SELECT_COLUMNS = "id,name,date,start_time,time,end_time,class_target,status,opened_at,closed_at";
 const ROOM_SELECT_COLUMNS_WITH_TEST = `${ROOM_SELECT_COLUMNS},is_test`;
 const ROOM_SELECT_COLUMNS_WITH_TEST_AND_LIMIT = `${ROOM_SELECT_COLUMNS_WITH_TEST},max_checkins`;
 const CHECKIN_SELECT_COLUMNS = "id,room_id,room_name_snapshot,student_id,class_name,notes_snapshot,checked_in_at,checked_out_at,printed_at";
+const TEMPORARY_ASSIGNMENT_SELECT_COLUMNS = "id,student_id,room_id,reason,created_by,created_at";
 const AUDIT_LOG_SELECT_COLUMNS = "id,created_at,actor_id,actor_name,actor_role,action_type,target_type,target_id,target_name,details,metadata";
 const SCHEDULE_SELECT_COLUMNS = "id,date,profile_id,target_user,lesson_theme,details";
 const TIP_SELECT_COLUMNS = "id,message,recipient_id,created_at,created_by,sender_name";
@@ -205,6 +207,13 @@ const els = {
   btnFamilyCreateResponsible: document.getElementById("btnFamilyCreateResponsible"),
   btnFamilyClearCreate: document.getElementById("btnFamilyClearCreate"),
   familyCreateStatus: document.getElementById("familyCreateStatus"),
+  temporaryAssignmentPanel: document.getElementById("temporaryAssignmentPanel"),
+  temporaryAssignmentStudent: document.getElementById("temporaryAssignmentStudent"),
+  temporaryAssignmentRoom: document.getElementById("temporaryAssignmentRoom"),
+  temporaryAssignmentReason: document.getElementById("temporaryAssignmentReason"),
+  btnCreateTemporaryAssignment: document.getElementById("btnCreateTemporaryAssignment"),
+  temporaryAssignmentStatus: document.getElementById("temporaryAssignmentStatus"),
+  temporaryAssignmentList: document.getElementById("temporaryAssignmentList"),
   studentDialog: document.getElementById("studentDialog"),
   studentDialogTitle: document.getElementById("studentDialogTitle"),
   studentId: document.getElementById("studentId"),
@@ -223,6 +232,9 @@ const els = {
   studentPhone: document.getElementById("studentPhone"),
   studentAddressField: document.getElementById("studentAddressField"),
   studentAddress: document.getElementById("studentAddress"),
+  studentClassOverrideField: document.getElementById("studentClassOverrideField"),
+  studentAutomaticClass: document.getElementById("studentAutomaticClass"),
+  studentOfficialClass: document.getElementById("studentOfficialClass"),
   studentNotes: document.getElementById("studentNotes"),
   studentVisitorField: document.getElementById("studentVisitorField"),
   studentIsVisitor: document.getElementById("studentIsVisitor"),
@@ -412,6 +424,7 @@ function bindEvents() {
   els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
   els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
+  els.btnCreateTemporaryAssignment?.addEventListener("click", handleCreateTemporaryAssignment);
   els.btnPrintLabel.addEventListener("click", () => printCurrentLabel({ type: "reprint" }));
   els.btnCloseLabel.addEventListener("click", () => els.labelDialog.close());
   els.labelDialog?.addEventListener("close", stopLabelPrintStatusPolling);
@@ -461,6 +474,7 @@ function bindEvents() {
   });
   [els.studentName, els.signupName, els.familyCreateName, els.myDataName].forEach(bindPersonNameInput);
   [els.studentBirth, els.signupBirth, els.familyCreateBirth].forEach(bindBirthDateInput);
+  els.studentBirth?.addEventListener("input", updateStudentClassOverridePreview);
   if (isMobileDevice() && els.btnPrintLabel) {
     els.btnPrintLabel.style.display = "none";
     if (els.labelDialog) {
@@ -695,19 +709,19 @@ async function refreshPanelData(panel) {
   const canLoadProfiles = canAccessManagementPanel() || isEquipe();
   const fetchProfilesIfAllowed = () => (canLoadProfiles ? fetchProfiles() : Promise.resolve());
   if (panel === "dashboard") {
-    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins(), fetchProfilesIfAllowed(), fetchDashboardData()]);
+    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins(), fetchTemporaryAssignments(), fetchProfilesIfAllowed(), fetchDashboardData()]);
     return;
   }
   if (panel === "rooms") {
-    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins()]);
+    await Promise.all([fetchRooms(), fetchStudents(), fetchCheckins(), fetchTemporaryAssignments()]);
     return;
   }
   if (panel === "students") {
-    await Promise.all([fetchStudents(), fetchRooms(), fetchCheckins(), fetchProfilesIfAllowed()]);
+    await Promise.all([fetchStudents(), fetchRooms(), fetchCheckins(), fetchTemporaryAssignments(), fetchProfilesIfAllowed()]);
     return;
   }
   if (panel === "families") {
-    await Promise.all([fetchProfilesIfAllowed(), fetchStudents()]);
+    await Promise.all([fetchProfilesIfAllowed(), fetchStudents(), fetchRooms(), fetchTemporaryAssignments()]);
     return;
   }
   if (panel === "tips") {
@@ -1422,7 +1436,10 @@ async function fetchStudents() {
     const studentIds = (links || []).map((item) => item.student_id).filter(Boolean);
     const rowsById = new Map();
     if (studentIds.length) {
-      const { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS).in("id", studentIds);
+      let { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS).in("id", studentIds);
+      if (error && isMissingColumnError(error, "official_class_name")) {
+        ({ data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS_LEGACY).in("id", studentIds));
+      }
       if (error) {
         console.warn("Falha ao buscar alunos", error);
       } else {
@@ -1433,10 +1450,16 @@ async function fetchStudents() {
         });
       }
     }
-    const { data: ownedRows, error: ownedError } = await supabaseClient
+    let { data: ownedRows, error: ownedError } = await supabaseClient
       .from("students")
       .select(STUDENT_SELECT_COLUMNS)
       .eq("primary_guardian_name", state.session.name);
+    if (ownedError && isMissingColumnError(ownedError, "official_class_name")) {
+      ({ data: ownedRows, error: ownedError } = await supabaseClient
+        .from("students")
+        .select(STUDENT_SELECT_COLUMNS_LEGACY)
+        .eq("primary_guardian_name", state.session.name));
+    }
     if (ownedError) {
       console.warn("Falha ao buscar alunos do responsavel", ownedError);
     } else {
@@ -1448,7 +1471,10 @@ async function fetchStudents() {
     }
     rows = Array.from(rowsById.values());
   } else {
-    const { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS);
+    let { data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS);
+    if (error && isMissingColumnError(error, "official_class_name")) {
+      ({ data, error } = await supabaseClient.from("students").select(STUDENT_SELECT_COLUMNS_LEGACY));
+    }
     if (error) {
       console.warn("Falha ao buscar alunos", error);
       return;
@@ -1480,7 +1506,9 @@ async function fetchStudents() {
     id: student.id,
     name: student.name,
     birth: student.birth_date,
-    className: getClassForBirth(student.birth_date),
+    automaticClassName: getClassForBirth(student.birth_date),
+    officialClassName: student.official_class_name || "",
+    className: student.official_class_name || getClassForBirth(student.birth_date),
     guardian: student.primary_guardian_name,
     otherGuardians: "",
     phone: formatPhoneForDisplay(student.phone),
@@ -1587,6 +1615,33 @@ async function fetchCheckins() {
       actor: state.session?.name || ""
     };
   });
+}
+
+async function fetchTemporaryAssignments() {
+  if (!supabaseClient || !state.session || !(isSadmin() || isAdmin() || isEquipe())) {
+    state.temporaryAssignments = [];
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from("temporary_room_assignments")
+    .select(TEMPORARY_ASSIGNMENT_SELECT_COLUMNS);
+  if (error) {
+    const message = String(error.message || "").toLowerCase();
+    if (message.includes("temporary_room_assignments") || message.includes("relation") || message.includes("not found")) {
+      state.temporaryAssignments = [];
+      return;
+    }
+    console.warn("Falha ao buscar alocacoes temporarias", error);
+    return;
+  }
+  state.temporaryAssignments = (data || []).map((row) => ({
+    id: row.id,
+    studentId: row.student_id,
+    roomId: row.room_id,
+    reason: row.reason || "",
+    createdBy: row.created_by || "",
+    createdAt: row.created_at || ""
+  }));
 }
 
 async function fetchAuditLogs() {
@@ -2131,7 +2186,7 @@ function renderStudents() {
   }
 
   if (!isResponsavel && classFilter && classFilter !== "all" && classFilter !== "none") {
-    items = items.filter((student) => (student.className || getClassForBirth(student.birth)) === classFilter);
+    items = items.filter((student) => getEffectiveClassForStudentToday(student) === classFilter);
   }
   if (!isResponsavel && classFilter === "none") {
     items = [];
@@ -2139,8 +2194,8 @@ function renderStudents() {
 
   if (search) {
     items = items.filter((student) => {
-      const className = student.className || getClassForBirth(student.birth);
-      const blob = `${student.name} ${className} ${student.guardian}`.toLowerCase();
+      const className = getEffectiveClassForStudentToday(student);
+      const blob = `${student.name} ${className} ${getStudentAutomaticClass(student)} ${getStudentOfficialClass(student)} ${student.guardian}`.toLowerCase();
       return blob.includes(search);
     });
   }
@@ -2181,8 +2236,14 @@ function renderStudents() {
     const observationText = student.notes || "";
     const contact = getResponsibleContactForStudent(student);
     const birthLabel = formatBirthDateShort(student.birth) || "-";
-    const className = student.className || getClassForBirth(student.birth);
-    const ageEligibility = getStudentAgeEligibility(student);
+    const className = getEffectiveClassForStudentToday(student);
+    const temporaryAssignment = getTemporaryAssignmentForStudentToday(student.id);
+    const ageEligibility = temporaryAssignment ? { ok: true, message: "" } : getStudentAgeEligibility(student);
+    const automaticClassName = getStudentAutomaticClass(student);
+    const officialClassName = getStudentOfficialClass(student);
+    const classDetails = automaticClassName !== officialClassName
+      ? `Classificação automática: ${escapeHtml(automaticClassName)} | Turma oficial: ${escapeHtml(officialClassName)}`
+      : `Classificação automática: ${escapeHtml(automaticClassName)}`;
     const openCheckin = getOpenCheckinForStudent(student.id);
     const targetRoom = getOpenRoomForClass(className);
     const checkinWindow = getCheckinWindowValidation(getAvailableCheckinRoomForClass(className) || targetRoom);
@@ -2196,6 +2257,7 @@ function renderStudents() {
           ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${escapeAttribute(student.id)}" /></label>` : ""}
           <strong>${escapeHtml(student.name)}</strong>
           <span class="muted">Turma: ${escapeHtml(className)} | Responsavel: ${escapeHtml(student.guardian)}</span>
+          <span class="muted">${classDetails}${temporaryAssignment ? " | Alocação temporária" : ""}</span>
           <span class="muted">Nascimento: ${escapeHtml(birthLabel)} | Observacoes: ${escapeHtml(observationText)}</span>
           <span class="muted">Telefone do responsavel: ${escapeHtml(contact.phone || "-")}</span>
           <span class="muted">Endereco do responsavel: ${escapeHtml(contact.address || "-")}</span>
@@ -5182,6 +5244,7 @@ function renderFamiliesPanel() {
   if (!canAccess) {
     return;
   }
+  renderTemporaryAssignmentsPanel();
   const { search, filtered } = getFilteredFamiliesForCurrentSearch();
   if (els.btnExportFamilies) {
     els.btnExportFamilies.disabled = !filtered.length;
@@ -5838,6 +5901,130 @@ function clearFamilyCreateForm() {
   if (els.familyCreateStatus) els.familyCreateStatus.textContent = "";
 }
 
+function renderTemporaryAssignmentsPanel() {
+  if (!els.temporaryAssignmentPanel) {
+    return;
+  }
+  const canManage = isAdmin();
+  els.temporaryAssignmentPanel.style.display = canManage ? "" : "none";
+  if (!canManage) {
+    return;
+  }
+  const students = (state.students || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  const rooms = (state.rooms || [])
+    .filter((room) => room.status !== "Fechada")
+    .slice()
+    .sort((a, b) => `${a.dateIso || ""} ${a.startTime || ""}`.localeCompare(`${b.dateIso || ""} ${b.startTime || ""}`));
+  if (els.temporaryAssignmentStudent) {
+    els.temporaryAssignmentStudent.innerHTML = [
+      `<option value="">Selecione um aluno</option>`,
+      ...students.map((student) => `<option value="${escapeAttribute(student.id)}">${escapeHtml(student.name)} - ${escapeHtml(getStudentOfficialClass(student))}</option>`)
+    ].join("");
+  }
+  if (els.temporaryAssignmentRoom) {
+    els.temporaryAssignmentRoom.innerHTML = [
+      `<option value="">Selecione um evento</option>`,
+      ...rooms.map((room) => `<option value="${escapeAttribute(room.id)}">${escapeHtml(room.date)} - ${escapeHtml(room.name)} (${escapeHtml(room.classTarget)})</option>`)
+    ].join("");
+  }
+  if (!els.temporaryAssignmentList) {
+    return;
+  }
+  const assignments = (state.temporaryAssignments || []).filter((assignment) =>
+    (state.rooms || []).some((room) => room.id === assignment.roomId && room.status !== "Fechada")
+  );
+  if (!assignments.length) {
+    els.temporaryAssignmentList.innerHTML = `<div class="summary">Nenhuma alocação temporária ativa.</div>`;
+    return;
+  }
+  els.temporaryAssignmentList.innerHTML = assignments
+    .map((assignment) => {
+      const student = state.students.find((item) => item.id === assignment.studentId);
+      const room = state.rooms.find((item) => item.id === assignment.roomId);
+      return `
+        <div class="list-item">
+          <strong>${escapeHtml(student?.name || "Aluno")}</strong>
+          <span class="muted">${escapeHtml(room?.date || "-")} - ${escapeHtml(room?.name || "-")} (${escapeHtml(room?.classTarget || "-")})</span>
+          <span class="muted">Turma oficial: ${escapeHtml(getStudentOfficialClass(student))} | Motivo: ${escapeHtml(assignment.reason || "-")}</span>
+          <button type="button" class="danger" data-remove-temporary-assignment="${escapeAttribute(assignment.id)}">Remover</button>
+        </div>
+      `;
+    })
+    .join("");
+  els.temporaryAssignmentList.querySelectorAll("[data-remove-temporary-assignment]").forEach((button) => {
+    button.addEventListener("click", () => removeTemporaryAssignment(button.dataset.removeTemporaryAssignment || ""));
+  });
+}
+
+async function handleCreateTemporaryAssignment() {
+  if (!isAdmin()) {
+    alert("Somente SADMIN/Admin podem criar alocação temporária.");
+    return;
+  }
+  const studentId = els.temporaryAssignmentStudent?.value || "";
+  const roomId = els.temporaryAssignmentRoom?.value || "";
+  const reason = String(els.temporaryAssignmentReason?.value || "").trim();
+  if (!studentId || !roomId) {
+    alert("Selecione aluno e evento.");
+    return;
+  }
+  const existing = (state.temporaryAssignments || []).find((item) => item.studentId === studentId && item.roomId === roomId);
+  if (existing) {
+    alert("Este aluno ja possui alocação temporária para este evento.");
+    return;
+  }
+  const payload = {
+    student_id: studentId,
+    room_id: roomId,
+    reason,
+    created_by: state.session?.id || null
+  };
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("temporary_room_assignments").insert(payload);
+    if (error) {
+      alert(`Falha ao criar alocação temporária: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchTemporaryAssignments();
+  } else {
+    state.temporaryAssignments.push({
+      id: uid(),
+      studentId,
+      roomId,
+      reason,
+      createdBy: state.session?.id || "",
+      createdAt: new Date().toISOString()
+    });
+  }
+  if (els.temporaryAssignmentReason) {
+    els.temporaryAssignmentReason.value = "";
+  }
+  if (els.temporaryAssignmentStatus) {
+    els.temporaryAssignmentStatus.textContent = "Alocação temporária criada.";
+  }
+  render();
+}
+
+async function removeTemporaryAssignment(assignmentId) {
+  if (!isAdmin() || !assignmentId) {
+    return;
+  }
+  if (!confirm("Remover esta alocação temporária?")) {
+    return;
+  }
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("temporary_room_assignments").delete().eq("id", assignmentId);
+    if (error) {
+      alert(`Falha ao remover alocação temporária: ${error.message || "erro inesperado"}`);
+      return;
+    }
+    await fetchTemporaryAssignments();
+  } else {
+    state.temporaryAssignments = (state.temporaryAssignments || []).filter((item) => item.id !== assignmentId);
+  }
+  render();
+}
+
 async function handleCreateFamilyResponsible() {
   if (!supabaseClient || !(isSadmin() || isAdmin())) {
     alert("Somente SADMIN/Admin podem cadastrar responsavel nesta aba.");
@@ -6385,6 +6572,12 @@ function isMissingRoomTestColumnError(error) {
   return message.includes("is_test") || message.includes("column") && message.includes("not found");
 }
 
+function isMissingColumnError(error, columnName) {
+  const message = String(error?.message || "").toLowerCase();
+  const normalizedColumn = String(columnName || "").toLowerCase();
+  return message.includes(normalizedColumn) && (message.includes("column") || message.includes("not found"));
+}
+
 function isMissingRoomMaxCheckinsColumnError(error) {
   const message = String(error?.message || "").toLowerCase();
   return message.includes("max_checkins") || message.includes("column") && message.includes("not found");
@@ -6853,6 +7046,10 @@ function openStudentDialog(student) {
   els.studentAddress.value = student?.address || "";
   els.studentNotes.value = student?.notes || "";
   els.studentIsVisitor.checked = Boolean(student?.isVisitor);
+  if (els.studentOfficialClass) {
+    els.studentOfficialClass.value = student?.officialClassName || "";
+  }
+  updateStudentClassOverridePreview();
   if (els.studentPhoto) {
     els.studentPhoto.value = "";
   }
@@ -6874,6 +7071,9 @@ function openStudentDialog(student) {
   }
   if (els.studentVisitorField) {
     els.studentVisitorField.style.display = isResponsavel ? "none" : "flex";
+  }
+  if (els.studentClassOverrideField) {
+    els.studentClassOverrideField.style.display = isResponsavel ? "none" : "grid";
   }
   if (els.btnDeleteStudent) {
     els.btnDeleteStudent.style.display = student && canDeleteStudent(student) ? "inline-flex" : "none";
@@ -6898,6 +7098,8 @@ function resetStudentDialogDraft() {
   if (els.studentPhone) els.studentPhone.value = "";
   if (els.studentAddress) els.studentAddress.value = "";
   if (els.studentNotes) els.studentNotes.value = "";
+  if (els.studentOfficialClass) els.studentOfficialClass.value = "";
+  if (els.studentAutomaticClass) els.studentAutomaticClass.value = "";
   if (els.studentIsVisitor) els.studentIsVisitor.checked = false;
   if (els.studentPhoto) els.studentPhoto.value = "";
   if (els.studentPhotoCamera) els.studentPhotoCamera.value = "";
@@ -6905,6 +7107,14 @@ function resetStudentDialogDraft() {
   if (els.studentGuardianHint) {
     els.studentGuardianHint.textContent = "";
   }
+}
+
+function updateStudentClassOverridePreview() {
+  if (!els.studentAutomaticClass) {
+    return;
+  }
+  const birthIso = normalizeBirthDateInput(els.studentBirth?.value || "");
+  els.studentAutomaticClass.value = birthIso ? getClassForBirth(birthIso) : "";
 }
 
 function handleStudentPhotoInputChange(sourceInput, otherInput) {
@@ -7065,11 +7275,15 @@ async function saveStudent(event) {
     alert("Data de nascimento invalida. Use dd/mm/aa ou dd/mm/aaaa.");
     return;
   }
+  const automaticClassName = getClassForBirth(birthIso);
+  const officialClassName = isResponsavel ? (existing?.officialClassName || "") : String(els.studentOfficialClass?.value || "").trim();
   const payload = {
     id: existing ? els.studentId.value : supabaseClient ? undefined : uid(),
     name: normalizePersonName(els.studentName.value),
     birth: birthIso,
-    className: getClassForBirth(birthIso),
+    automaticClassName,
+    officialClassName,
+    className: officialClassName || automaticClassName,
     guardian: guardianName,
     otherGuardians: isResponsavel ? "" : els.studentOther.value.trim(),
     phone: isResponsavel ? formatPhoneForStorage(state.session?.phone || "") : formatPhoneForStorage(els.studentPhone.value.trim()),
@@ -7092,6 +7306,8 @@ async function saveStudent(event) {
           name: existing.name || "",
           birth: existing.birth || "",
           className: existing.className || getClassForBirth(existing.birth),
+          automaticClassName: getStudentAutomaticClass(existing),
+          officialClassName: existing.officialClassName || "",
           guardian: existing.guardian || existing.owner || "",
           phone: formatPhoneForStorage(existing.phone || ""),
           address: existing.address || "",
@@ -7102,6 +7318,8 @@ async function saveStudent(event) {
           name: payload.name,
           birth: payload.birth,
           className: payload.className,
+          automaticClassName: payload.automaticClassName,
+          officialClassName: payload.officialClassName,
           guardian: payload.guardian,
           phone: payload.phone,
           address: payload.address,
@@ -7111,7 +7329,9 @@ async function saveStudent(event) {
         {
           name: "Nome",
           birth: "Nascimento",
-          className: "Turma",
+          className: "Turma efetiva",
+          automaticClassName: "Classificação automática",
+          officialClassName: "Turma oficial",
           guardian: "Responsavel principal",
           phone: "Telefone",
           address: "Endereco",
@@ -7156,7 +7376,8 @@ async function saveStudent(event) {
       const dbPayload = {
         name: payload.name,
         birth_date: payload.birth,
-        class_name: payload.className,
+        class_name: payload.automaticClassName,
+        official_class_name: payload.officialClassName || null,
         primary_guardian_name: payload.guardian,
         phone: payload.phone,
         address: payload.address,
@@ -7166,11 +7387,19 @@ async function saveStudent(event) {
       let data = null;
       let error = null;
       if (existing?.id) {
-        const result = await supabaseClient.from("students").update(dbPayload).eq("id", existing.id).select().single();
+        let result = await supabaseClient.from("students").update(dbPayload).eq("id", existing.id).select().single();
+        if (result.error && isMissingColumnError(result.error, "official_class_name")) {
+          const { official_class_name: _ignored, ...legacyPayload } = dbPayload;
+          result = await supabaseClient.from("students").update(legacyPayload).eq("id", existing.id).select().single();
+        }
         data = result.data;
         error = result.error;
       } else {
-        const result = await supabaseClient.from("students").insert(dbPayload).select().single();
+        let result = await supabaseClient.from("students").insert(dbPayload).select().single();
+        if (result.error && isMissingColumnError(result.error, "official_class_name")) {
+          const { official_class_name: _ignored, ...legacyPayload } = dbPayload;
+          result = await supabaseClient.from("students").insert(legacyPayload).select().single();
+        }
         data = result.data;
         error = result.error;
       }
@@ -7921,7 +8150,8 @@ async function handleManualCheckin(studentId, options = {}) {
   if (!student) {
     return fail("Aluno nao encontrado.");
   }
-  const ageEligibility = getStudentAgeEligibility(student);
+  const temporaryAssignment = getTemporaryAssignmentForStudentToday(student.id);
+  const ageEligibility = temporaryAssignment ? { ok: true, message: "" } : getStudentAgeEligibility(student);
   if (!ageEligibility.ok) {
     return fail(ageEligibility.message);
   }
@@ -7929,10 +8159,13 @@ async function handleManualCheckin(studentId, options = {}) {
     return fail("Sem permissao para check-in deste aluno.");
   }
 
-  const className = student.className || getClassForBirth(student.birth);
+  const temporaryRoom = temporaryAssignment
+    ? state.rooms.find((item) => item.id === temporaryAssignment.roomId)
+    : null;
+  const className = temporaryRoom?.classTarget || getStudentOfficialClass(student);
   const hasOpenRooms = state.rooms.some((item) => item.status === "Aberta");
-  const roomForClass = getOpenRoomForClass(className);
-  let room = getAvailableCheckinRoomForClass(className) || roomForClass;
+  const roomForClass = temporaryRoom || getOpenRoomForClass(className);
+  let room = temporaryRoom || getAvailableCheckinRoomForClass(className) || roomForClass;
   if (!hasOpenRooms) {
     return fail("Não existem salas abertas!");
   }
@@ -8484,7 +8717,7 @@ function canCheckinStudent(student) {
   if (!state.session) {
     return false;
   }
-  if (!getStudentAgeEligibility(student).ok) {
+  if (!getTemporaryAssignmentForStudentToday(student?.id) && !getStudentAgeEligibility(student).ok) {
     return false;
   }
   if (isEquipe() || isAdmin()) {
@@ -9319,29 +9552,33 @@ function getAgeFromBirthAtDate(birth, referenceDate = new Date()) {
   return age;
 }
 
-function getClassCutoffDate(referenceDate = new Date()) {
+function getClassReferenceDate(referenceDate = new Date()) {
   const baseDate = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   if (Number.isNaN(baseDate.getTime())) {
     return null;
   }
-  return new Date(baseDate.getFullYear(), 2, 31);
+  return baseDate;
 }
 
 function getClassAgeFromBirth(birth, referenceDate = new Date()) {
-  const cutoffDate = getClassCutoffDate(referenceDate);
-  if (!cutoffDate) {
+  const baseDate = getClassReferenceDate(referenceDate);
+  if (!baseDate) {
     return null;
   }
-  return getAgeFromBirthAtDate(birth, cutoffDate);
+  const [year, month, day] = String(birth || "").slice(0, 10).split("-").map((item) => Number.parseInt(item, 10));
+  if (!year || !month || !day || !isValidDateParts(year, month, day)) {
+    return null;
+  }
+  return baseDate.getFullYear() - year;
 }
 
 function getStudentAgeEligibility(student, referenceDate = new Date()) {
   const birth = String(student?.birth || student?.birth_date || "").slice(0, 10);
-  const age = getClassAgeFromBirth(birth, referenceDate);
-  if (age === null) {
+  const className = getClassForBirth(birth, referenceDate);
+  if (className === "Indefinida") {
     return { ok: false, message: "Data de nascimento invalida para check-in." };
   }
-  if (age < 2 || age > 14) {
+  if (className === "Fora da faixa") {
     return {
       ok: false,
       message: "Crianca fora da faixa de idade para participacao neste ano."
@@ -9350,15 +9587,56 @@ function getStudentAgeEligibility(student, referenceDate = new Date()) {
   return { ok: true, message: "" };
 }
 
+function getStudentAutomaticClass(student, referenceDate = new Date()) {
+  return student?.automaticClassName || getClassForBirth(student?.birth || student?.birth_date || "", referenceDate);
+}
+
+function getStudentOfficialClass(student, referenceDate = new Date()) {
+  return student?.officialClassName || student?.className || getStudentAutomaticClass(student, referenceDate);
+}
+
+function getTemporaryAssignmentForStudentAndRoomDate(studentId, roomDateIso) {
+  const roomIdsForDate = new Set(
+    (state.rooms || [])
+      .filter((room) => room.dateIso === roomDateIso)
+      .map((room) => room.id)
+  );
+  return (
+    (state.temporaryAssignments || []).find(
+      (assignment) => assignment.studentId === studentId && roomIdsForDate.has(assignment.roomId)
+    ) || null
+  );
+}
+
+function getTemporaryAssignmentForStudentToday(studentId) {
+  const today = formatTodayIso();
+  return getTemporaryAssignmentForStudentAndRoomDate(studentId, today);
+}
+
+function getEffectiveClassForStudentToday(student) {
+  const assignment = getTemporaryAssignmentForStudentToday(student?.id);
+  if (assignment) {
+    const room = state.rooms.find((item) => item.id === assignment.roomId);
+    if (room?.classTarget) {
+      return room.classTarget;
+    }
+  }
+  return getStudentOfficialClass(student, new Date());
+}
+
 function getClassForBirth(birth, referenceDate = new Date()) {
-  const age = getClassAgeFromBirth(birth, referenceDate);
-  if (age === null) {
+  const baseDate = getClassReferenceDate(referenceDate);
+  const ageCompletedInYear = getClassAgeFromBirth(birth, baseDate);
+  if (!baseDate || ageCompletedInYear === null) {
     return "Indefinida";
   }
-  if (age >= 2 && age <= 3) return "Maternal";
-  if (age >= 4 && age <= 6) return "Kids";
-  if (age >= 7 && age <= 10) return "Juniors";
-  if (age >= 11 && age <= 14) return "Teens";
+  if (ageCompletedInYear === 2 && getAgeFromBirthAtDate(birth, baseDate) < 2) {
+    return "Fora da faixa";
+  }
+  if (ageCompletedInYear >= 2 && ageCompletedInYear <= 4) return "Maternal";
+  if (ageCompletedInYear >= 5 && ageCompletedInYear <= 7) return "Kids";
+  if (ageCompletedInYear >= 8 && ageCompletedInYear <= 11) return "Juniors";
+  if (ageCompletedInYear >= 12 && ageCompletedInYear <= 15) return "Teens";
   return "Fora da faixa";
 }
 
@@ -10935,7 +11213,8 @@ function loadState() {
           schedules: [],
           tips: [],
           tipReads: [],
-          familyLinkRequests: [],
+    familyLinkRequests: [],
+    temporaryAssignments: [],
           dashboardInfo: "",
           tipsStatus: { loading: false, error: "" },
           ...parsed,
@@ -10960,7 +11239,8 @@ function loadState() {
     schedules: [],
     tips: [],
     tipReads: [],
-    familyLinkRequests: [],
+          familyLinkRequests: [],
+          temporaryAssignments: [],
     dashboardInfo: "",
     tipsStatus: { loading: false, error: "" },
     visitors: [],

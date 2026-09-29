@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v186`, `app.js?v=20260928a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v188`, `app.js?v=20260929a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
 
 ## Regras criticas
 
@@ -26,7 +26,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Cada crianca pode ter no maximo um check-in ativo (`checked_out_at is null`).
 - Salas/eventos nascem `Programada`; abertura manual por admin/equipe; salas abertas continuam visiveis para gestao.
 - Salas podem ser marcadas como teste somente por SADMIN; check-ins dessas salas nao entram em relatorios operacionais e nao disparam autoimpressao.
-- Turma/faixa etaria usa idade cronologica em 31/03 do ano de referencia. Ex.: em 2026, Lucas Henriques Carrati (`2015-01-20`) fica `Teens`; Arthur Pereira Deveza (`2015-04-27`) fica `Juniors`.
+- Turma/faixa etaria usa progressao anual: Maternal no ano em que completa 2, 3 e 4 anos; Kids 5, 6 e 7; Juniors 8, 9, 10 e 11; Teens 12, 13, 14 e 15. Aniversario nao troca turma no meio do ano, exceto entrada inicial no Maternal a partir do aniversario de 2 anos. Mudancas de ciclo ocorrem no ano seguinte.
 - Presenca atual nao e cumulativa: considerar o ultimo estado valido por crianca/aula; check-in aberto (`checked_out_at is null`) = presente, checkout = ausente. Historico de check-in/checkout permanece preservado.
 - Salas aceitam `max_checkins` opcional; `null` significa sem limite. Check-in deve ser bloqueado quando a sala atinge a capacidade.
 - Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
@@ -35,9 +35,9 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Banco e operacao
 
-- Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
+- Tabelas principais: `profiles`, `students`, `student_guardians`, `rooms`, `temporary_room_assignments`, `checkins`, `audit_logs`, `print_jobs`, `schedules`, `tips`, `tip_reads`, `family_link_requests`, `app_settings`.
 - `supabase/setup_dnms_checkin.sql` precisa ser mantido como schema canonico para novos ambientes.
-- Patches aplicados: `patch_sadmin_test_rooms_clear_checkins.sql` (SADMIN/teste/zerar), `patch_room_checkin_limit_and_age.sql` (limite/idade/check-in), `patch_sync_student_class_names.sql` (sincroniza `students.class_name`), `patch_ministry_year_class_age.sql` (regra anterior), `patch_class_cutoff_presence_state.sql` (31/03 e presenca ativa).
+- Patches aplicados: `patch_sadmin_test_rooms_clear_checkins.sql` (SADMIN/teste/zerar), `patch_room_checkin_limit_and_age.sql` (limite/idade/check-in), `patch_sync_student_class_names.sql` (sincroniza `students.class_name`), `patch_ministry_year_class_age.sql` (regra anterior), `patch_class_cutoff_presence_state.sql` (regra anterior e presenca ativa), `patch_official_class_and_temporary_room_assignments.sql` (turma oficial e alocacao temporaria), `patch_annual_class_progression.sql` (progressao anual vigente).
 - Supabase guarda familias, criancas, check-ins, historico, reimpressao e auditoria.
 - Conexao local do Print Service com Postgres deve usar pooler Supabase; senha somente em `.codex-secrets.env`.
 - SQLite local do Print Service guarda somente estado tecnico: fila, tentativas, timestamps, erros, `windowsJobId`, impressora.
@@ -55,7 +55,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-09-28, regra de turma alterada no frontend e Supabase para idade em 31/03 do ano de referencia; patch `patch_class_cutoff_presence_state.sql` aplicado em producao apos backup `D:\Dev\BCK_CHEK\dnms-rule-fix-backup-20260928-133532.json`. 7 cadastros foram reclassificados. Lucas Henriques Carrati ficou `Teens`; Arthur Pereira Deveza ficou `Juniors`. Log de frequencia passou a mostrar presenca atual por check-in ativo, sem apagar historico. `npm.cmd test` passou com 210 testes.
+- Em 2026-09-29, regra de classificacao substituida por progressao anual. Patch `patch_annual_class_progression.sql` aplicado em producao apos backup `D:\Dev\BCK_CHEK\dnms-annual-class-backup-20260929-120128.json`; validacao SQL confirmou: antes dos 2 anos fica fora, no aniversario de 2 entra em Maternal, anos de 4/7/11/15 permanecem na turma, e a mudanca ocorre em 01/01 do ano seguinte. Frontend atualizado para `checkin-cache-v188`/`app.js?v=20260929a`. `npm.cmd test` passou com 216 testes.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
 - Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` foi validado gerando um unico ZIP em `dist-pacote/` e removendo `dist/`.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.

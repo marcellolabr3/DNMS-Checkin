@@ -40,13 +40,14 @@ function createMockSupabaseScript() {
       { id: "room-juniors", name: "Culto Juniors", date: todayIso, start_time: startedAt, end_time: endedAt, class_target: "Juniors", status: "Aberta", opened_at: todayIso + "T09:00:00.000Z", closed_at: null, is_test: false, max_checkins: null }
     ],
     students: [
-      { id: "student-kids", name: "Ana Kids", birth_date: (yyyy - 5) + "-04-10", class_name: "Kids", primary_guardian_name: "Responsavel Teste", phone: "11988880000", address: "Rua Familia", notes: "Alergia leve", is_visitor: false, photo_url: "" },
-      { id: "student-juniors", name: "Bia Juniors", birth_date: (yyyy - 8) + "-05-12", class_name: "Juniors", primary_guardian_name: "Outro Responsavel", phone: "11977770000", address: "Rua Outra", notes: "", is_visitor: false, photo_url: "" }
+      { id: "student-kids", name: "Ana Kids", birth_date: (yyyy - 5) + "-04-10", class_name: "Kids", official_class_name: null, primary_guardian_name: "Responsavel Teste", phone: "11988880000", address: "Rua Familia", notes: "Alergia leve", is_visitor: false, photo_url: "" },
+      { id: "student-juniors", name: "Bia Juniors", birth_date: (yyyy - 8) + "-05-12", class_name: "Juniors", official_class_name: null, primary_guardian_name: "Outro Responsavel", phone: "11977770000", address: "Rua Outra", notes: "", is_visitor: false, photo_url: "" }
     ],
     student_guardians: [
       { student_id: "student-kids", guardian_id: "parent-1" },
       { student_id: "student-kids", guardian_id: "parent-2" }
     ],
+    temporary_room_assignments: [],
     checkins: [],
     invites: [],
     family_link_requests: [],
@@ -177,19 +178,40 @@ function createMockSupabaseScript() {
     return age;
   }
 
-  function getClassForBirthAtCutoff(birth, referenceDate = new Date()) {
+  function getClassForBirthAnnualProgression(birth, referenceDate = new Date()) {
     const date = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
     if (Number.isNaN(date.getTime())) {
       return "Indefinida";
     }
-    const cutoff = new Date(date.getFullYear(), 2, 31);
-    const age = getAgeFromBirthAtDate(birth, cutoff);
-    if (age === null) return "Indefinida";
-    if (age >= 2 && age <= 3) return "Maternal";
-    if (age >= 4 && age <= 6) return "Kids";
-    if (age >= 7 && age <= 10) return "Juniors";
-    if (age >= 11 && age <= 14) return "Teens";
+    const parts = String(birth || "").slice(0, 10).split("-").map((item) => Number.parseInt(item, 10));
+    const [year, month, day] = parts;
+    if (!year || !month || !day) return "Indefinida";
+    const annualAge = date.getFullYear() - year;
+    const currentAge = getAgeFromBirthAtDate(birth, date);
+    if (annualAge === 2 && currentAge < 2) return "Fora da faixa";
+    if (annualAge >= 2 && annualAge <= 4) return "Maternal";
+    if (annualAge >= 5 && annualAge <= 7) return "Kids";
+    if (annualAge >= 8 && annualAge <= 11) return "Juniors";
+    if (annualAge >= 12 && annualAge <= 15) return "Teens";
     return "Fora da faixa";
+  }
+
+  function getStudentOfficialClass(student, referenceDate = new Date()) {
+    return student?.official_class_name || getClassForBirthAnnualProgression(student?.birth_date, referenceDate);
+  }
+
+  function getTemporaryAssignmentForStudentDate(studentId, eventDate) {
+    return db.temporary_room_assignments.find((assignment) => {
+      const room = db.rooms.find((item) => item.id === assignment.room_id);
+      return assignment.student_id === studentId && room?.date === eventDate;
+    }) || null;
+  }
+
+  function getEffectiveClassForRoom(student, room) {
+    if (db.temporary_room_assignments.some((assignment) => assignment.student_id === student?.id && assignment.room_id === room?.id)) {
+      return room?.class_target || "Indefinida";
+    }
+    return getStudentOfficialClass(student, room?.date || new Date());
   }
 
   function delay(ms) {
@@ -290,8 +312,15 @@ function createMockSupabaseScript() {
     if (!db.student_guardians.some((item) => item.student_id === student.id && item.guardian_id === actor.id)) {
       return { data: null, error: { message: "Sem permissao para check-in deste aluno." } };
     }
-    const room = db.rooms
-      .filter((item) => item.status === "Aberta" && item.class_target === getClassForBirthAtCutoff(student.birth_date, item.date))
+    const temporaryRooms = db.rooms.filter((item) =>
+      item.status === "Aberta" &&
+      isRoomCheckinWindowOpen(item) &&
+      db.temporary_room_assignments.some((assignment) => assignment.student_id === student.id && assignment.room_id === item.id)
+    );
+    const candidateRooms = temporaryRooms.length
+      ? temporaryRooms
+      : db.rooms.filter((item) => item.status === "Aberta" && item.class_target === getStudentOfficialClass(student, item.date));
+    const room = candidateRooms
       .sort((a, b) => (isRoomCheckinWindowOpen(a) === isRoomCheckinWindowOpen(b) ? 0 : isRoomCheckinWindowOpen(a) ? -1 : 1))[0];
     if (!room) {
       return { data: null, error: { message: "Nao ha sala aberta para a turma deste aluno." } };
@@ -310,7 +339,7 @@ function createMockSupabaseScript() {
       student_id: student.id,
       room_id: room.id,
       room_name_snapshot: room.name,
-      class_name: getClassForBirthAtCutoff(student.birth_date, room.date),
+      class_name: getEffectiveClassForRoom(student, room),
       actor_id: actor.id,
       notes_snapshot: student.notes || "",
       checked_in_at: new Date().toISOString(),
@@ -827,6 +856,19 @@ function createMockSupabaseScript() {
       if (this.action === "insert") {
         const entries = Array.isArray(this.payload) ? this.payload : [this.payload];
         if (this.table === "checkins") {
+          const invalidClass = entries.find((entry) => {
+            const room = db.rooms.find((item) => item.id === entry.room_id);
+            const student = db.students.find((item) => item.id === entry.student_id);
+            if (!room || !student) {
+              return false;
+            }
+            const temporaryAssignment = getTemporaryAssignmentForStudentDate(student.id, room.date);
+            const effectiveClass = getEffectiveClassForRoom(student, room);
+            return (temporaryAssignment && temporaryAssignment.room_id !== room.id) || room.class_target !== effectiveClass || (!temporaryAssignment && effectiveClass === "Fora da faixa");
+          });
+          if (invalidClass) {
+            return { data: null, error: { message: "student_class_mismatch_for_effective_room", code: "P0001" } };
+          }
           const invalid = entries.find((entry) => {
             const room = db.rooms.find((item) => item.id === entry.room_id);
             return !isRoomCheckinWindowOpen(room, entry.checked_in_at ? new Date(entry.checked_in_at) : new Date());
@@ -853,8 +895,19 @@ function createMockSupabaseScript() {
           if (this.table === "rooms" && !Object.prototype.hasOwnProperty.call(row, "max_checkins")) {
             row.max_checkins = null;
           }
+          if (this.table === "students") {
+            row.class_name = getClassForBirthAnnualProgression(row.birth_date);
+            if (!Object.prototype.hasOwnProperty.call(row, "official_class_name")) {
+              row.official_class_name = null;
+            }
+          }
           if (this.table === "checkins" && !row.checked_in_at) {
             row.checked_in_at = new Date().toISOString();
+          }
+          if (this.table === "checkins") {
+            const room = db.rooms.find((item) => item.id === row.room_id);
+            const student = db.students.find((item) => item.id === row.student_id);
+            row.class_name = getEffectiveClassForRoom(student, room);
           }
           if (this.table === "checkins" && !Object.prototype.hasOwnProperty.call(row, "checked_out_at")) {
             row.checked_out_at = null;
@@ -873,6 +926,12 @@ function createMockSupabaseScript() {
         rows.forEach((row) => {
           if (matches(row)) {
             Object.assign(row, this.payload);
+            if (this.table === "students") {
+              row.class_name = getClassForBirthAnnualProgression(row.birth_date);
+              if (!row.official_class_name) {
+                row.official_class_name = null;
+              }
+            }
             updated.push(clone(row));
           }
         });
