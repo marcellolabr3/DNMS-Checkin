@@ -1015,7 +1015,7 @@ function renderTipsPanel() {
     wrapper.appendChild(title);
 
     const scopeTag = document.createElement("span");
-    scopeTag.className = `tip-scope-tag ${tab === "sent" ? "is-sent" : "is-recv"}`;
+    scopeTag.className = `tip-scope-tag ${tab === "sent" ? "is-sent" : `is-recv${tip.recipientId ? " is-direct" : ""}`}`;
     scopeTag.textContent =
       tab === "sent" ? "Enviada por voce" : tip.recipientId ? "Para voce" : "Para todos";
     wrapper.appendChild(scopeTag);
@@ -1222,7 +1222,7 @@ function renderDashboardTips() {
           return `
             <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}" aria-label="Abrir mensagem de ${escapeAttribute(directionLabel)}">
               <strong>${escapeHtml(directionLabel)}</strong>
-              <span class="tip-scope-tag ${tipIsSentByMe(tip) ? "is-sent" : "is-recv"}">${escapeHtml(scopeTag)}</span>
+              <span class="tip-scope-tag ${tipIsSentByMe(tip) ? "is-sent" : `is-recv${tip.recipientId ? " is-direct" : ""}`}">${escapeHtml(scopeTag)}</span>
               <span class="muted">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
               <span>${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
             </button>
@@ -2372,6 +2372,7 @@ function renderStudents() {
     const contact = getResponsibleContactForStudent(student);
     const birthLabel = formatBirthDateShort(student.birth) || "-";
     const className = getEffectiveClassForStudentToday(student);
+    const classTone = getClassColorSuffix(className);
     const temporaryAssignment = getTemporaryAssignmentForStudentToday(student.id);
     const ageEligibility = temporaryAssignment ? { ok: true, message: "" } : getStudentAgeEligibility(student);
     const automaticClassName = getStudentAutomaticClass(student);
@@ -2387,10 +2388,11 @@ function renderStudents() {
       : "";
     item.innerHTML = `
       <div class="student-list-card">
-        ${buildStudentPhotoHtml(student.photoUrl, student.name, "student-list-photo")}
+        ${buildStudentPhotoHtml(student.photoUrl, student.name, `student-list-photo photo-tone-${classTone}`)}
         <div class="student-list-content">
           ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${escapeAttribute(student.id)}" /></label>` : ""}
           <strong>${escapeHtml(student.name)}</strong>
+          <span class="tag ${classTone === "brand" ? "" : classTone}"><span class="dot"></span>${escapeHtml(className)}</span>
           <span class="muted">Turma: ${escapeHtml(className)} | Responsavel: ${escapeHtml(student.guardian)}</span>
           <span class="muted">${classDetails}${temporaryAssignment ? " | Alocação temporária" : ""}</span>
           <span class="muted">Nascimento: ${escapeHtml(birthLabel)} | Observacoes: ${escapeHtml(observationText)}</span>
@@ -2911,7 +2913,7 @@ function renderDashboard() {
         (student) => `
             <div class="dashboard-birthday-item" data-birthday-student="${escapeAttribute(student.id)}">
             <div class="dashboard-balloon">
-              ${buildStudentPhotoHtml(student.photoUrl, student.name)}
+              ${buildStudentPhotoHtml(student.photoUrl, student.name, `photo-tone-${getClassColorSuffix(getEffectiveClassForStudentToday(student))}`)}
             </div>
             <div class="dashboard-birthday-name">${escapeHtml(student.name)}</div>
             <div class="dashboard-birthday-date">${escapeHtml(formatBirthdayLabel(student.birth))}</div>
@@ -9146,6 +9148,21 @@ function getStudentInitials(name) {
   const first = words[0]?.[0] || "";
   const last = words.length > 1 ? words[words.length - 1][0] : "";
   return (first + last).toUpperCase() || "?";
+}
+
+// Tom de cor por turma (esquema do preview): Kids=verde, Maternal=dourado, Juniors=azul, Teens=cinza.
+function getClassColorSuffix(className = "") {
+  const value = String(className || "").toLowerCase();
+  if (value.includes("maternal")) {
+    return "gold";
+  }
+  if (value.includes("junior")) {
+    return "info";
+  }
+  if (value.includes("teen")) {
+    return "muted";
+  }
+  return "brand";
 }
 
 // Foto do aluno com monograma de iniciais como reserva quando nao ha imagem.
