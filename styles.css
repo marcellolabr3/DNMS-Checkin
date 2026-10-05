@@ -2098,3 +2098,599 @@ button:disabled,
     overflow: hidden;
   }
 }
+
+/* =========================================================================
+   REPAGINADA - camada visual nova (branch repaginada)
+   Nao altera estrutura de dados: apenas cores, formas, icones e tema escuro.
+   ========================================================================= */
+
+/* ---------- 1. Tokens de design ---------- */
+:root {
+  --bg: #eef3f0;
+  --surface-2: #f5f8f6;
+  --ink: #10201b;
+  --muted: #61716b;
+  --accent: #0f6a4a;
+  --accent-strong: #0a4732;
+  --accent-soft: #e6f4ee;
+  --accent-2: #c98a1e;
+  --card: #ffffff;
+  --stroke: #e3e9e5;
+  --stroke-strong: #ccd8d2;
+  --shadow: 0 10px 30px rgba(16, 32, 27, 0.08);
+  --shadow-soft: 0 1px 2px rgba(16, 32, 27, 0.06);
+  --radius: 16px;
+}
+
+body {
+  background:
+    radial-gradient(1100px 520px at 12% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, transparent) 0, transparent 320px),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--bg)) 0, var(--bg) 55%, var(--bg) 100%);
+}
+
+/* ---------- 2. Icones do menu ---------- */
+.svg-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.nav-ico {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+.theme-ico-sun {
+  display: none;
+}
+
+body.theme-dark .theme-ico-moon {
+  display: none;
+}
+
+body.theme-dark .theme-ico-sun {
+  display: block;
+}
+
+/* ---------- 3. Cabecalho e menu ---------- */
+.app-header {
+  gap: 12px;
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  border-bottom-color: var(--stroke);
+  box-shadow:
+    0 1px 0 rgba(16, 32, 27, 0.04),
+    0 10px 26px rgba(16, 32, 27, 0.05);
+}
+
+.brand {
+  gap: 12px;
+}
+
+.title {
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+.brand .subtitle {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+}
+
+.logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--stroke));
+}
+
+.session {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.session .pill {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent-strong);
+}
+
+.session .ghost {
+  background: color-mix(in srgb, var(--surface-2) 86%, var(--card));
+  border: 1px solid var(--stroke);
+  color: var(--muted);
+  box-shadow: none;
+  gap: 7px;
+}
+
+.session .ghost:hover {
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--stroke));
+  color: var(--accent-strong);
+}
+
+.session .primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  border: 1px solid var(--accent-strong);
+  color: #fff;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 24%, transparent);
+  gap: 7px;
+}
+
+.session .primary::after {
+  display: none;
+}
+
+.session .primary:hover {
+  filter: brightness(1.05);
+}
+
+.session #btnPrintPanel {
+  background: color-mix(in srgb, var(--accent-2) 15%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent-2) 45%, var(--stroke));
+  color: #8a5f10;
+  box-shadow: none;
+  gap: 7px;
+}
+
+.session #btnPrintPanel:hover {
+  background: color-mix(in srgb, var(--accent-2) 24%, var(--card));
+  border-color: color-mix(in srgb, var(--accent-2) 65%, var(--stroke));
+  color: #7a5210;
+  filter: none;
+}
+
+.session #btnLogout {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--stroke));
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.session #btnLogout:hover {
+  background: color-mix(in srgb, var(--danger) 18%, var(--card));
+  filter: none;
+}
+
+.session .theme-toggle {
+  padding: 8px 12px;
+  justify-content: center;
+  gap: 7px;
+}
+
+.session .theme-toggle::after {
+  content: "Tema";
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.message-badge {
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+/* ---------- 4. Botoes ---------- */
+.primary,
+.ghost,
+.danger {
+  border-radius: 11px;
+  letter-spacing: 0.01em;
+}
+
+.ghost {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--stroke));
+  color: var(--accent-strong);
+}
+
+.ghost:hover {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
+  color: var(--accent-strong);
+}
+
+.primary {
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.link-button {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- 5. Cartoes, listas e resumos ---------- */
+.card {
+  border-radius: 18px;
+  border-color: var(--stroke);
+}
+
+.card-header {
+  border-bottom-color: var(--stroke);
+  padding-bottom: 8px;
+}
+
+.card h2,
+.dialog-body h3 {
+  letter-spacing: -0.01em;
+}
+
+.list {
+  gap: 10px;
+}
+
+.list-item {
+  border-radius: 13px;
+  background: var(--surface);
+  padding: 13px 16px;
+  gap: 6px;
+}
+
+.list-item::before {
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: transparent;
+}
+
+.list-item.is-selected::before {
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+}
+
+.summary {
+  border-radius: 13px;
+  background: var(--surface-2);
+  border-color: var(--stroke);
+}
+
+.pill {
+  border-radius: 999px;
+}
+
+.filters {
+  border-radius: 13px;
+  background: var(--surface-2);
+  border-color: var(--stroke);
+}
+
+.room-form,
+.room-month-group {
+  border-radius: 13px;
+}
+
+.attendance-class-group {
+  border-radius: 13px;
+}
+
+/* ---------- 6. Login ---------- */
+#authCard {
+  border-radius: 22px;
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--stroke));
+}
+
+#authCard h2 {
+  letter-spacing: -0.02em;
+}
+
+/* ---------- 7. Dashboard ---------- */
+.dashboard-title {
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-grid .summary {
+  background: var(--surface);
+  border-color: var(--stroke);
+  border-radius: 14px;
+  min-height: 88px;
+}
+
+.dashboard-grid .summary strong {
+  color: var(--accent);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard-tips-header {
+  font-weight: 600;
+}
+
+.dashboard-tip-card {
+  border-radius: 13px;
+}
+
+/* ---------- 8. Aniversariantes ---------- */
+.dashboard-birthday-item {
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--card), var(--surface-2));
+  border-color: var(--stroke);
+  min-height: 184px;
+}
+
+.dashboard-balloon {
+  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--stroke));
+  background: color-mix(in srgb, var(--accent-2) 12%, var(--card));
+}
+
+.dashboard-balloon img {
+  border-radius: inherit;
+}
+
+/* ---------- 9. Monograma de iniciais (foto indisponivel) ---------- */
+.photo-monogram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, var(--accent-soft), color-mix(in srgb, var(--accent) 24%, var(--card)));
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.photo-monogram-fallback {
+  display: none;
+  position: absolute;
+  inset: 0;
+}
+
+.student-list-card > .photo-monogram {
+  width: 72px;
+  height: 72px;
+  border-radius: 11px;
+  border: 1px solid var(--stroke);
+  font-size: 24px;
+}
+
+/* ---------- 10. Mensagens: abas e etiquetas de escopo ---------- */
+.tips-scope-note {
+  font-size: 12.5px;
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 11px;
+  padding: 9px 12px;
+}
+
+.tips-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--stroke);
+  border-radius: 13px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tips-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.tips-tab:hover {
+  color: var(--accent-strong);
+}
+
+.tips-tab.is-active {
+  background: var(--card);
+  border-color: var(--stroke);
+  color: var(--accent-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.tips-tab-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tip-scope-tag {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.tip-scope-tag.is-recv {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.tip-scope-tag.is-sent {
+  background: color-mix(in srgb, var(--accent-2) 20%, var(--card));
+  color: #8a5f10;
+}
+
+#tipsCard #tipsComposer {
+  background: var(--surface-2);
+}
+
+/* ---------- 11. Tema escuro ---------- */
+body.theme-dark {
+  --bg: #0d1411;
+  --surface: #151e1a;
+  --surface-2: #1a2521;
+  --card: #121b17;
+  --ink: #e7efeb;
+  --muted: #9aa9a3;
+  --stroke: #24322c;
+  --stroke-strong: #354741;
+  --accent: #3fbd90;
+  --accent-strong: #6fd6b0;
+  --accent-soft: rgba(63, 189, 144, 0.14);
+  --accent-2: #e0a83f;
+  --danger: #e5675c;
+  --danger-soft: rgba(229, 103, 92, 0.16);
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+body.theme-dark {
+  background:
+    radial-gradient(1100px 520px at 12% -8%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%),
+    linear-gradient(180deg, #0b120f 0, var(--bg) 340px);
+}
+
+body.theme-dark .app-header {
+  background: rgba(13, 20, 17, 0.9);
+}
+
+body.theme-dark .session .ghost {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+body.theme-dark .session .primary {
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #0b6));
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: #0b120f;
+}
+
+body.theme-dark .session #btnPrintPanel {
+  background: color-mix(in srgb, var(--accent-2) 20%, var(--card));
+  border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+  color: #e7c076;
+}
+
+body.theme-dark .session #btnPrintPanel:hover {
+  background: color-mix(in srgb, var(--accent-2) 30%, var(--card));
+  color: #f0d090;
+}
+
+body.theme-dark .primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: #0b120f;
+}
+
+body.theme-dark .ghost {
+  background: var(--surface-2);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--stroke));
+}
+
+body.theme-dark .pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+body.theme-dark .logo img {
+  background: var(--surface);
+}
+
+body.theme-dark .field input,
+body.theme-dark .field select,
+body.theme-dark .field textarea,
+body.theme-dark .filters input,
+body.theme-dark .filters select,
+body.theme-dark #familyEditor input,
+body.theme-dark #familyEditor select,
+body.theme-dark #familyEditor textarea,
+body.theme-dark #familiesCard input,
+body.theme-dark #familiesCard select,
+body.theme-dark #familiesCard textarea,
+body.theme-dark .room-class-options label {
+  background: var(--surface-2);
+  border-color: var(--stroke-strong);
+  color: var(--ink);
+}
+
+body.theme-dark .photo-preview,
+body.theme-dark .student-list-photo,
+body.theme-dark .collapse-icon::before {
+  background: var(--surface-2);
+}
+
+body.theme-dark .dashboard-balloon {
+  background: color-mix(in srgb, var(--accent-2) 18%, var(--card));
+}
+
+body.theme-dark .dashboard-birthday-item {
+  background: linear-gradient(180deg, var(--card), var(--surface-2));
+}
+
+body.theme-dark .room-month-group {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+body.theme-dark .tip-scope-tag.is-sent {
+  background: color-mix(in srgb, var(--accent-2) 24%, var(--card));
+  color: #e7c076;
+}
+
+body.theme-dark .photo-monogram {
+  background: linear-gradient(160deg, var(--accent-soft), color-mix(in srgb, var(--accent) 30%, var(--card)));
+  color: var(--accent);
+}
+
+body.theme-dark .summary,
+body.theme-dark .dashboard-grid .summary {
+  background: var(--surface);
+}
+
+body.theme-dark .list-item .actions,
+body.theme-dark .card-header {
+  border-color: var(--stroke);
+}
+
+/* ---------- 12. Responsivo adicional ---------- */
+@media (max-width: 720px) {
+  .app-header {
+    gap: 8px;
+  }
+
+  .session {
+    justify-content: flex-start;
+  }
+
+  .tips-tabs {
+    width: 100%;
+  }
+
+  .tips-tab {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .student-list-card > .photo-monogram {
+    width: 58px;
+    height: 58px;
+    font-size: 20px;
+  }
+
+  .nav-ico {
+    width: 15px;
+    height: 15px;
+  }
+}

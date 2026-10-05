@@ -1,4 +1,4 @@
-﻿﻿const STORAGE_KEY = "checkin_app_state_v1";
+﻿const STORAGE_KEY = "checkin_app_state_v1";
 const STORAGE_BUCKET = "dnms-photos";
 const PENDING_PROFILE_PHOTO_PREFIX = "pending_profile_photo_v1:";
 const SCHEDULE_SHEET_CONFIG_KEY = "checkin_schedule_sheet_config_v1";
@@ -162,6 +162,10 @@ const els = {
   btnConfirmCheckout: document.getElementById("btnConfirmCheckout"),
   tipsComposer: document.getElementById("tipsComposer"),
   tipsList: document.getElementById("tipsList"),
+  tipsTabs: document.getElementById("tipsTabs"),
+  tipsRecvCount: document.getElementById("tipsRecvCount"),
+  tipsSentCount: document.getElementById("tipsSentCount"),
+  btnThemeToggle: document.getElementById("btnThemeToggle"),
   btnDeleteAllTips: document.getElementById("btnDeleteAllTips"),
   btnMarkAllTipsRead: document.getElementById("btnMarkAllTipsRead"),
   roomDetailsDialog: document.getElementById("roomDetailsDialog"),
@@ -297,6 +301,7 @@ const els = {
 boot();
 
 async function boot() {
+  applySavedTheme();
   bindEvents();
   if (supabaseClient && await waitForPasswordRecoverySignal()) {
     showPasswordRecoveryMode();
@@ -417,6 +422,14 @@ function bindEvents() {
   els.btnClearTipMessage?.addEventListener("click", clearTipMessageBox);
   els.btnDeleteAllTips?.addEventListener("click", deleteAllVisibleTips);
   els.btnMarkAllTipsRead?.addEventListener("click", markAllTipsAsRead);
+  els.tipsTabs?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("[data-tips-tab]");
+    if (!button) {
+      return;
+    }
+    setTipsTab(button.getAttribute("data-tips-tab"));
+  });
+  els.btnThemeToggle?.addEventListener("click", toggleThemeMode);
   els.manageUserSearch?.addEventListener("input", () => renderManagementPanel());
   els.btnPrintPresenceQr?.addEventListener("click", printPresenceQr);
   els.btnLinkFamilyResponsible?.addEventListener("click", handleLinkFamilyResponsible);
@@ -585,6 +598,38 @@ function applyRoleTheme() {
   if (isEquipe()) {
     body.classList.add("role-theme-equipe");
   }
+}
+
+const THEME_STORAGE_KEY = "dnms-theme-mode";
+
+function applySavedTheme() {
+  let saved = "";
+  try {
+    saved = localStorage.getItem(THEME_STORAGE_KEY) || "";
+  } catch (error) {
+    saved = "";
+  }
+  document.body?.classList.toggle("theme-dark", saved === "dark");
+  updateThemeToggleLabel();
+}
+
+function toggleThemeMode() {
+  const isDark = document.body.classList.toggle("theme-dark");
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
+  } catch (error) {
+    // Armazenamento indisponivel: tema vale apenas para a sessao atual.
+  }
+  updateThemeToggleLabel();
+}
+
+function updateThemeToggleLabel() {
+  if (!els.btnThemeToggle) {
+    return;
+  }
+  const isDark = document.body.classList.contains("theme-dark");
+  els.btnThemeToggle.classList.toggle("is-dark", isDark);
+  els.btnThemeToggle.title = isDark ? "Mudar para tema claro" : "Mudar para tema escuro";
 }
 
 async function fetchProfile(userId) {
@@ -800,23 +845,51 @@ function getUnreadTipsForCurrentUser() {
   }
   const myId = state.session.id;
   return state.tips.filter((tip) => {
-    const isRecipient = !tip.recipientId || tip.recipientId === myId;
-    if (!isRecipient) {
+    if (!tipIsReceivedByMe(tip)) {
       return false;
     }
     return !state.tipReads.some((read) => read.tipId === tip.id && read.userId === myId);
   });
 }
 
+function tipIsSentByMe(tip) {
+  return Boolean(state.session && tip?.createdBy && tip.createdBy === state.session.id);
+}
+
+function tipIsReceivedByMe(tip) {
+  if (!state.session) {
+    return false;
+  }
+  if (tipIsSentByMe(tip)) {
+    return false;
+  }
+  return !tip?.recipientId || tip.recipientId === state.session.id;
+}
+
+function sortTipsByDateDesc(tips) {
+  return tips.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+// Cada pessoa ve somente o que enviou ou recebeu (inclusive administradores).
 function getVisibleTipsForCurrentUser() {
   if (!state.session) {
     return [];
   }
-  const myId = state.session.id;
-  return state.tips
-    .filter((tip) => !tip.recipientId || tip.recipientId === myId || canAccessManagementPanel())
-    .slice()
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return sortTipsByDateDesc(state.tips.filter((tip) => tipIsReceivedByMe(tip) || tipIsSentByMe(tip)));
+}
+
+function getReceivedTipsForCurrentUser() {
+  if (!state.session) {
+    return [];
+  }
+  return sortTipsByDateDesc(state.tips.filter((tip) => tipIsReceivedByMe(tip)));
+}
+
+function getSentTipsForCurrentUser() {
+  if (!state.session) {
+    return [];
+  }
+  return sortTipsByDateDesc(state.tips.filter((tip) => tipIsSentByMe(tip)));
 }
 
 function isTipReadByCurrentUser(tipId) {
@@ -909,7 +982,9 @@ function renderTipsPanel() {
       state.session?.role === "responsavel" ? "Voltar para criancas" : "Voltar para dashboard";
   }
   renderTipsComposerControls();
-  const tips = getVisibleTipsForCurrentUser();
+  renderTipsTabs();
+  const tab = getCurrentTipsTab();
+  const tips = tab === "sent" ? getSentTipsForCurrentUser() : getReceivedTipsForCurrentUser();
   const canDeleteTips = canAccessManagementPanel();
   const statusHtml = getTipsStatusHtml();
   els.tipsList.innerHTML = statusHtml;
@@ -918,20 +993,33 @@ function renderTipsPanel() {
     return;
   }
   if (!tips.length) {
-    els.tipsList.insertAdjacentHTML("beforeend", `<div class="summary tips-empty">Nenhuma mensagem disponivel.</div>`);
+    const emptyText =
+      tab === "sent" ? "Voce ainda nao enviou mensagens." : "Nenhuma mensagem disponivel.";
+    els.tipsList.insertAdjacentHTML("beforeend", `<div class="summary tips-empty">${emptyText}</div>`);
     return;
   }
   const expandedTips = new Set(state.ui?.expandedTips || []);
   tips.forEach((tip) => {
-    const read = isTipReadByCurrentUser(tip.id);
+    const read = tab === "sent" || isTipReadByCurrentUser(tip.id);
     const dateText = formatDateTimeFromIso(tip.createdAt);
     const message = String(tip.message || "");
     const wrapper = document.createElement("div");
     wrapper.className = `list-item ${read ? "" : "is-selected"}`;
 
     const title = document.createElement("strong");
-    title.textContent = `[${resolveTipRecipientLabel(tip)}] Mensagem`;
+    if (tab === "sent") {
+      title.textContent = `Para ${resolveTipRecipientLabel(tip)}`;
+    } else {
+      const sender = String(tip.senderName || "").trim();
+      title.textContent = sender ? `De ${sender}` : "Mensagem recebida";
+    }
     wrapper.appendChild(title);
+
+    const scopeTag = document.createElement("span");
+    scopeTag.className = `tip-scope-tag ${tab === "sent" ? "is-sent" : "is-recv"}`;
+    scopeTag.textContent =
+      tab === "sent" ? "Enviada por voce" : tip.recipientId ? "Para voce" : "Para todos";
+    wrapper.appendChild(scopeTag);
 
     const date = document.createElement("span");
     date.className = "muted";
@@ -988,13 +1076,13 @@ function renderTipsPanel() {
       wrapper.appendChild(requestActions);
     }
 
-    if (canDeleteTips) {
+    if (canDeleteTips || tipIsSentByMe(tip)) {
       const actions = document.createElement("div");
       actions.className = "actions";
       const btnDelete = document.createElement("button");
       btnDelete.type = "button";
       btnDelete.className = "danger";
-      btnDelete.textContent = "Apagar mensagem";
+      btnDelete.textContent = tipIsSentByMe(tip) ? "Apagar mensagem enviada" : "Apagar mensagem";
       btnDelete.addEventListener("click", async () => {
         const confirmed = confirm("Deseja apagar esta mensagem?");
         if (!confirmed) {
@@ -1021,6 +1109,36 @@ function renderTipsPanel() {
     });
 
     els.tipsList.appendChild(wrapper);
+  });
+}
+
+function getCurrentTipsTab() {
+  return state.ui?.tipsTab === "sent" ? "sent" : "recv";
+}
+
+function setTipsTab(tab) {
+  if (!state.ui) {
+    state.ui = {};
+  }
+  state.ui.tipsTab = tab === "sent" ? "sent" : "recv";
+  renderTipsPanel();
+}
+
+function renderTipsTabs() {
+  const tab = getCurrentTipsTab();
+  if (els.tipsRecvCount) {
+    els.tipsRecvCount.textContent = String(getReceivedTipsForCurrentUser().length);
+  }
+  if (els.tipsSentCount) {
+    els.tipsSentCount.textContent = String(getSentTipsForCurrentUser().length);
+  }
+  if (!els.tipsTabs) {
+    return;
+  }
+  els.tipsTabs.querySelectorAll("[data-tips-tab]").forEach((button) => {
+    const active = button.getAttribute("data-tips-tab") === tab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
   });
 }
 
@@ -1093,10 +1211,19 @@ function renderDashboardTips() {
     <div class="list dashboard-tips-list">
       ${tips
         .map((tip) => {
-          const read = isTipReadByCurrentUser(tip.id);
+          const read = tipIsSentByMe(tip) || isTipReadByCurrentUser(tip.id);
+          const directionLabel = tipIsSentByMe(tip)
+            ? `Para ${resolveTipRecipientLabel(tip)}`
+            : `De ${String(tip.senderName || "").trim() || "Sistema"}`;
+          const scopeTag = tipIsSentByMe(tip)
+            ? "Enviada por voce"
+            : tip.recipientId
+              ? "Para voce"
+              : "Para todos";
           return `
-            <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}" aria-label="Abrir mensagem de ${escapeAttribute(resolveTipRecipientLabel(tip))}">
-              <strong>${escapeHtml(resolveTipRecipientLabel(tip))}</strong>
+            <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}" aria-label="Abrir mensagem de ${escapeAttribute(directionLabel)}">
+              <strong>${escapeHtml(directionLabel)}</strong>
+              <span class="tip-scope-tag ${tipIsSentByMe(tip) ? "is-sent" : "is-recv"}">${escapeHtml(scopeTag)}</span>
               <span class="muted">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
               <span>${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
             </button>
@@ -1114,6 +1241,10 @@ function renderDashboardTips() {
         const expanded = new Set(state.ui?.expandedTips || []);
         expanded.add(tipId);
         state.ui.expandedTips = Array.from(expanded);
+        const tip = state.tips.find((item) => item.id === tipId);
+        if (tip) {
+          state.ui.tipsTab = tipIsSentByMe(tip) ? "sent" : "recv";
+        }
       }
       setActivePanel("tips");
     });
@@ -1121,7 +1252,11 @@ function renderDashboardTips() {
 }
 
 async function deleteTipMessage(tipId) {
-  if (!tipId || !state.session || !canAccessManagementPanel()) {
+  if (!tipId || !state.session) {
+    return;
+  }
+  const tip = state.tips.find((item) => item.id === tipId);
+  if (!canAccessManagementPanel() && !(tip && tipIsSentByMe(tip))) {
     return;
   }
   if (supabaseClient) {
@@ -1167,11 +1302,12 @@ async function deleteAllVisibleTips() {
   if (!state.session || !canAccessManagementPanel()) {
     return;
   }
-  const tips = getVisibleTipsForCurrentUser();
+  const tips = getSentTipsForCurrentUser();
   if (!tips.length) {
+    alert("Voce nao tem mensagens enviadas para apagar.");
     return;
   }
-  const confirmed = confirm(`Deseja apagar ${tips.length} mensagem(ns)?`);
+  const confirmed = confirm(`Deseja apagar as ${tips.length} mensagem(ns) enviada(s) por voce?`);
   if (!confirmed) {
     return;
   }
@@ -2252,7 +2388,7 @@ function renderStudents() {
       : "";
     item.innerHTML = `
       <div class="student-list-card">
-        <img class="student-list-photo" src="${escapeAttribute(student.photoUrl || getStudentPhotoPlaceholderUrl())}" alt="Foto de ${escapeAttribute(student.name)}" />
+        ${buildStudentPhotoHtml(student.photoUrl, student.name, "student-list-photo")}
         <div class="student-list-content">
           ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${escapeAttribute(student.id)}" /></label>` : ""}
           <strong>${escapeHtml(student.name)}</strong>
@@ -2328,6 +2464,8 @@ function renderStudents() {
 
     els.studentList.appendChild(item);
   });
+
+  bindPhotoFallbacks(els.studentList);
 
   if (els.selectAllStudents) {
     els.selectAllStudents.checked = false;
@@ -2774,7 +2912,7 @@ function renderDashboard() {
         (student) => `
             <div class="dashboard-birthday-item" data-birthday-student="${escapeAttribute(student.id)}">
             <div class="dashboard-balloon">
-              <img src="${escapeAttribute(student.photoUrl || getStudentPhotoPlaceholderUrl())}" alt="Foto de ${escapeAttribute(student.name)}" />
+              ${buildStudentPhotoHtml(student.photoUrl, student.name)}
             </div>
             <div class="dashboard-birthday-name">${escapeHtml(student.name)}</div>
             <div class="dashboard-birthday-date">${escapeHtml(formatBirthdayLabel(student.birth))}</div>
@@ -2782,6 +2920,8 @@ function renderDashboard() {
         `
       )
       .join("");
+
+    bindPhotoFallbacks(els.dashboardBirthdays);
 
     const birthdayCards = els.dashboardBirthdays.querySelectorAll("[data-birthday-student]");
     birthdayCards.forEach((card) => {
@@ -3809,6 +3949,9 @@ async function sendTipMessage() {
   }
   if (els.tipsMessageInput) {
     els.tipsMessageInput.value = "";
+  }
+  if (state.ui) {
+    state.ui.tipsTab = "sent";
   }
   updateTipsUnreadBadge();
   alert("Mensagem enviada.");
@@ -8994,6 +9137,45 @@ function getStudentPhotoPlaceholderUrl() {
       </svg>`
     )
   );
+}
+
+function getStudentInitials(name) {
+  const words = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const first = words[0]?.[0] || "";
+  const last = words.length > 1 ? words[words.length - 1][0] : "";
+  return (first + last).toUpperCase() || "?";
+}
+
+// Foto do aluno com monograma de iniciais como reserva quando nao ha imagem.
+function buildStudentPhotoHtml(photoUrl, name, imageClass = "") {
+  const initials = escapeHtml(getStudentInitials(name));
+  const aria = escapeAttribute(`Foto de ${name}`);
+  if (!photoUrl) {
+    return `<span class="photo-monogram ${escapeAttribute(imageClass)}" role="img" aria-label="${aria}">${initials}</span>`;
+  }
+  return `<img class="${escapeAttribute(imageClass)}" src="${escapeAttribute(photoUrl)}" alt="${aria}" data-photo-fallback /><span class="photo-monogram photo-monogram-fallback ${escapeAttribute(imageClass)}" role="img" aria-label="${aria}">${initials}</span>`;
+}
+
+function bindPhotoFallbacks(root = document) {
+  if (!root) {
+    return;
+  }
+  root.querySelectorAll("img[data-photo-fallback]").forEach((img) => {
+    const showError = () => {
+      img.style.display = "none";
+      const monogram = img.nextElementSibling;
+      if (monogram && monogram.classList.contains("photo-monogram")) {
+        monogram.style.display = "flex";
+      }
+    };
+    img.addEventListener("error", showError, { once: true });
+    if (img.complete && img.naturalWidth === 0) {
+      showError();
+    }
+  });
 }
 
 function readFileAsDataUrl(file) {
