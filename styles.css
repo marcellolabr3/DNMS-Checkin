@@ -2694,3 +2694,109 @@ body.theme-dark .card-header {
     height: 15px;
   }
 }
+
+/* ============================================================
+   13. AJUSTE - menu lateral 100% visivel, sem barra de rolagem
+   O cabecalho usava flex-wrap: wrap com altura fixa de 100vh;
+   em telas baixas o menu quebrava em colunas laterais e gerava
+   barra de rolagem com itens cortados. Agora: coluna unica,
+   espacamento compacto e altura reduzida em telas baixas.
+   ============================================================ */
+@media (min-width: 980px) {
+  .app-header {
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 14px 12px;
+  }
+
+  .brand {
+    gap: 8px;
+    padding: 2px 4px 8px;
+  }
+
+  .brand .subtitle {
+    font-size: 12px;
+  }
+
+  .logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .session {
+    gap: 4px;
+  }
+
+  .session .pill,
+  .session .ghost,
+  .session .primary {
+    min-height: 34px;
+    padding: 7px 10px;
+  }
+
+  .session .pill {
+    margin-bottom: 4px;
+  }
+
+  .session #btnPrintPanel {
+    margin-top: 6px;
+  }
+
+  .session #btnLogout {
+    margin-top: 3px;
+  }
+
+  .session .theme-toggle {
+    padding: 7px 10px;
+  }
+}
+
+/* Telas baixas (notebook com escala do Windows ou zoom do navegador) */
+@media (min-width: 980px) and (max-height: 700px) {
+  .app-header {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .brand {
+    gap: 6px;
+    padding: 0 4px 6px;
+  }
+
+  .brand .subtitle {
+    display: none;
+  }
+
+  .logo {
+    width: 30px;
+    height: 30px;
+  }
+
+  .session {
+    gap: 3px;
+  }
+
+  .session .pill,
+  .session .ghost,
+  .session .primary {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 12.5px;
+  }
+
+  .session .pill {
+    margin-bottom: 3px;
+  }
+
+  .session #btnPrintPanel {
+    margin-top: 4px;
+  }
+
+  .session #btnLogout {
+    margin-top: 2px;
+  }
+
+  .session .theme-toggle {
+    padding: 5px 9px;
+  }
+}
