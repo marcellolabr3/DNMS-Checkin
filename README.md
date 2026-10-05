@@ -132,6 +132,7 @@ npm test
   * [ ] Validar restauração do schema e dos dados em ambiente seguro
 * [x] Auditoria operacional de ações críticas
   * [x] Registrar check-in, checkout, abertura/fechamento de sala e ações administrativas em `audit_logs`
+* [x] App nativo Android (APK) e iOS via Capacitor, em projeto separado em `D:\Dev\APKCheckin` (não altera este repositório)
 
 ---
 

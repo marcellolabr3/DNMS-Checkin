@@ -108,6 +108,8 @@ test("texto longo de mensagem nao cria rolagem horizontal", async ({ page }) => 
   await loginAs(page, "admin@dnms.test");
 
   await page.click("#btnTipsInbox");
+  // A mensagem foi enviada pelo proprio admin, entao ela fica na aba Enviadas.
+  await page.locator('[data-tips-tab="sent"]').click();
   await page.locator("#tipsList .tip-message-preview").first().click();
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
