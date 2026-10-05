@@ -14,6 +14,7 @@ const PRINT_JOB_POLL_INTERVAL_MS = 1200;
 const PRINT_JOB_POLL_TIMEOUT_MS = 45000;
 const SADMIN_EMAIL = "marvinlabre@gmail.com";
 const SW_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const THEME_STORAGE_KEY = "dnms-theme-mode";
 const CHECKIN_EARLY_WINDOW_MINUTES = 30;
 const SUPABASE_URL = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
@@ -599,8 +600,6 @@ function applyRoleTheme() {
     body.classList.add("role-theme-equipe");
   }
 }
-
-const THEME_STORAGE_KEY = "dnms-theme-mode";
 
 function applySavedTheme() {
   let saved = "";
