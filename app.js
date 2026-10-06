@@ -1014,14 +1014,27 @@ function renderTipsPanel() {
     }
     wrapper.appendChild(title);
 
+    const avatar = document.createElement("span");
+    avatar.className = `tip-avatar avatar-tone-${getAvatarTone(title.textContent)}`;
+    avatar.setAttribute("aria-hidden", "true");
+    avatar.textContent = getStudentInitials(title.textContent);
+    wrapper.appendChild(avatar);
+
     const scopeTag = document.createElement("span");
     scopeTag.className = `tip-scope-tag ${tab === "sent" ? "is-sent" : `is-recv${tip.recipientId ? " is-direct" : ""}`}`;
     scopeTag.textContent =
       tab === "sent" ? "Enviada por voce" : tip.recipientId ? "Para voce" : "Para todos";
     wrapper.appendChild(scopeTag);
 
+    if (!read) {
+      const unreadTag = document.createElement("span");
+      unreadTag.className = "tag danger tip-unread";
+      unreadTag.innerHTML = '<span class="dot"></span>Nao lida';
+      wrapper.appendChild(unreadTag);
+    }
+
     const date = document.createElement("span");
-    date.className = "muted";
+    date.className = "muted tip-date";
     date.textContent = dateText;
     wrapper.appendChild(date);
 
@@ -1219,12 +1232,17 @@ function renderDashboardTips() {
             : tip.recipientId
               ? "Para voce"
               : "Para todos";
+          const avatarSeed = tipIsSentByMe(tip)
+            ? resolveTipRecipientLabel(tip)
+            : String(tip.senderName || "").trim() || "Sistema";
           return `
             <button type="button" class="list-item dashboard-tip-card ${read ? "" : "is-selected"}" data-dashboard-tip-id="${escapeAttribute(tip.id)}" aria-label="Abrir mensagem de ${escapeAttribute(directionLabel)}">
-              <strong>${escapeHtml(directionLabel)}</strong>
+              <span class="tip-avatar avatar-tone-${getAvatarTone(avatarSeed)}" aria-hidden="true">${escapeHtml(getStudentInitials(avatarSeed))}</span>
+              <strong class="tip-name">${escapeHtml(directionLabel)}</strong>
               <span class="tip-scope-tag ${tipIsSentByMe(tip) ? "is-sent" : `is-recv${tip.recipientId ? " is-direct" : ""}`}">${escapeHtml(scopeTag)}</span>
-              <span class="muted">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
-              <span>${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
+              ${read ? "" : '<span class="tag danger tip-unread"><span class="dot"></span>Nao lida</span>'}
+              <span class="muted tip-date">${escapeHtml(formatDateTimeFromIso(tip.createdAt))}</span>
+              <span class="tip-msg">${escapeHtml(truncateTipMessage(tip.message, 120))}</span>
             </button>
           `;
         })
@@ -2335,6 +2353,11 @@ function renderStudents() {
     });
   }
 
+  const studentViewSub = document.getElementById("studentViewSub");
+  if (studentViewSub) {
+    studentViewSub.textContent = `${items.length} de ${state.students.length} crianca(s)`;
+  }
+
   if (els.studentEmpty) {
     if (isResponsavel && !items.length) {
       els.studentEmpty.textContent = "Nenhuma crianca cadastrada. Clique em Cadastrar crianca para continuar.";
@@ -2393,11 +2416,13 @@ function renderStudents() {
           ${canSeeAll ? `<label class="field checkbox-field"><span>Selecionar</span><input type="checkbox" data-select-student="${escapeAttribute(student.id)}" /></label>` : ""}
           <strong>${escapeHtml(student.name)}</strong>
           <span class="tag ${classTone === "brand" ? "" : classTone}"><span class="dot"></span>${escapeHtml(className)}</span>
-          <span class="muted">Turma: ${escapeHtml(className)} | Responsavel: ${escapeHtml(student.guardian)}</span>
-          <span class="muted">${classDetails}${temporaryAssignment ? " | Alocação temporária" : ""}</span>
-          <span class="muted">Nascimento: ${escapeHtml(birthLabel)} | Observacoes: ${escapeHtml(observationText)}</span>
-          <span class="muted">Telefone do responsavel: ${escapeHtml(contact.phone || "-")}</span>
-          <span class="muted">Endereco do responsavel: ${escapeHtml(contact.address || "-")}</span>
+          <div class="student-list-details">
+            <span class="muted">Turma: ${escapeHtml(className)} | Responsavel: ${escapeHtml(student.guardian)}</span>
+            <span class="muted">${classDetails}${temporaryAssignment ? " | Alocação temporária" : ""}</span>
+            <span class="muted">Nascimento: ${escapeHtml(birthLabel)} | Observacoes: ${escapeHtml(observationText)}</span>
+            <span class="muted">Telefone do responsavel: ${escapeHtml(contact.phone || "-")}</span>
+            <span class="muted">Endereco do responsavel: ${escapeHtml(contact.address || "-")}</span>
+          </div>
           <div class="actions">
             ${canEditStudent(student) ? `<button class="ghost" data-edit="${escapeAttribute(student.id)}">Editar</button>` : ""}
             ${checkoutButton}
@@ -2742,6 +2767,58 @@ function toggleDashboardScheduleDate(date) {
   renderDashboard();
 }
 
+// Cards de KPI no topo do dashboard (mesma composicao do preview aprovado).
+function renderDashboardKpis(totals, openRooms) {
+  const host = document.getElementById("dashboardKpis");
+  if (!host) {
+    return;
+  }
+  const roomLabels = openRooms
+    .map((room) => room.classTarget || room.name || "")
+    .filter(Boolean)
+    .join(" · ");
+  const cards = [
+    {
+      id: "kpiCheckins",
+      tone: "brand",
+      label: "Check-ins hoje",
+      value: totals.checkins,
+      note: "registros no dia"
+    },
+    {
+      id: "kpiPresent",
+      tone: "info",
+      label: "Criancas presentes",
+      value: totals.kids,
+      note: "com check-in hoje"
+    },
+    {
+      id: "kpiRooms",
+      tone: "gold",
+      label: "Salas abertas",
+      value: totals.rooms,
+      note: roomLabels || "nenhuma sala aberta"
+    },
+    {
+      id: "kpiPrint",
+      tone: "danger",
+      label: "Etiquetas pendentes",
+      value: totals.pending,
+      note: "aguardando impressao"
+    }
+  ];
+  host.innerHTML = cards
+    .map(
+      (card) => `
+      <div class="kpi-card kpi-${card.tone}" id="${card.id}">
+        <span class="kpi-label">${escapeHtml(card.label)}</span>
+        <strong class="kpi-value">${escapeHtml(String(card.value))}</strong>
+        <span class="kpi-note">${escapeHtml(card.note)}</span>
+      </div>`
+    )
+    .join("");
+}
+
 function renderDashboard() {
   if (
     !els.dashboardAlerts ||
@@ -2767,10 +2844,29 @@ function renderDashboard() {
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
+  const todayCheckins = getTodayCheckins();
   const todayCheckinStudentIds = new Set(
-    getTodayCheckins()
+    todayCheckins
       .map((checkin) => checkin.studentId)
   );
+  renderDashboardKpis(
+    {
+      checkins: todayCheckins.length,
+      kids: todayCheckinStudentIds.size,
+      rooms: openRooms.length,
+      pending: todayCheckins.filter((checkin) => !checkin.checkedOutAt && !checkin.printedAt).length
+    },
+    openRooms
+  );
+  const dashboardViewSub = document.getElementById("dashboardViewSub");
+  if (dashboardViewSub) {
+    const todayLabel = new Date().toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long"
+    });
+    dashboardViewSub.textContent = todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1);
+  }
   const neuroStudents = state.students.filter((student) => {
     return hasNeuroatypicalCondition(student.notes) && todayCheckinStudentIds.has(student.id);
   });
@@ -2806,11 +2902,14 @@ function renderDashboard() {
     ${escapeHtml(infoText)}<br />
     ${alertsLine}
   `;
-  els.dashboardAttention.innerHTML = `
+  els.dashboardAttention.innerHTML =
+    neuroSummaryHtml || neuroListHtml
+      ? `
     <strong>Atencao:</strong><br />
     ${neuroSummaryHtml}
     ${neuroListHtml}
-  `;
+  `
+      : "";
   document.getElementById("btnDashboardNeuroList")?.addEventListener("click", () => {
     state.ui.dashboardNeuroExpanded = !state.ui.dashboardNeuroExpanded;
     renderDashboard();
@@ -9163,6 +9262,17 @@ function getClassColorSuffix(className = "") {
     return "muted";
   }
   return "brand";
+}
+
+// Tom do avatar na lista de mensagens: derivado do nome (deterministico).
+function getAvatarTone(seed = "") {
+  const tones = ["brand", "gold", "info", "muted"];
+  let hash = 0;
+  const value = String(seed || "");
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return tones[hash % tones.length];
 }
 
 // Foto do aluno com monograma de iniciais como reserva quando nao ha imagem.
