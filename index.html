@@ -37,6 +37,12 @@
     </div>
     <div class="session">
       <div id="sessionRole" class="pill" role="button" tabindex="0" title="Meus dados">Deslogado</div>
+      <button id="btnThemeToggle" class="ghost theme-toggle" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
+        <svg class="nav-ico theme-ico theme-ico-moon" aria-hidden="true"><use href="#ico-moon"></use></svg>
+        <svg class="nav-ico theme-ico theme-ico-sun" aria-hidden="true"><use href="#ico-sun"></use></svg>
+      </button>
+    </div>
+    <nav class="main-nav" aria-label="Navegacao principal">
       <button id="btnHomePanel" class="ghost" style="display:none"><svg class="nav-ico" aria-hidden="true"><use href="#ico-home"></use></svg>Dashboard</button>
       <button id="btnRoomsPanel" class="ghost" style="display:none"><svg class="nav-ico" aria-hidden="true"><use href="#ico-door"></use></svg>Salas</button>
       <button id="btnStudentsPanel" class="ghost" style="display:none"><svg class="nav-ico" aria-hidden="true"><use href="#ico-users"></use></svg>Alunos</button>
@@ -50,11 +56,7 @@
       <button id="btnLogPanel" class="ghost"><svg class="nav-ico" aria-hidden="true"><use href="#ico-chart"></use></svg>Log</button>
       <button id="btnInvitePanel" class="ghost" style="display:none"><svg class="nav-ico" aria-hidden="true"><use href="#ico-gear"></use></svg>Gestao</button>
       <button id="btnLogout" class="ghost" style="display:none"><svg class="nav-ico" aria-hidden="true"><use href="#ico-out"></use></svg>Sair</button>
-      <button id="btnThemeToggle" class="ghost theme-toggle" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
-        <svg class="nav-ico theme-ico theme-ico-moon" aria-hidden="true"><use href="#ico-moon"></use></svg>
-        <svg class="nav-ico theme-ico theme-ico-sun" aria-hidden="true"><use href="#ico-sun"></use></svg>
-      </button>
-    </div>
+    </nav>
   </header>
 
   <main class="grid">
@@ -90,7 +92,9 @@
       <div class="card-header">
         <h2>Dashboard</h2>
         <span class="pill">Visao geral</span>
+        <p class="view-sub" id="dashboardViewSub"></p>
       </div>
+      <div class="kpi-row" id="dashboardKpis"></div>
       <div class="dashboard-grid">
         <div class="summary" id="dashboardAlerts"></div>
         <div class="summary" id="dashboardAttention"></div>
@@ -227,6 +231,7 @@
         <div class="actions" id="studentActions">
           <button id="btnAddStudent" class="primary">Cadastrar novo</button>
         </div>
+        <p class="view-sub" id="studentViewSub"></p>
       </div>
       <div id="studentEmpty" class="summary"></div>
       <div class="filters" id="studentFilters">

@@ -176,23 +176,23 @@ textarea {
   color: var(--accent-strong);
 }
 
-.session #btnPrintPanel {
+.main-nav #btnPrintPanel {
   border-color: color-mix(in srgb, var(--accent-2) 45%, var(--stroke));
   color: var(--accent-strong);
   background: #fffaf0;
   font-weight: 700;
 }
 
-.session #btnPrintPanel:hover {
+.main-nav #btnPrintPanel:hover {
   background: #fff4d9;
 }
 
-.session #btnLogout {
+.main-nav #btnLogout {
   color: var(--danger);
   font-weight: 700;
 }
 
-.session #btnLogout:hover {
+.main-nav #btnLogout:hover {
   border-color: color-mix(in srgb, var(--danger) 30%, transparent);
   background: var(--danger-soft);
 }
@@ -230,102 +230,22 @@ textarea {
   padding: clamp(12px, 3.5vw, 24px) clamp(10px, 4vw, 28px) clamp(24px, 6vw, 44px);
 }
 
+/* REPAGINADA: sem menu lateral — o cabecalho vira barra superior em duas linhas
+   (marca + sessao na primeira, navegacao em chips na segunda), como no preview. */
 @media (min-width: 980px) {
   body {
-    --app-shell-side-padding: clamp(18px, 3vw, 32px);
-    display: grid;
-    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
-    grid-template-areas: "sidebar content";
-    align-items: start;
+    display: block;
     min-height: 100vh;
   }
 
   .app-header {
-    grid-area: sidebar;
-    position: sticky;
-    top: 0;
-    align-self: start;
-    width: var(--app-sidebar-width);
-    height: 100vh;
-    min-height: 100vh;
-    padding: 18px 14px;
-    border-right: 1px solid var(--stroke);
-    border-bottom: 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: 18px;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--stroke-strong) transparent;
-  }
-
-  .brand {
-    align-items: flex-start;
-    padding: 4px 4px 12px;
-    border-bottom: 1px solid var(--stroke);
-  }
-
-  .brand .title {
-    line-height: 1.2;
-  }
-
-  .session {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 5px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .session .pill,
-  .session .ghost,
-  .session .primary {
-    width: 100%;
-    justify-content: flex-start;
-    min-height: 40px;
-    padding: 10px 12px;
-    text-align: left;
-  }
-
-  .session .pill {
-    margin-bottom: 6px;
-    border-radius: 10px;
-    justify-content: center;
-    text-align: center;
-    background: #fff;
-    border-color: var(--stroke);
-  }
-
-  .session .primary::after {
-    inset: 9px auto 9px 4px;
-    width: 3px;
-    height: auto;
-  }
-
-  .session #btnPrintPanel {
-    margin-top: 8px;
-    border-top: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--stroke));
-  }
-
-  .session #btnLogout {
-    margin-top: 4px;
-    border-top: 1px solid color-mix(in srgb, var(--danger) 18%, var(--stroke));
-  }
-
-  .message-badge {
-    margin-left: auto;
+    padding: 10px clamp(18px, 3vw, 32px);
   }
 
   .grid {
-    grid-area: content;
-    width: 100%;
-    max-width: calc(var(--app-shell-max) - var(--app-sidebar-width));
-    margin: 0 auto;
-    padding: 24px var(--app-shell-side-padding) 44px;
+    grid-area: auto;
+    max-width: none;
+    padding: 26px clamp(16px, 3vw, 28px) 72px;
   }
 }
 
@@ -2183,6 +2103,9 @@ body.theme-dark .theme-ico-sun {
   box-shadow: none;
   padding: 0;
   gap: 6px;
+  margin-left: auto;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
 }
 
@@ -2222,7 +2145,7 @@ body.theme-dark .theme-ico-sun {
   filter: brightness(1.05);
 }
 
-.session #btnPrintPanel {
+.main-nav #btnPrintPanel {
   background: color-mix(in srgb, var(--accent-2) 15%, var(--card));
   border: 1px solid color-mix(in srgb, var(--accent-2) 45%, var(--stroke));
   color: #8a5f10;
@@ -2230,21 +2153,21 @@ body.theme-dark .theme-ico-sun {
   gap: 7px;
 }
 
-.session #btnPrintPanel:hover {
+.main-nav #btnPrintPanel:hover {
   background: color-mix(in srgb, var(--accent-2) 24%, var(--card));
   border-color: color-mix(in srgb, var(--accent-2) 65%, var(--stroke));
   color: #7a5210;
   filter: none;
 }
 
-.session #btnLogout {
+.main-nav #btnLogout {
   background: color-mix(in srgb, var(--danger) 12%, var(--card));
   border-color: color-mix(in srgb, var(--danger) 40%, var(--stroke));
   color: var(--danger);
   box-shadow: none;
 }
 
-.session #btnLogout:hover {
+.main-nav #btnLogout:hover {
   background: color-mix(in srgb, var(--danger) 18%, var(--card));
   filter: none;
 }
@@ -2570,13 +2493,13 @@ body.theme-dark .session .primary {
   color: #0b120f;
 }
 
-body.theme-dark .session #btnPrintPanel {
+body.theme-dark .main-nav #btnPrintPanel {
   background: color-mix(in srgb, var(--accent-2) 20%, var(--card));
   border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
   color: #e7c076;
 }
 
-body.theme-dark .session #btnPrintPanel:hover {
+body.theme-dark .main-nav #btnPrintPanel:hover {
   background: color-mix(in srgb, var(--accent-2) 30%, var(--card));
   color: #f0d090;
 }
@@ -2689,110 +2612,9 @@ body.theme-dark .card-header {
 }
 
 /* ============================================================
-   13. AJUSTE - menu lateral 100% visivel, sem barra de rolagem
-   O cabecalho usava flex-wrap: wrap com altura fixa de 100vh;
-   em telas baixas o menu quebrava em colunas laterais e gerava
-   barra de rolagem com itens cortados. Agora: coluna unica,
-   espacamento compacto e altura reduzida em telas baixas.
+   13. (removida) - ajuste do menu lateral obsoleto: o layout
+   passou a usar barra superior (secao 15), sem sidebar.
    ============================================================ */
-@media (min-width: 980px) {
-  .app-header {
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 14px 12px;
-  }
-
-  .brand {
-    gap: 8px;
-    padding: 2px 4px 8px;
-  }
-
-  .brand .subtitle {
-    font-size: 12px;
-  }
-
-  .logo {
-    width: 36px;
-    height: 36px;
-  }
-
-  .session {
-    gap: 4px;
-  }
-
-  .session .pill,
-  .session .ghost,
-  .session .primary {
-    min-height: 34px;
-    padding: 7px 10px;
-  }
-
-  .session .pill {
-    margin-bottom: 4px;
-  }
-
-  .session #btnPrintPanel {
-    margin-top: 6px;
-  }
-
-  .session #btnLogout {
-    margin-top: 3px;
-  }
-
-  .session .theme-toggle {
-    padding: 7px 10px;
-  }
-}
-
-/* Telas baixas (notebook com escala do Windows ou zoom do navegador) */
-@media (min-width: 980px) and (max-height: 700px) {
-  .app-header {
-    gap: 6px;
-    padding: 10px 12px;
-  }
-
-  .brand {
-    gap: 6px;
-    padding: 0 4px 6px;
-  }
-
-  .brand .subtitle {
-    display: none;
-  }
-
-  .logo {
-    width: 30px;
-    height: 30px;
-  }
-
-  .session {
-    gap: 3px;
-  }
-
-  .session .pill,
-  .session .ghost,
-  .session .primary {
-    min-height: 30px;
-    padding: 5px 9px;
-    font-size: 12.5px;
-  }
-
-  .session .pill {
-    margin-bottom: 3px;
-  }
-
-  .session #btnPrintPanel {
-    margin-top: 4px;
-  }
-
-  .session #btnLogout {
-    margin-top: 2px;
-  }
-
-  .session .theme-toggle {
-    padding: 5px 9px;
-  }
-}
 
 /* ============================================================
    14. ESQUEMA DE CORES POR TURMA (como no preview aprovado)
@@ -2920,4 +2742,528 @@ body.theme-dark .photo-monogram.photo-tone-muted {
 
 body.theme-dark .tip-scope-tag.is-sent {
   color: var(--accent-2);
+}
+
+/* ============================================================
+   15. LAYOUT TOPBAR - reconstrucao igual ao preview aprovado
+   Barra superior em duas linhas (marca + sessao / navegacao em
+   chips), telas sem caixa propria com titulo grande, cards de
+   KPI no dashboard, mensagens em linhas com avatar e lista de
+   alunos compacta (foto, nome, detalhes em colunas, acoes).
+   ============================================================ */
+
+/* ---------- 15.1 Cabecalho: barra superior ---------- */
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 10px clamp(14px, 3vw, 24px);
+  overflow: visible;
+  border-right: 0;
+  border-bottom-color: var(--stroke);
+}
+
+.brand {
+  min-width: 0;
+}
+
+.session {
+  margin-left: auto;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 0 100%;
+  min-width: 0;
+  padding: 2px;
+}
+
+.main-nav .ghost,
+.main-nav .primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: center;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.main-nav .ghost {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.main-nav .ghost:hover {
+  background: var(--surface-2);
+  border-color: var(--stroke);
+  color: var(--ink);
+}
+
+.main-nav .primary {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent-strong);
+  box-shadow: none;
+}
+
+.main-nav .primary::after {
+  display: none;
+}
+
+.main-nav .primary:hover {
+  background: var(--accent-soft);
+  filter: none;
+}
+
+body.theme-dark .main-nav .primary {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent);
+}
+
+.main-nav .message-badge {
+  margin-left: 0;
+}
+
+/* ---------- 15.2 Conteudo em coluna unica ---------- */
+.grid {
+  display: block;
+  padding: 22px clamp(14px, 3vw, 28px) 64px;
+}
+
+#dashboardCard,
+#tipsCard,
+#roomCard,
+#studentCard,
+#logCard,
+#inviteCard,
+#familiesCard {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* ---------- 15.3 Titulo de tela (view-title) ---------- */
+.card-header {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.card-header h2 {
+  font-size: 24px;
+  font-weight: 780;
+  letter-spacing: -0.6px;
+}
+
+.card-header > .pill,
+.card-header .actions .pill {
+  margin-left: auto;
+}
+
+.view-sub {
+  flex: 1 0 100%;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.dashboard-title {
+  margin: 8px 0 -4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- 15.4 Cards de KPI ---------- */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 14px;
+}
+
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 104px;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(16, 32, 27, 0.05);
+}
+
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  top: -26px;
+  right: -26px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  pointer-events: none;
+}
+
+.kpi-card.kpi-info::after {
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+}
+
+.kpi-card.kpi-gold::after {
+  background: color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+
+.kpi-card.kpi-danger::after {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kpi-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpi-card.kpi-info .kpi-value {
+  color: var(--info);
+}
+
+.kpi-card.kpi-gold .kpi-value {
+  color: var(--accent-2);
+}
+
+.kpi-card.kpi-danger .kpi-value {
+  color: var(--danger);
+}
+
+body.theme-dark .kpi-card {
+  box-shadow: none;
+}
+
+/* ---------- 15.5 Mensagens em linhas com avatar ---------- */
+.dashboard-tip-card,
+#tipsList .list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.dashboard-tip-card::before,
+#tipsList .list-item::before {
+  display: none;
+}
+
+.tip-avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 750;
+  color: #fff;
+}
+
+.avatar-tone-brand {
+  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+}
+
+.avatar-tone-gold {
+  background: linear-gradient(140deg, #e0a94a, #b9791a);
+}
+
+.avatar-tone-info {
+  background: linear-gradient(140deg, #4d8fd6, #2a5f9e);
+}
+
+.avatar-tone-muted {
+  background: linear-gradient(140deg, #9aa8a2, #6d7c76);
+}
+
+.dashboard-tip-card > .tip-name,
+#tipsList .list-item > .tip-name {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.dashboard-tip-card > .tip-scope-tag,
+#tipsList .list-item > .tip-scope-tag {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.dashboard-tip-card > .tip-unread,
+#tipsList .list-item > .tip-unread {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.dashboard-tip-card > .tip-date,
+#tipsList .list-item > .tip-date {
+  grid-column: 5;
+  grid-row: 1;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.dashboard-tip-card > .tip-msg,
+#tipsList .list-item > .tip-message-preview {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+#tipsList .list-item > *:not(.tip-avatar):not(.tip-name):not(.tip-scope-tag):not(.tip-unread):not(.tip-date):not(.tip-message-preview) {
+  grid-column: 2 / -1;
+}
+
+/* ---------- 15.6 Lista de alunos compacta ---------- */
+.student-list-card {
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.student-list-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 11px;
+}
+
+.student-list-card > .photo-monogram {
+  width: 56px;
+  height: 56px;
+  border-radius: 11px;
+  font-size: 18px;
+}
+
+.student-list-content {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding-right: 150px;
+}
+
+.student-list-content > .field {
+  flex: 1 0 100%;
+}
+
+.student-list-content > strong {
+  font-size: 15.5px;
+}
+
+.student-list-content > .tag {
+  align-self: center;
+}
+
+.student-list-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 2px 18px;
+  flex: 1 0 100%;
+  margin-top: 2px;
+}
+
+.student-list-details > .muted {
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.student-list-content > .actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+/* ---------- 15.7 Login ---------- */
+#authCard {
+  position: relative;
+  overflow: hidden;
+}
+
+#authCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+/* ---------- 15.8 Responsivo ---------- */
+@media (max-width: 720px) {
+  .app-header {
+    padding: 8px 12px;
+  }
+
+  .grid {
+    padding: 14px 12px 56px;
+  }
+
+  .main-nav .ghost,
+  .main-nav .primary {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+
+  .card-header h2 {
+    font-size: 21px;
+  }
+
+  .kpi-value {
+    font-size: 26px;
+  }
+
+  .dashboard-tip-card,
+  #tipsList .list-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .tip-avatar {
+    grid-row: 1 / span 3;
+  }
+
+  .dashboard-tip-card > .tip-name,
+  #tipsList .list-item > .tip-name {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .dashboard-tip-card > .tip-date,
+  #tipsList .list-item > .tip-date {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .dashboard-tip-card > .tip-scope-tag,
+  #tipsList .list-item > .tip-scope-tag {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .dashboard-tip-card > .tip-unread,
+  #tipsList .list-item > .tip-unread {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .dashboard-tip-card > .tip-msg,
+  #tipsList .list-item > .tip-message-preview {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .dashboard-tip-card > *:not(.tip-avatar):not(.tip-name):not(.tip-scope-tag):not(.tip-unread):not(.tip-date):not(.tip-msg),
+  #tipsList .list-item > *:not(.tip-avatar):not(.tip-name):not(.tip-scope-tag):not(.tip-unread):not(.tip-date):not(.tip-message-preview) {
+    grid-column: 2 / -1;
+    grid-row: auto;
+  }
+
+  .student-list-content {
+    padding-right: 0;
+  }
+
+  .student-list-content > .actions {
+    position: static;
+    flex: 1 0 100%;
+    width: 100%;
+    margin-top: 6px;
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- 15.9 Finais de menu ---------- */
+.dashboard-tips-list {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-tip-card {
+  min-height: 0;
+}
+
+.summary:empty {
+  display: none;
+}
+
+.tip-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-list-content > .field.checkbox-field {
+  justify-content: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.student-list-content > .field.checkbox-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 5px;
 }
