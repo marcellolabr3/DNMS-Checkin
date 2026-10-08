@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v188`, `app.js?v=20260929a`, `print.js?v=20260906b`, `styles.css?v=20260906c`.
+- Cache atual: `checkin-cache-v189`, `app.js?v=20261008a`, `print.js?v=20260906b`, `styles.css?v=20261008a`.
 - App nativo (APK/iOS): projeto separado em `D:\Dev\APKCheckin` (Capacitor 8, `com.dnms.checkin`), nao modifica este repositorio. Sincronizar com `sync-web.ps1`, buildar com `build-apk.ps1`; APK versionado em `D:\Dev\APKCheckin\dist` (QR com `qr-apk.ps1`). Estado: build+assinatura ok, CSV corrigido, deep link `dnmscheckin://auth` ativo (Redirect URLs no Supabase) para confirmacao de e-mail/recuperacao dentro do app; falta validar em aparelho (ver `D:\Dev\APKCheckin\CHECKLIST_PRONTO.md`). PWA continua oficial.
 
 ## Regras criticas
