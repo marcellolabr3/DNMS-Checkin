@@ -30,7 +30,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Turma/faixa etaria usa progressao anual: Maternal no ano em que completa 2, 3 e 4 anos; Kids 5, 6 e 7; Juniors 8, 9, 10 e 11; Teens 12, 13, 14 e 15. Aniversario nao troca turma no meio do ano, exceto entrada inicial no Maternal a partir do aniversario de 2 anos. Mudancas de ciclo ocorrem no ano seguinte.
 - Presenca atual nao e cumulativa: considerar o ultimo estado valido por crianca/aula; check-in aberto (`checked_out_at is null`) = presente, checkout = ausente. Historico de check-in/checkout permanece preservado.
 - Salas aceitam `max_checkins` opcional; `null` significa sem limite. Check-in deve ser bloqueado quando a sala atinge a capacidade.
-- Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`.
+- Ao alterar HTML/CSS/JS, atualizar querystrings em `index.html` e `CACHE_NAME`/assets em `sw.js`, mesmo quando `sw.js` nao mudar no diff (ver `docs/CORRECAO_CACHE_LAYOUT_MOBILE_2026-10-08.md`).
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
 - Service worker deve cachear apenas assets estaticos locais explicitamente listados.
 
@@ -56,6 +56,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
+- Em 2026-10-08, layout mobile corrigido: o service worker nao tinha sido alterado na repaginada e seguia servindo o CSS antigo (cache-first v188) com o HTML novo por cima, causando imagens gigantes e overflow horizontal no celular. Bump de `CACHE_NAME` e `?v=` (PR #5), validado com 216 testes e deploy conferido; diagnostico completo em `docs/CORRECAO_CACHE_LAYOUT_MOBILE_2026-10-08.md`.
 - Em 2026-10-08, etiquetas/reimpressao passaram a resolver turma efetiva na impressao: alocacao temporaria da sala tem prioridade, depois turma oficial atual do aluno, e por fim snapshot antigo do check-in. Arquivos principais: `app.js`, `print.js`, `Servico de impressao/server.js`; cache atualizado para `checkin-cache-v190`. `node --check` em `app.js`, `print.js` e `Servico de impressao/server.js` passou; `npm.cmd test` passou com 216 testes.
 - Em 2026-09-29, regra de classificacao substituida por progressao anual. Patch `patch_annual_class_progression.sql` aplicado em producao apos backup `D:\Dev\BCK_CHEK\dnms-annual-class-backup-20260929-120128.json`; validacao SQL confirmou: antes dos 2 anos fica fora, no aniversario de 2 entra em Maternal, anos de 4/7/11/15 permanecem na turma, e a mudanca ocorre em 01/01 do ano seguinte. Frontend atualizado para `checkin-cache-v188`/`app.js?v=20260929a`. `npm.cmd test` passou com 216 testes.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
