@@ -301,6 +301,43 @@
       <div id="logSummary" class="summary"></div>
       <div id="logCounts" class="summary"></div>
       <div id="logList" class="list"></div>
+      <details id="studentExtractionPanel" class="collapsible-panel extraction-panel">
+        <summary>
+          <span>Extração</span>
+          <span class="collapse-icon" aria-hidden="true"></span>
+        </summary>
+        <div class="filters">
+          <label class="field">Dados
+            <select id="studentExtractionMode">
+              <option value="all">Todas as crianças</option>
+              <option value="class">Por turma</option>
+              <option value="selected">Selecionar crianças</option>
+            </select>
+          </label>
+          <label class="field">Turma
+            <select id="studentExtractionClass">
+              <option value="all">Todas as turmas</option>
+              <option value="Maternal">Maternal</option>
+              <option value="Kids">Kids</option>
+              <option value="Juniors">Juniors</option>
+              <option value="Teens">Teens</option>
+              <option value="Fora da faixa">Fora da faixa</option>
+              <option value="Indefinida">Indefinida</option>
+            </select>
+          </label>
+          <label class="field">Buscar criança
+            <input id="studentExtractionSearch" type="text" placeholder="Nome, responsavel ou telefone" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="btnStudentExtractionSelectAll" class="ghost" type="button">Selecionar todas</button>
+          <button id="btnStudentExtractionClear" class="ghost" type="button">Limpar seleção</button>
+          <button id="btnExportStudentsData" class="primary" type="button">Exportar crianças</button>
+          <button id="btnShareStudentsWhatsapp" class="ghost" type="button">Enviar WhatsApp</button>
+        </div>
+        <div id="studentExtractionSummary" class="summary"></div>
+        <div id="studentExtractionList" class="list extraction-list"></div>
+      </details>
     </section>
 
     <section class="card" id="inviteCard" style="display:none">
@@ -712,6 +749,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261008c"></script>
+  <script src="app.js?v=20261008d"></script>
 </body>
 </html>

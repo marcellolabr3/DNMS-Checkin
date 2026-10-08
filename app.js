@@ -188,6 +188,16 @@ const els = {
   logSummary: document.getElementById("logSummary"),
   logCounts: document.getElementById("logCounts"),
   logList: document.getElementById("logList"),
+  studentExtractionPanel: document.getElementById("studentExtractionPanel"),
+  studentExtractionMode: document.getElementById("studentExtractionMode"),
+  studentExtractionClass: document.getElementById("studentExtractionClass"),
+  studentExtractionSearch: document.getElementById("studentExtractionSearch"),
+  btnStudentExtractionSelectAll: document.getElementById("btnStudentExtractionSelectAll"),
+  btnStudentExtractionClear: document.getElementById("btnStudentExtractionClear"),
+  btnExportStudentsData: document.getElementById("btnExportStudentsData"),
+  btnShareStudentsWhatsapp: document.getElementById("btnShareStudentsWhatsapp"),
+  studentExtractionSummary: document.getElementById("studentExtractionSummary"),
+  studentExtractionList: document.getElementById("studentExtractionList"),
   logStudentsDialog: document.getElementById("logStudentsDialog"),
   logStudentsSelectAll: document.getElementById("logStudentsSelectAll"),
   logStudentsList: document.getElementById("logStudentsList"),
@@ -398,6 +408,16 @@ function bindEvents() {
   els.logStart.addEventListener("input", renderLog);
   els.logEnd.addEventListener("change", renderLog);
   els.logEnd.addEventListener("input", renderLog);
+  els.studentExtractionMode?.addEventListener("change", () => {
+    state.ui.studentExtractionSelectedIds = [];
+    renderStudentExtraction();
+  });
+  els.studentExtractionClass?.addEventListener("change", renderStudentExtraction);
+  els.studentExtractionSearch?.addEventListener("input", renderStudentExtraction);
+  els.btnStudentExtractionSelectAll?.addEventListener("click", selectAllStudentExtractionRows);
+  els.btnStudentExtractionClear?.addEventListener("click", clearStudentExtractionSelection);
+  els.btnExportStudentsData?.addEventListener("click", exportStudentsDataCsv);
+  els.btnShareStudentsWhatsapp?.addEventListener("click", shareStudentsDataWhatsapp);
   els.logClassFilter?.addEventListener("change", () => {
     state.ui.logSelectedStudentIds = [];
     renderLog();
@@ -773,7 +793,7 @@ async function refreshPanelData(panel) {
     return;
   }
   if (panel === "log") {
-    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs()]);
+    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs(), fetchProfilesIfAllowed()]);
     return;
   }
   if (panel === "invite") {
@@ -3285,6 +3305,7 @@ function renderLog() {
   const logCard = document.getElementById("logCard");
   logCard.style.display = canSeeLog && getActivePanel() === "log" ? "flex" : "none";
   if (!canSeeLog) {
+    renderStudentExtraction();
     return;
   }
 
@@ -3302,6 +3323,7 @@ function renderLog() {
   if (els.btnLogSelectStudents) {
     els.btnLogSelectStudents.style.display = isAttendance ? "" : "none";
   }
+  renderStudentExtraction();
   const startValue = els.logStart?.value || "";
   const endValue = els.logEnd?.value || "";
   if (!startValue || !endValue) {
@@ -3364,6 +3386,230 @@ function renderLog() {
   if (els.btnLogSelectStudents) {
     els.btnLogSelectStudents.disabled = !availableStudents.length;
   }
+}
+
+function canExtractStudentData() {
+  return isSadmin() || isAdmin();
+}
+
+function renderStudentExtraction() {
+  if (!els.studentExtractionPanel) {
+    return;
+  }
+  const canExtract = canExtractStudentData() && getActivePanel() === "log";
+  els.studentExtractionPanel.style.display = canExtract ? "" : "none";
+  if (!canExtract) {
+    return;
+  }
+  const mode = getStudentExtractionMode();
+  const isClassMode = mode === "class";
+  const isSelectedMode = mode === "selected";
+  if (els.studentExtractionClass) {
+    els.studentExtractionClass.closest(".field").style.display = isClassMode ? "" : "none";
+  }
+  if (els.studentExtractionSearch) {
+    els.studentExtractionSearch.closest(".field").style.display = isSelectedMode ? "" : "none";
+  }
+  if (els.btnStudentExtractionSelectAll) {
+    els.btnStudentExtractionSelectAll.style.display = isSelectedMode ? "" : "none";
+  }
+  if (els.btnStudentExtractionClear) {
+    els.btnStudentExtractionClear.style.display = isSelectedMode ? "" : "none";
+  }
+
+  const candidates = getStudentExtractionCandidates();
+  const selectedIds = new Set(state.ui.studentExtractionSelectedIds || []);
+  if (isSelectedMode) {
+    state.ui.studentExtractionSelectedIds = (state.ui.studentExtractionSelectedIds || []).filter((id) =>
+      candidates.some((student) => student.id === id)
+    );
+  }
+  const rows = getStudentExtractionRows();
+  if (els.studentExtractionSummary) {
+    els.studentExtractionSummary.textContent = buildStudentExtractionSummary(rows, candidates);
+  }
+  renderStudentExtractionList(candidates, rows, selectedIds);
+  const hasRows = rows.length > 0;
+  if (els.btnExportStudentsData) {
+    els.btnExportStudentsData.disabled = !hasRows;
+  }
+  if (els.btnShareStudentsWhatsapp) {
+    els.btnShareStudentsWhatsapp.disabled = !hasRows;
+  }
+}
+
+function getStudentExtractionMode() {
+  const mode = els.studentExtractionMode?.value || "all";
+  return ["all", "class", "selected"].includes(mode) ? mode : "all";
+}
+
+function getStudentExtractionClass() {
+  return els.studentExtractionClass?.value || "all";
+}
+
+function getStudentExtractionCandidates() {
+  const search = normalizeDuplicateText(els.studentExtractionSearch?.value || "");
+  const classFilter = getStudentExtractionClass();
+  return (state.students || [])
+    .filter((student) => {
+      if (getStudentExtractionMode() === "class" && classFilter !== "all") {
+        return getEffectiveClassForStudentToday(student) === classFilter;
+      }
+      return true;
+    })
+    .filter((student) => {
+      if (!search || getStudentExtractionMode() !== "selected") {
+        return true;
+      }
+      const contact = getResponsibleContactForStudent(student);
+      const blob = normalizeDuplicateText(
+        [
+          student.name,
+          getEffectiveClassForStudentToday(student),
+          student.guardian,
+          contact.phone,
+          contact.address,
+          student.phone,
+          student.address
+        ].join(" ")
+      );
+      return blob.includes(search);
+    })
+    .sort((a, b) => {
+      const classCompare = getEffectiveClassForStudentToday(a).localeCompare(getEffectiveClassForStudentToday(b), "pt-BR");
+      if (classCompare) {
+        return classCompare;
+      }
+      return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+    });
+}
+
+function getStudentExtractionRows() {
+  const mode = getStudentExtractionMode();
+  const candidates = getStudentExtractionCandidates();
+  if (mode !== "selected") {
+    return candidates.map(buildStudentExtractionRow);
+  }
+  const selectedIds = new Set(state.ui.studentExtractionSelectedIds || []);
+  return candidates.filter((student) => selectedIds.has(student.id)).map(buildStudentExtractionRow);
+}
+
+function buildStudentExtractionRow(student) {
+  const contact = getResponsibleContactForStudent(student);
+  const linkedGuardians = getLinkedGuardianLabelsForStudent(student);
+  return {
+    id: student.id,
+    name: student.name || "",
+    birth: formatBirthDateForExtraction(student.birth),
+    effectiveClass: getEffectiveClassForStudentToday(student),
+    automaticClass: getStudentAutomaticClass(student),
+    officialClass: student.officialClassName || "",
+    guardian: student.guardian || "",
+    phone: contact.phone || student.phone || "",
+    address: contact.address || student.address || "",
+    notes: student.notes || "",
+    isVisitor: student.isVisitor ? "Sim" : "Nao",
+    linkedGuardians: linkedGuardians.join(" | ")
+  };
+}
+
+function formatBirthDateForExtraction(value) {
+  const iso = normalizeBirthDateInput(value);
+  if (!iso) {
+    return "";
+  }
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function getLinkedGuardianLabelsForStudent(student) {
+  const ids = Array.isArray(student?.guardianProfileIds) ? student.guardianProfileIds : [];
+  return ids
+    .map((profileId) => getKnownProfileById(profileId))
+    .filter(Boolean)
+    .map((profile) => {
+      const email = profile.email ? ` <${profile.email}>` : "";
+      return `${profile.name || profile.email || profile.id}${email}`;
+    });
+}
+
+function buildStudentExtractionSummary(rows, candidates) {
+  const mode = getStudentExtractionMode();
+  if (mode === "selected") {
+    return `${rows.length} de ${candidates.length} crianca(s) selecionada(s) para extracao.`;
+  }
+  if (mode === "class" && getStudentExtractionClass() !== "all") {
+    return `${rows.length} crianca(s) na turma ${getStudentExtractionClass()}.`;
+  }
+  return `${rows.length} crianca(s) disponivel(is), incluindo fora da faixa.`;
+}
+
+function renderStudentExtractionList(candidates, rows, selectedIds) {
+  if (!els.studentExtractionList) {
+    return;
+  }
+  els.studentExtractionList.innerHTML = "";
+  const mode = getStudentExtractionMode();
+  if (mode === "selected") {
+    if (!candidates.length) {
+      els.studentExtractionList.innerHTML = `<div class="summary">Nenhuma crianca encontrada para selecao.</div>`;
+      return;
+    }
+    candidates.forEach((student) => {
+      const row = buildStudentExtractionRow(student);
+      const item = document.createElement("label");
+      item.className = "field checkbox-field extraction-student-row";
+      item.innerHTML = `
+        <span>${escapeHtml(row.name)} (${escapeHtml(row.effectiveClass)})</span>
+        <input type="checkbox" data-student-extraction-id="${escapeAttribute(student.id)}" ${selectedIds.has(student.id) ? "checked" : ""} />
+      `;
+      const box = item.querySelector("input[data-student-extraction-id]");
+      box?.addEventListener("change", syncStudentExtractionSelection);
+      els.studentExtractionList.appendChild(item);
+    });
+    return;
+  }
+  const previewRows = rows.slice(0, 8);
+  if (!previewRows.length) {
+    els.studentExtractionList.innerHTML = `<div class="summary">Nenhuma crianca encontrada para extracao.</div>`;
+    return;
+  }
+  previewRows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "list-item";
+    item.innerHTML = `
+      <strong>${escapeHtml(row.name)}</strong>
+      <span class="muted">Turma: ${escapeHtml(row.effectiveClass)} | Responsavel: ${escapeHtml(row.guardian || "-")}</span>
+      <span class="muted">Telefone: ${escapeHtml(row.phone || "-")} | Nascimento: ${escapeHtml(row.birth || "-")}</span>
+    `;
+    els.studentExtractionList.appendChild(item);
+  });
+  if (rows.length > previewRows.length) {
+    const more = document.createElement("div");
+    more.className = "summary";
+    more.textContent = `Mais ${rows.length - previewRows.length} crianca(s) entram na extracao.`;
+    els.studentExtractionList.appendChild(more);
+  }
+}
+
+function syncStudentExtractionSelection() {
+  if (!els.studentExtractionList) {
+    return;
+  }
+  const boxes = els.studentExtractionList.querySelectorAll("input[data-student-extraction-id]:checked");
+  state.ui.studentExtractionSelectedIds = Array.from(boxes).map((box) => box.getAttribute("data-student-extraction-id"));
+  renderStudentExtraction();
+}
+
+function selectAllStudentExtractionRows() {
+  const candidates = getStudentExtractionCandidates();
+  state.ui.studentExtractionSelectedIds = candidates.map((student) => student.id);
+  renderStudentExtraction();
+}
+
+function clearStudentExtractionSelection() {
+  state.ui.studentExtractionSelectedIds = [];
+  renderStudentExtraction();
 }
 
 function appendAttendanceClassSections(rows) {
@@ -8930,6 +9176,88 @@ function exportFamiliesCsv() {
   downloadCsv(`familias_${fileSuffix}.csv`, [header, ...csvRows]);
 }
 
+function exportStudentsDataCsv() {
+  if (!state.session || !canExtractStudentData()) {
+    alert("Sem permissao para extrair dados de criancas.");
+    return;
+  }
+  const rows = getStudentExtractionRows();
+  if (!rows.length) {
+    alert("Nenhuma crianca encontrada para extrair.");
+    return;
+  }
+  const header = [
+    "Nome",
+    "Nascimento",
+    "Turma efetiva",
+    "Classificacao automatica",
+    "Turma oficial",
+    "Responsavel principal",
+    "Telefone",
+    "Endereco",
+    "Observacoes",
+    "Visitante",
+    "Responsaveis vinculados"
+  ];
+  const csvRows = rows.map((row) => [
+    row.name,
+    row.birth,
+    row.effectiveClass,
+    row.automaticClass,
+    row.officialClass,
+    row.guardian,
+    row.phone,
+    row.address,
+    row.notes,
+    row.isVisitor,
+    row.linkedGuardians
+  ]);
+  downloadCsv(`criancas_${getStudentExtractionFileSuffix()}.csv`, [header, ...csvRows]);
+}
+
+function shareStudentsDataWhatsapp() {
+  if (!state.session || !canExtractStudentData()) {
+    alert("Sem permissao para compartilhar dados de criancas.");
+    return;
+  }
+  const rows = getStudentExtractionRows();
+  if (!rows.length) {
+    alert("Nenhuma crianca encontrada para compartilhar.");
+    return;
+  }
+  const lines = [
+    `Extracao de criancas - ${getStudentExtractionScopeLabel()}`,
+    `Total: ${rows.length}`,
+    "",
+    "Nome | Turma | Responsavel | Telefone",
+    ...rows.map((row) => `${row.name} | ${row.effectiveClass} | ${row.guardian || "-"} | ${row.phone || "-"}`)
+  ];
+  window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener,noreferrer");
+}
+
+function getStudentExtractionScopeLabel() {
+  const mode = getStudentExtractionMode();
+  if (mode === "class") {
+    const className = getStudentExtractionClass();
+    return className === "all" ? "todas as turmas" : `turma ${className}`;
+  }
+  if (mode === "selected") {
+    return "criancas selecionadas";
+  }
+  return "todas as criancas";
+}
+
+function getStudentExtractionFileSuffix() {
+  const scope = getStudentExtractionScopeLabel()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_");
+  return `${scope || "extracao"}_${formatTodayIso()}`;
+}
+
 function shareLogWhatsapp() {
   if (!state.session || !(isAdmin() || isEquipe())) {
     alert("Sem permissao para compartilhar.");
@@ -11557,6 +11885,7 @@ function loadState() {
           selectedManageUserId: "",
           selectedRoomIds: [],
           logSelectedStudentIds: [],
+          studentExtractionSelectedIds: [],
           dashboardNeuroExpanded: false,
           ...(parsed.ui || {})
         };
@@ -11609,6 +11938,7 @@ function loadState() {
       selectedManageUserId: "",
       selectedRoomIds: [],
       logSelectedStudentIds: [],
+      studentExtractionSelectedIds: [],
       dashboardNeuroExpanded: false
     }
   };

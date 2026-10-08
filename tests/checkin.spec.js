@@ -1694,6 +1694,83 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   expect(whatsappText).toContain("Ana Kids | Kids |");
 });
 
+test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-out-of-range-extract",
+      name: "Joao Fora",
+      birth_date: "2009-01-10",
+      class_name: "Fora da faixa",
+      official_class_name: null,
+      primary_guardian_name: "Responsavel Fora",
+      phone: "11966660000",
+      address: "Rua Fora",
+      notes: "Acompanhamento",
+      is_visitor: false,
+      photo_url: ""
+    });
+  });
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnLogPanel");
+  await page.locator("#studentExtractionPanel summary").click();
+
+  await expect(page.locator("#studentExtractionSummary")).toContainText("3 crianca(s)");
+  await page.selectOption("#studentExtractionMode", "class");
+  await page.selectOption("#studentExtractionClass", "Fora da faixa");
+  await expect(page.locator("#studentExtractionSummary")).toContainText("1 crianca(s) na turma Fora da faixa");
+  await expect(page.locator("#studentExtractionList")).toContainText("Joao Fora");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.click("#btnExportStudentsData");
+  const download = await downloadPromise;
+  const filePath = await download.path();
+  const csv = fs.readFileSync(filePath).toString("utf8");
+  expect(csv).toContain("Nome;Nascimento;Turma efetiva;Classificacao automatica;Turma oficial");
+  expect(csv).toContain("Joao Fora;10/01/2009;Fora da faixa;Fora da faixa;;Responsavel Fora;");
+  expect(csv).toContain("Rua Fora;Acompanhamento");
+
+  await page.evaluate(() => {
+    window.__lastOpenedUrl = "";
+    window.open = (url) => {
+      window.__lastOpenedUrl = String(url);
+      return null;
+    };
+  });
+  await page.click("#btnShareStudentsWhatsapp");
+  const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
+  expect(whatsappText).toContain("Extracao de criancas - turma Fora da faixa");
+  expect(whatsappText).toContain("Total: 1");
+  expect(whatsappText).toContain("Joao Fora | Fora da faixa | Responsavel Fora |");
+});
+
+test("sadmin extrai criancas selecionadas usando busca por endereco do cadastro", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    window.__mockDnmsDb.students.push({
+      id: "student-selected-extract",
+      name: "Lia Selecao",
+      birth_date: "2018-05-10",
+      class_name: "Kids",
+      official_class_name: null,
+      primary_guardian_name: "Responsavel Selecao",
+      phone: "11977770000",
+      address: "Rua Codigo Unico Extracao",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+  });
+  await loginAs(page, "marvinlabre@gmail.com");
+  await page.click("#btnLogPanel");
+  await page.locator("#studentExtractionPanel summary").click();
+  await page.selectOption("#studentExtractionMode", "selected");
+  await page.fill("#studentExtractionSearch", "Codigo Unico Extracao");
+  await expect(page.locator("#studentExtractionList")).toContainText("Lia Selecao");
+  await page.click('input[data-student-extraction-id="student-selected-extract"]');
+  await expect(page.locator("#studentExtractionSummary")).toContainText("1 de 1 crianca(s) selecionada(s)");
+});
+
 test("log de frequencia mostra presenca atual pelo ultimo estado da crianca", async ({ page }) => {
   await openApp(page);
   await page.evaluate((today) => {
@@ -2030,6 +2107,8 @@ test("equipe opera check-in e salas sem editar cadastros", async ({ page }) => {
   await loginAs(page, "equipe@dnms.test");
 
   await expect(page.locator("#sessionRole")).toContainText("Equipe");
+  await page.click("#btnLogPanel");
+  await expect(page.locator("#studentExtractionPanel")).toBeHidden();
   await openStudentsPanel(page);
   const ana = studentItem(page, "Ana Kids");
   await expect(ana).toBeVisible();
