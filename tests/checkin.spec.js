@@ -1721,14 +1721,64 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   await expect(page.locator("#studentExtractionSummary")).toContainText("1 crianca(s) na turma Fora da faixa");
   await expect(page.locator("#studentExtractionList")).toContainText("Joao Fora");
 
-  const downloadPromise = page.waitForEvent("download");
+  await page.evaluate(() => {
+    window.__studentWorkbookCapture = null;
+    window.XLSX = {
+      read() {},
+      writeFile(workbook, filename, options) {
+        window.__studentWorkbookCapture = { workbook, filename, options };
+      },
+      utils: {
+        sheet_to_json() {
+          return [];
+        },
+        aoa_to_sheet(rows) {
+          return { __rows: rows };
+        },
+        book_new() {
+          return { SheetNames: [], Sheets: {} };
+        },
+        book_append_sheet(workbook, sheet, name) {
+          workbook.SheetNames.push(name);
+          workbook.Sheets[name] = sheet;
+        }
+      }
+    };
+  });
   await page.click("#btnExportStudentsData");
-  const download = await downloadPromise;
-  const filePath = await download.path();
-  const csv = fs.readFileSync(filePath).toString("utf8");
-  expect(csv).toContain("Nome;Nascimento;Turma efetiva;Classificacao automatica;Turma oficial");
-  expect(csv).toContain("Joao Fora;10/01/2009;Fora da faixa;Fora da faixa;;Responsavel Fora;");
-  expect(csv).toContain("Rua Fora;Acompanhamento");
+  const excel = await page.evaluate(() => window.__studentWorkbookCapture);
+  expect(excel.filename).toMatch(/^criancas_turma_fora_da_faixa_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  expect(excel.options).toEqual({ compression: true });
+  expect(excel.workbook.SheetNames).toEqual(["Resumo", "Criancas"]);
+  expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Total de criancas", 1]);
+  expect(excel.workbook.Sheets.Criancas.__rows[0]).toEqual([
+    "Nome",
+    "Nascimento",
+    "Turma efetiva",
+    "Classificacao automatica",
+    "Turma oficial",
+    "Responsavel principal",
+    "Telefone",
+    "Endereco",
+    "Observacoes",
+    "Visitante",
+    "Responsaveis vinculados"
+  ]);
+  expect(excel.workbook.Sheets.Criancas.__rows[1]).toEqual([
+    "Joao Fora",
+    "10/01/2009",
+    "Fora da faixa",
+    "Fora da faixa",
+    "",
+    "Responsavel Fora",
+    "+55 (11) 96666-0000",
+    "Rua Fora",
+    "Acompanhamento",
+    "Nao",
+    ""
+  ]);
+  expect(excel.workbook.Sheets.Criancas["!autofilter"]).toEqual({ ref: "A1:K2" });
+  expect(excel.workbook.Sheets.Criancas["!cols"].length).toBe(11);
 
   await page.evaluate(() => {
     window.__lastOpenedUrl = "";

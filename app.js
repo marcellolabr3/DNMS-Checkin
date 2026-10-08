@@ -416,7 +416,7 @@ function bindEvents() {
   els.studentExtractionSearch?.addEventListener("input", renderStudentExtraction);
   els.btnStudentExtractionSelectAll?.addEventListener("click", selectAllStudentExtractionRows);
   els.btnStudentExtractionClear?.addEventListener("click", clearStudentExtractionSelection);
-  els.btnExportStudentsData?.addEventListener("click", exportStudentsDataCsv);
+  els.btnExportStudentsData?.addEventListener("click", exportStudentsDataExcel);
   els.btnShareStudentsWhatsapp?.addEventListener("click", shareStudentsDataWhatsapp);
   els.logClassFilter?.addEventListener("change", () => {
     state.ui.logSelectedStudentIds = [];
@@ -3987,12 +3987,12 @@ function stopGoogleSheetWatcher() {
 }
 
 async function ensureXlsxLoaded() {
-  if (window.XLSX?.read && window.XLSX?.utils?.sheet_to_json) {
+  if (isXlsxReady()) {
     return window.XLSX;
   }
   if (!scheduleSheetContext.xlsxLoadPromise) {
     scheduleSheetContext.xlsxLoadPromise = loadScriptOnce(XLSX_SCRIPT_URL).then(() => {
-      if (!window.XLSX?.read || !window.XLSX?.utils?.sheet_to_json) {
+      if (!isXlsxReady()) {
         throw new Error("Biblioteca XLSX indisponivel.");
       }
       return window.XLSX;
@@ -4004,6 +4004,17 @@ async function ensureXlsxLoaded() {
     scheduleSheetContext.xlsxLoadPromise = null;
     throw error;
   }
+}
+
+function isXlsxReady() {
+  return Boolean(
+    window.XLSX?.read &&
+    window.XLSX?.writeFile &&
+    window.XLSX?.utils?.sheet_to_json &&
+    window.XLSX?.utils?.aoa_to_sheet &&
+    window.XLSX?.utils?.book_new &&
+    window.XLSX?.utils?.book_append_sheet
+  );
 }
 
 function loadScriptOnce(src) {
@@ -9176,7 +9187,7 @@ function exportFamiliesCsv() {
   downloadCsv(`familias_${fileSuffix}.csv`, [header, ...csvRows]);
 }
 
-function exportStudentsDataCsv() {
+async function exportStudentsDataExcel() {
   if (!state.session || !canExtractStudentData()) {
     alert("Sem permissao para extrair dados de criancas.");
     return;
@@ -9186,7 +9197,73 @@ function exportStudentsDataCsv() {
     alert("Nenhuma crianca encontrada para extrair.");
     return;
   }
-  const header = [
+  const button = els.btnExportStudentsData;
+  const previousText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Gerando Excel...";
+  }
+  try {
+    const XLSX = await ensureXlsxLoaded();
+    const workbook = buildStudentExtractionWorkbook(XLSX, rows);
+    XLSX.writeFile(workbook, `criancas_${getStudentExtractionFileSuffix()}.xlsx`, { compression: true });
+  } catch (error) {
+    console.warn("Falha ao gerar Excel de criancas", error);
+    alert(`Falha ao gerar Excel: ${error?.message || "biblioteca indisponivel"}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = previousText || "Exportar Excel";
+    }
+  }
+}
+
+function buildStudentExtractionWorkbook(XLSX, rows) {
+  const workbook = XLSX.utils.book_new();
+  const generatedAt = formatDateTimeFromIso(new Date().toISOString());
+  const scopeLabel = getStudentExtractionScopeLabel();
+  const classCounts = rows.reduce((acc, row) => {
+    const key = row.effectiveClass || "Indefinida";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const summaryRows = [
+    ["Extracao de criancas"],
+    ["Escopo", scopeLabel],
+    ["Total de criancas", rows.length],
+    ["Gerado em", generatedAt],
+    [],
+    ["Turma", "Quantidade"],
+    ...Object.entries(classCounts).sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([className, total]) => [className, total])
+  ];
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  summarySheet["!cols"] = [{ wch: 26 }, { wch: 24 }];
+  summarySheet["!autofilter"] = { ref: `A6:B${Math.max(6, summaryRows.length)}` };
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumo");
+
+  const dataHeader = getStudentExtractionExcelHeader();
+  const dataRows = rows.map((row) => getStudentExtractionExcelRow(row));
+  const dataSheet = XLSX.utils.aoa_to_sheet([dataHeader, ...dataRows]);
+  dataSheet["!cols"] = [
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 24 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 18 },
+    { wch: 36 },
+    { wch: 42 },
+    { wch: 10 },
+    { wch: 42 }
+  ];
+  dataSheet["!autofilter"] = { ref: `A1:K${Math.max(1, dataRows.length + 1)}` };
+  XLSX.utils.book_append_sheet(workbook, dataSheet, "Criancas");
+  return workbook;
+}
+
+function getStudentExtractionExcelHeader() {
+  return [
     "Nome",
     "Nascimento",
     "Turma efetiva",
@@ -9199,7 +9276,10 @@ function exportStudentsDataCsv() {
     "Visitante",
     "Responsaveis vinculados"
   ];
-  const csvRows = rows.map((row) => [
+}
+
+function getStudentExtractionExcelRow(row) {
+  return [
     row.name,
     row.birth,
     row.effectiveClass,
@@ -9211,8 +9291,7 @@ function exportStudentsDataCsv() {
     row.notes,
     row.isVisitor,
     row.linkedGuardians
-  ]);
-  downloadCsv(`criancas_${getStudentExtractionFileSuffix()}.csv`, [header, ...csvRows]);
+  ];
 }
 
 function shareStudentsDataWhatsapp() {

@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual no trabalho em aberto: `checkin-cache-v192`, `app.js?v=20261008d`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
+- Cache atual no trabalho em aberto: `checkin-cache-v193`, `app.js?v=20261008e`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
 - App nativo (APK/iOS): projeto separado em `D:\Dev\APKCheckin`; nao modificar este repositorio para tarefas do APK.
 
 ## Regras criticas
@@ -43,7 +43,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
-- Em 2026-10-08, foi implementada a area `Extracao` abaixo do conteudo do Log para SADMIN/Admin. Permite extrair todas as criancas, por turma (`Maternal`, `Kids`, `Juniors`, `Teens`, `Fora da faixa`, `Indefinida`) ou por selecao manual, incluindo criancas fora da faixa. Saidas: CSV (`Exportar criancas`) e compartilhamento por WhatsApp (`Enviar WhatsApp`). Campos exportados: nome, nascimento, turma efetiva, classificacao automatica, turma oficial, responsavel principal, telefone, endereco, observacoes, visitante e responsaveis vinculados.
+- Em 2026-10-08, foi implementada a area `Extracao` abaixo do conteudo do Log para SADMIN/Admin. Permite extrair todas as criancas, por turma (`Maternal`, `Kids`, `Juniors`, `Teens`, `Fora da faixa`, `Indefinida`) ou por selecao manual, incluindo criancas fora da faixa. Saidas: Excel (`Exportar Excel`, abas `Resumo` e `Criancas`) e compartilhamento por WhatsApp (`Enviar WhatsApp`). Campos exportados: nome, nascimento, turma efetiva, classificacao automatica, turma oficial, responsavel principal, telefone, endereco, observacoes, visitante e responsaveis vinculados.
 - Arquivos alterados nesta entrega: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`, `tests/service-worker.spec.js`. Nao houve migracao de banco.
 - Validacao executada: `node --check app.js` passou; `npm.cmd test` passou com 228 testes.
 
