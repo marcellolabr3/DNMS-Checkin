@@ -809,6 +809,28 @@ function getActivePanel() {
   return state.ui.activePanel || "dashboard";
 }
 
+let lastRevealedNavPanel = null;
+
+function revealActiveNavButton() {
+  const nav = document.querySelector(".main-nav");
+  if (!nav || !nav.offsetParent) {
+    return;
+  }
+  if (nav.scrollWidth <= nav.clientWidth + 1) {
+    return;
+  }
+  const activeBtn = nav.querySelector(".primary");
+  if (!activeBtn || !activeBtn.offsetParent) {
+    return;
+  }
+  const navRect = nav.getBoundingClientRect();
+  const btnRect = activeBtn.getBoundingClientRect();
+  if (btnRect.left >= navRect.left && btnRect.right <= navRect.right) {
+    return;
+  }
+  nav.scrollTo({ left: Math.max(0, nav.scrollLeft + (btnRect.left - navRect.left) - 8) });
+}
+
 function updateHeaderPanelButtons() {
   const active = getActivePanel();
   if (els.btnHomePanel) {
@@ -825,6 +847,16 @@ function updateHeaderPanelButtons() {
   }
   if (els.btnTipsInbox) {
     els.btnTipsInbox.className = active === "tips" ? "primary message-btn" : "ghost message-btn";
+  }
+  if (els.btnLogPanel) {
+    els.btnLogPanel.className = active === "log" ? "primary" : "ghost";
+  }
+  if (els.btnInvitePanel) {
+    els.btnInvitePanel.className = active === "invite" ? "primary" : "ghost";
+  }
+  if (active !== lastRevealedNavPanel) {
+    lastRevealedNavPanel = active;
+    revealActiveNavButton();
   }
 }
 
