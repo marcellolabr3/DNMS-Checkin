@@ -131,6 +131,7 @@ async function processQueue() {
 
 async function printCheckin(checkin) {
   const student = await fetchStudent(checkin.student_id);
+  await applyLabelClassName(checkin, student);
   renderLabelPreview(checkin, student);
 
   const sent = await sendToPrintService({
@@ -278,6 +279,7 @@ async function selectStudentForReprint(student) {
 
   const studentData = await fetchStudent(student.id);
   reprintContext.checkin = latest;
+  await applyLabelClassName(latest, studentData);
   renderLabelPreview(latest, studentData);
   setSelectedSummary(
     reprintContext.studentName,
@@ -332,7 +334,7 @@ async function handleConfirmReprintFromDialog() {
 function renderLabelPreview(checkin, student) {
   const name = student?.name || "Aluno";
   const guardian = student?.primary_guardian_name || "-";
-  const className = checkin.class_name || student?.class_name || "-";
+  const className = getLabelClassName(checkin, student);
   const notes = checkin?.notes_snapshot || student?.notes || "-";
 
   els.printLabel.innerHTML = `
@@ -343,6 +345,39 @@ function renderLabelPreview(checkin, student) {
       <div class="label-line">Observacao: ${escapeHtml(notes)}</div>
     </div>
   `;
+}
+
+function getLabelClassName(checkin, student) {
+  return checkin?._label_class_name || student?.official_class_name || student?.class_name || checkin?.class_name || "-";
+}
+
+async function applyLabelClassName(checkin, student) {
+  if (!checkin || !student?.id || !checkin.room_id) {
+    return;
+  }
+  const temporaryClassName = await fetchTemporaryAssignmentClassName(student.id, checkin.room_id);
+  checkin._label_class_name = temporaryClassName || student.official_class_name || student.class_name || checkin.class_name || "";
+}
+
+async function fetchTemporaryAssignmentClassName(studentId, roomId) {
+  const { data: assignment, error: assignmentError } = await supabaseClient
+    .from("temporary_room_assignments")
+    .select("room_id")
+    .eq("student_id", studentId)
+    .eq("room_id", roomId)
+    .maybeSingle();
+  if (assignmentError || !assignment?.room_id) {
+    return "";
+  }
+  const { data: room, error: roomError } = await supabaseClient
+    .from("rooms")
+    .select("class_target")
+    .eq("id", assignment.room_id)
+    .maybeSingle();
+  if (roomError) {
+    return "";
+  }
+  return String(room?.class_target || "").trim();
 }
 
 function clearLabelPreview() {

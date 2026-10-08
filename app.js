@@ -8686,7 +8686,7 @@ async function requestRemoteReprint(checkinId, options = {}) {
 function showLabel(person, checkin, options = {}) {
   stopLabelPrintStatusPolling();
   setLabelPrintStatus("");
-  const className = checkin.className || getClassForBirth(person.birth);
+  const className = getLabelClassName(person, checkin);
   const guardian = person.guardian || "-";
   const notes = checkin?.notes || person?.notes || "-";
   const autoPrint = options.autoPrint === true;
@@ -8710,6 +8710,22 @@ function showLabel(person, checkin, options = {}) {
     }
     return;
   }
+}
+
+function getLabelClassName(person, checkin) {
+  const roomId = checkin?.roomId || checkin?.room_id || "";
+  if (roomId) {
+    const hasTemporaryAssignment = (state.temporaryAssignments || []).some(
+      (assignment) => assignment.studentId === person?.id && assignment.roomId === roomId
+    );
+    if (hasTemporaryAssignment) {
+      const room = (state.rooms || []).find((item) => item.id === roomId);
+      if (room?.classTarget) {
+        return room.classTarget;
+      }
+    }
+  }
+  return checkin?.className || checkin?.class_name || getStudentOfficialClass(person) || getClassForBirth(person?.birth);
 }
 
 function buildLabelDocumentHtml(labelBodyHtml) {

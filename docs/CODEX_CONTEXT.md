@@ -16,7 +16,7 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 - Backend principal: Supabase Auth/Postgres/Storage; sem backend web proprio.
 - Servico local de impressao: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, usando Brother QL-810W.
 - Auth: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v189`, `app.js?v=20261008a`, `print.js?v=20260906b`, `styles.css?v=20261008a`.
+- Cache atual: `checkin-cache-v190`, `app.js?v=20261008b`, `print.js?v=20261008a`, `styles.css?v=20261008a`.
 - App nativo (APK/iOS): projeto separado em `D:\Dev\APKCheckin` (Capacitor 8, `com.dnms.checkin`), nao modifica este repositorio. Sincronizar com `sync-web.ps1`, buildar com `build-apk.ps1`; APK versionado em `D:\Dev\APKCheckin\dist` (QR com `qr-apk.ps1`). Estado: build+assinatura ok, CSV corrigido, deep link `dnmscheckin://auth` ativo (Redirect URLs no Supabase) para confirmacao de e-mail/recuperacao dentro do app; falta validar em aparelho (ver `D:\Dev\APKCheckin\CHECKLIST_PRONTO.md`). PWA continua oficial.
 
 ## Regras criticas
@@ -56,9 +56,9 @@ Memoria curta para novas sessoes do Codex. Nao registrar secrets, tokens, Servic
 
 ## Ultimo estado validado
 
+- Em 2026-10-08, etiquetas/reimpressao passaram a resolver turma efetiva na impressao: alocacao temporaria da sala tem prioridade, depois turma oficial atual do aluno, e por fim snapshot antigo do check-in. Arquivos principais: `app.js`, `print.js`, `Servico de impressao/server.js`; cache atualizado para `checkin-cache-v190`. `node --check` em `app.js`, `print.js` e `Servico de impressao/server.js` passou; `npm.cmd test` passou com 216 testes.
 - Em 2026-09-29, regra de classificacao substituida por progressao anual. Patch `patch_annual_class_progression.sql` aplicado em producao apos backup `D:\Dev\BCK_CHEK\dnms-annual-class-backup-20260929-120128.json`; validacao SQL confirmou: antes dos 2 anos fica fora, no aniversario de 2 entra em Maternal, anos de 4/7/11/15 permanecem na turma, e a mudanca ocorre em 01/01 do ano seguinte. Frontend atualizado para `checkin-cache-v188`/`app.js?v=20260929a`. `npm.cmd test` passou com 216 testes.
 - Em 2026-09-08, `node --check server.js` e `npm.cmd test -- tests/print-service.spec.js` passaram apos adicionar painel de jobs recentes e retry manual seguro antes do spooler.
-- Em 2026-09-08, pasta antiga `IMPRESSAO`/`IMPRESSAO` foi removida; `Servico de impressao/scripts/package-portable.ps1` foi validado gerando um unico ZIP em `dist-pacote/` e removendo `dist/`.
 - Em 2026-09-06, validacao no notebook real com Brother conectada passou: `/status`, `/health`, `/print`, `/reprint`, autoimpressao via celular e recuperacao apos reinicio.
 
 ## Fila de coisas a fazer

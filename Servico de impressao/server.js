@@ -46,8 +46,8 @@ const pgPool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: { 
 const canUseDirectDatabase = Boolean(pgPool);
 const canUseAutoPrintDataAccess = Boolean(pgPool || SUPABASE_SERVICE_ROLE_KEY);
 const canUseReprintQueue = Boolean(SUPABASE_SERVICE_ROLE_KEY || pgPool);
-const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at";
-const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name";
+const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,room_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at";
+const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name,official_class_name";
 
 const autoPrintSeen = new Set();
 const reprintJobSeen = new Set();
@@ -749,7 +749,8 @@ async function enqueueCheckinPrintJob(checkinId, options = {}) {
 
   const student = await fetchStudentForPrint(checkin.student_id, checkinId);
 
-  const labelData = buildCheckinLabelData(checkin, student);
+  const labelClassName = await resolvePrintLabelClassName(checkin, student);
+  const labelData = buildCheckinLabelData(checkin, student, labelClassName);
   validateAutoPrintLabelData(labelData, checkinId);
   const html = buildLabelDocumentHtml(labelData);
 
@@ -954,7 +955,7 @@ function serializeWindowsPrintJob(job) {
 async function fetchCheckinForPrint(checkinId) {
   if (pgPool) {
     const { rows } = await pgPool.query(
-      `select id, student_id, class_name, notes_snapshot, room_name_snapshot, printed_at, checked_out_at
+      `select id, student_id, room_id, class_name, notes_snapshot, room_name_snapshot, printed_at, checked_out_at
        from public.checkins
        where id = $1
        limit 1`,
@@ -982,7 +983,7 @@ async function fetchStudentForPrint(studentId, checkinId) {
   }
   if (pgPool) {
     const { rows } = await pgPool.query(
-      `select name, primary_guardian_name, notes, class_name
+      `select name, primary_guardian_name, notes, class_name, official_class_name
        from public.students
        where id = $1
        limit 1`,
@@ -1005,10 +1006,56 @@ async function fetchStudentForPrint(studentId, checkinId) {
   return data;
 }
 
-function buildCheckinLabelData(checkin, student) {
+async function resolvePrintLabelClassName(checkin, student) {
+  const temporaryClassName = await fetchTemporaryAssignmentClassName(checkin?.student_id, checkin?.room_id);
+  return (
+    cleanLabelValue(temporaryClassName) ||
+    cleanLabelValue(student?.official_class_name) ||
+    cleanLabelValue(student?.class_name) ||
+    cleanLabelValue(checkin?.class_name)
+  );
+}
+
+async function fetchTemporaryAssignmentClassName(studentId, roomId) {
+  if (!studentId || !roomId) {
+    return "";
+  }
+  if (pgPool) {
+    const { rows } = await pgPool.query(
+      `select r.class_target
+       from public.temporary_room_assignments tra
+       join public.rooms r on r.id = tra.room_id
+       where tra.student_id = $1
+         and tra.room_id = $2
+       limit 1`,
+      [studentId, roomId]
+    );
+    return rows[0]?.class_target || "";
+  }
+  const { data: assignment, error: assignmentError } = await supabaseClient
+    .from("temporary_room_assignments")
+    .select("room_id")
+    .eq("student_id", studentId)
+    .eq("room_id", roomId)
+    .maybeSingle();
+  if (assignmentError || !assignment?.room_id) {
+    return "";
+  }
+  const { data: room, error: roomError } = await supabaseClient
+    .from("rooms")
+    .select("class_target")
+    .eq("id", assignment.room_id)
+    .maybeSingle();
+  if (roomError) {
+    return "";
+  }
+  return room?.class_target || "";
+}
+
+function buildCheckinLabelData(checkin, student, labelClassName = "") {
   return {
     studentName: cleanLabelValue(student?.name),
-    className: cleanLabelValue(checkin?.class_name) || cleanLabelValue(student?.class_name),
+    className: cleanLabelValue(labelClassName) || cleanLabelValue(checkin?.class_name) || cleanLabelValue(student?.class_name),
     guardian: cleanLabelValue(student?.primary_guardian_name),
     notes: cleanLabelValue(checkin?.notes_snapshot) || cleanLabelValue(student?.notes) || "-"
   };

@@ -52,8 +52,10 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain("PRINT_ALLOWED_ORIGINS");
   expect(server).toContain("validatePrintPayload");
   expect(server).toContain("Conteudo de impressao contem elementos nao permitidos.");
-  expect(server).toContain('const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at"');
-  expect(server).toContain('const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name"');
+  expect(server).toContain('const CHECKIN_PRINT_SELECT_COLUMNS = "id,student_id,room_id,class_name,notes_snapshot,room_name_snapshot,printed_at,checked_out_at"');
+  expect(server).toContain('const STUDENT_PRINT_SELECT_COLUMNS = "name,primary_guardian_name,notes,class_name,official_class_name"');
+  expect(server).toContain("resolvePrintLabelClassName(checkin, student)");
+  expect(server).toContain("fetchTemporaryAssignmentClassName(checkin?.student_id, checkin?.room_id)");
   expect(server).toContain("validateAutoPrintLabelData(labelData, checkinId)");
   expect(server).toContain("Dados insuficientes para imprimir checkin");
   expect(server).toContain("getTargetPrinterStatus");
@@ -131,6 +133,9 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(print).toContain('const PRINT_SERVICE_TOKEN_KEY = "dnms_print_service_token"');
   expect(print).toContain('"X-DNMS-Print-Token"');
   expect(print).toContain("headers: getPrintServiceHeaders()");
+  expect(app).toContain("function getLabelClassName(person, checkin)");
+  expect(print).toContain("async function applyLabelClassName(checkin, student)");
+  expect(print).toContain("fetchTemporaryAssignmentClassName(student.id, checkin.room_id)");
   expect(app).toContain("fetchPrintJobStatus");
   expect(app).toContain("/print/${encodeURIComponent(jobId)}");
   expect(print).toContain("fetchPrintJobStatus");
