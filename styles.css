@@ -1400,16 +1400,16 @@ button:disabled,
   width: 100%;
   aspect-ratio: 4 / 3;
   max-height: 320px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--stroke);
   border-radius: 8px;
   background: #0f172a;
   object-fit: cover;
 }
 
 .presence-qr-panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--stroke);
   border-radius: 8px;
-  background: #fff;
+  background: var(--card);
 }
 
 .presence-qr-panel summary {
@@ -1428,9 +1428,11 @@ button:disabled,
   gap: 8px;
   max-width: 340px;
   padding: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--stroke);
   border-radius: 8px;
-  color: var(--text);
+  /* Folha de impressao: fundo sempre branco, entao a tinta fica fixa escura
+     para o texto continuar legivel mesmo no tema escuro. */
+  color: #16241d;
   text-align: center;
   background: #fff;
 }
@@ -1442,15 +1444,15 @@ button:disabled,
 }
 
 .presence-qr-print-area span {
-  color: var(--muted);
+  color: #5b6b64;
   font-size: 14px;
 }
 
 .presence-qr-print-area code {
   padding: 4px 8px;
   border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
+  background: #eef2f0;
+  color: #16241d;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
@@ -3266,4 +3268,70 @@ body.theme-dark .kpi-card {
   padding: 0;
   margin: 0;
   border-radius: 5px;
+}
+
+/* ---------- 15.10 Menu harmonizado (chips neutros) ---------- */
+/* Chips do topo neutros nos dois temas; accent so no item ativo.
+   Ambar (impressao) e vermelho (sair) aparecem apenas no hover. */
+.main-nav .ghost,
+.main-nav #btnPrintPanel,
+.main-nav #btnLogout {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.main-nav #btnLogout:hover {
+  color: var(--danger);
+}
+
+body.theme-dark .main-nav .ghost,
+body.theme-dark .main-nav #btnPrintPanel,
+body.theme-dark .main-nav #btnLogout {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+body.theme-dark .main-nav .ghost:hover {
+  background: var(--surface-2);
+  border-color: var(--stroke);
+  color: var(--ink);
+}
+
+body.theme-dark .main-nav #btnLogout:hover {
+  color: var(--danger);
+}
+
+/* Subtitulo do brand ocupa linha extra no celular (como no preview). */
+@media (max-width: 720px) {
+  .brand .subtitle {
+    display: none;
+  }
+
+  /* Menu em linha unica rolavel: 9 chips cabem sem quebrar em 4 linhas. */
+  .main-nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 5px;
+    scroll-padding-inline: 4px;
+  }
+
+  .main-nav > button {
+    flex: 0 0 auto;
+  }
+
+  .main-nav::-webkit-scrollbar {
+    height: 5px;
+  }
+
+  .main-nav::-webkit-scrollbar-thumb {
+    background: var(--stroke-strong);
+    border-radius: 999px;
+  }
 }
