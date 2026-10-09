@@ -42,11 +42,12 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Estado validado
 
-- Dashboard PWA: KPI "Check-ins hoje" conta registros do dia incluindo salas teste; KPI "Criancas presentes" conta apenas check-ins ativos sem checkout; resumo do evento/log continuam excluindo salas teste conforme regra operacional.
-- Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`.
-- Validacao: `node --check app.js` passou; `npm.cmd test -- tests/dashboard.spec.js tests/checkin.spec.js` passou com 130 testes.
+- Dashboard PWA: KPI "Check-ins hoje" conta registros do dia incluindo salas teste; KPI "Criancas presentes" conta apenas check-ins ativos sem checkout.
+- Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
+- Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`, `Servico de impressao/server.js`, `Servico de impressao/src/windows-pdf-print-adapter.js`, `Servico de impressao/scripts/install-portable.ps1`.
+- Validacao: `node --check app.js`, `node --check "Servico de impressao/server.js"`, `node --check "Servico de impressao/src/windows-pdf-print-adapter.js"` passaram; `npm.cmd test -- tests/print-service.spec.js tests/print-worker.spec.js` passou com 16 testes.
 
 ## Pendencias reais
 
 1. Print Service: retencao/limpeza do SQLite.
-2. Print Service: validar novo ZIP/exe no notebook real com Brother, incluindo check-in e reimpressao fisicos.
+2. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.

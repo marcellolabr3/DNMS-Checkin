@@ -66,6 +66,10 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).not.toContain("Win32 marca offline, mas o spooler do Windows esta Normal");
   expect(server).toContain("auto_print_realtime_status");
   expect(server).toContain("auto_print_last_poll");
+  expect(server).toContain("PRINT_FAST_SPOOLER_MODE");
+  expect(server).toContain("PRINTER_STATUS_CACHE_TTL_MS");
+  expect(server).toContain("parseBooleanEnv(process.env.PRINT_FAST_SPOOLER_MODE, true)");
+  expect(server).toContain("cachePrinterStatus");
   expect(server).toContain("canUseAutoPrintDataAccess");
   expect(server).toContain("Autoimpressao do celular requer DATABASE_URL ou Service Role no servico local.");
   expect(server).toContain("and checked_out_at is null");
@@ -91,7 +95,10 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(server).toContain("setRecentJobs");
   expect(server).toContain("enqueueCheckinPrintJob");
   expect(server).toContain("waitForPrinterQueueToSettle");
+  expect(server).toContain("fastSpoolerMode: PRINT_FAST_SPOOLER_MODE");
   expect(adapter).toContain("this.waitForPrinterQueueToSettle(printer.name, pdfPath)");
+  expect(adapter).toContain("this.fastSpoolerMode = options.fastSpoolerMode !== false");
+  expect(adapter).toContain('completedReason: "spooler_accepted_fast_mode"');
   expect(fs.readFileSync(path.join(__dirname, "..", "Servico de impressao", "src", "sqlite3-runtime.js"), "utf8"))
     .toContain('native", "sqlite3", "node_sqlite3.node"');
   expect(adapter).toContain("hooks.onSpoolerAccepted");
@@ -180,6 +187,8 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
   expect(validateRealEnvironment).toContain("SPOOLER_DONE");
   expect(validateRealEnvironment).not.toContain("DATABASE_URL=");
   expect(installPortable).toContain("Atalho criado/atualizado");
+  expect(installPortable).toContain("Inicializacao com Windows criada/atualizada");
+  expect(installPortable).toContain("NoStartupShortcut");
   expect(installPortable).toContain("Validacao falhou");
   expect(launcher).toContain("Extraia novamente o ZIP portable completo.");
   expect(installCmd).toContain("install-portable.ps1");

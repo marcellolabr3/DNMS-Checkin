@@ -30,6 +30,8 @@ const REQUIRED_PRINTER_HINT = "BROTHER QL-810W";
 const AUTO_PRINT_POLL_INTERVAL_MS = Number(process.env.AUTO_PRINT_POLL_INTERVAL_MS || 1000);
 const PRINT_JOB_SETTLE_TIMEOUT_MS = Number(process.env.PRINT_JOB_SETTLE_TIMEOUT_MS || 20000);
 const PRINT_JOB_SETTLE_POLL_MS = Number(process.env.PRINT_JOB_SETTLE_POLL_MS || 750);
+const PRINT_FAST_SPOOLER_MODE = parseBooleanEnv(process.env.PRINT_FAST_SPOOLER_MODE, true);
+const PRINTER_STATUS_CACHE_TTL_MS = Number(process.env.PRINTER_STATUS_CACHE_TTL_MS || 3000);
 const SUPABASE_URL_DEFAULT = "https://ziuezwtmmnspkycixqtf.supabase.co";
 const SUPABASE_ANON_KEY_DEFAULT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppdWV6d3RtbW5zcGt5Y2l4cXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjY2NjksImV4cCI6MjA5MDIwMjY2OX0.WCPR3YQyJqyChtYjNMXgYXipRiEYf4_BJjS8-RalZj4";
@@ -62,6 +64,7 @@ let browserLaunchPromise = null;
 let jobStore = null;
 let printQueue = null;
 let printWorker = null;
+let printerStatusCache = { expiresAt: 0, value: null };
 let lastAutoPrintPoll = {
   checked_at: null,
   pending_count: 0,
@@ -272,17 +275,21 @@ async function getTargetPrinterOrThrow() {
   return status.printer;
 }
 
-async function getTargetPrinterStatus() {
+async function getTargetPrinterStatus(options = {}) {
+  const force = Boolean(options.force);
+  if (!force && PRINTER_STATUS_CACHE_TTL_MS > 0 && printerStatusCache.value && Date.now() < printerStatusCache.expiresAt) {
+    return printerStatusCache.value;
+  }
   const printers = await getPrinters();
   if (!Array.isArray(printers) || !printers.length) {
-    return {
+    return cachePrinterStatus({
       installed: false,
       ready: false,
       name: "",
       status: "not_found",
       detail: "Nenhuma impressora disponivel no sistema.",
       error: "Nenhuma impressora disponivel no sistema."
-    };
+    });
   }
 
   const normalized = printers.map((printer) => ({
@@ -295,19 +302,19 @@ async function getTargetPrinterStatus() {
   if (!selected?.raw) {
     const available = normalized.map((item) => item.name).filter(Boolean).join(" | ");
     const error = `Impressora obrigatoria nao encontrada (${REQUIRED_PRINTER_HINT}). Disponiveis: ${available || "-"}`;
-    return {
+    return cachePrinterStatus({
       installed: false,
       ready: false,
       name: "",
       status: "not_found",
       detail: error,
       error
-    };
+    });
   }
 
   const windowsStatus = await readWindowsPrinterStatus(selected.name);
   const readiness = evaluateWindowsPrinterReadiness(windowsStatus);
-  return {
+  return cachePrinterStatus({
     installed: true,
     ready: readiness.ready,
     name: selected.name,
@@ -315,7 +322,15 @@ async function getTargetPrinterStatus() {
     status: readiness.status,
     detail: readiness.detail,
     windows_status: windowsStatus
+  });
+}
+
+function cachePrinterStatus(status) {
+  printerStatusCache = {
+    value: status,
+    expiresAt: Date.now() + Math.max(PRINTER_STATUS_CACHE_TTL_MS, 0)
   };
+  return status;
 }
 
 async function readWindowsPrinterStatus(printerName) {
@@ -421,6 +436,20 @@ function isPrintJobForDocument(job, documentPath, documentName) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseBooleanEnv(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "sim", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "nao", "off"].includes(normalized)) {
+    return false;
+  }
+  return defaultValue;
 }
 
 function evaluateWindowsPrinterReadiness(status) {
@@ -779,7 +808,7 @@ async function enqueueCheckinPrintJob(checkinId, options = {}) {
 }
 
 async function buildHealthPayload() {
-  const printerStatus = await getTargetPrinterStatus();
+  const printerStatus = await getTargetPrinterStatus({ force: true });
   const printerQueue = printerStatus.name ? await readWindowsPrintJobs(printerStatus.name) : [];
   const printJobSummary = jobStore ? await jobStore.getQueueSummary() : {};
   const recentPrintJobs = jobStore ? await jobStore.listRecentJobs(25) : [];
@@ -834,7 +863,9 @@ function buildRuntimeDiagnostics() {
     chrome_available: Boolean(browserPath),
     chrome_path: browserPath ? path.basename(browserPath) : "",
     sumatra_available: Boolean(sumatraPath),
-    sumatra_path: sumatraPath ? path.basename(sumatraPath) : ""
+    sumatra_path: sumatraPath ? path.basename(sumatraPath) : "",
+    print_fast_spooler_mode: PRINT_FAST_SPOOLER_MODE,
+    printer_status_cache_ttl_ms: PRINTER_STATUS_CACHE_TTL_MS
   };
 }
 
@@ -2096,6 +2127,7 @@ async function initializePrintServices() {
     printPdfFile,
     waitForPrinterQueueToSettle,
     safeUnlink,
+    fastSpoolerMode: PRINT_FAST_SPOOLER_MODE,
     afterSpoolerDone: async (job) => {
       if (job.type === PRINT_JOB_TYPE.PRINT) {
         await markCheckinPrinted(job.payload?.checkin_id);

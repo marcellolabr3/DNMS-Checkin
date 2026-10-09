@@ -71,7 +71,7 @@ Para esse modo funcionar, configure `DATABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY
 Sem uma dessas credenciais, o painel mostra a auto-impressao do celular como inativa. A versao atual bloqueia a impressao se faltar nome, turma ou responsavel, para evitar etiqueta em branco marcada como impressa.
 
 O servico tambem faz varredura de pendencias a cada 1 segundo para cobrir falhas ou atraso do listener realtime. Se necessario, ajuste com `AUTO_PRINT_POLL_INTERVAL_MS` no `.codex-secrets.env`.
-Para reduzir a latencia, o servico pre-aquece e reutiliza o navegador Chromium usado para gerar o PDF da etiqueta.
+Para reduzir a latencia, o servico pre-aquece e reutiliza o navegador Chromium usado para gerar o PDF da etiqueta, usa cache curto do estado da Brother (`PRINTER_STATUS_CACHE_TTL_MS`, padrao 3000ms) e, por padrao, conclui o job quando o Windows aceita a etiqueta no spooler (`PRINT_FAST_SPOOLER_MODE=true`).
 
 Os check-ins pendentes nao sao impressos diretamente pelo listener. Eles entram na mesma fila local usada por `/print` e `/reprint`.
 
@@ -126,7 +126,7 @@ O worker processa 1 job por vez. Ao reiniciar o servico, jobs que estavam em `PR
 
 Impressao normal usa deduplicacao por `checkin_id`, independente da origem (`/print`, autoimpressao por listener ou polling). Isso evita duas etiquetas quando o check-in feito no computador da Brother e a autoimpressao do servico enxergam o mesmo registro quase ao mesmo tempo.
 
-`SPOOLER_DONE` significa que o Windows removeu/concluiu o job no spooler. Nao e confirmacao fisica de etiqueta impressa/cortada.
+`SPOOLER_DONE` significa que o job tecnico foi concluido pelo servico. Com `PRINT_FAST_SPOOLER_MODE=true`, isso ocorre quando o Windows aceita a etiqueta no spooler; com `PRINT_FAST_SPOOLER_MODE=false`, ocorre depois que o Windows remove/conclui o job da fila. Nenhum dos modos e confirmacao fisica de etiqueta impressa/cortada.
 
 ## Motor de impressao
 
@@ -141,7 +141,7 @@ Puppeteer/Chromium persistente
   -> Brother QL-810W
 ```
 
-O motor fica encapsulado para permitir substituir o adaptador futuramente sem reescrever API/fila.
+O motor fica encapsulado para permitir substituir o adaptador futuramente sem reescrever API/fila. O modo rapido evita esperar a fila do Windows esvaziar antes de liberar o proximo job; para voltar ao comportamento conservador, defina `PRINT_FAST_SPOOLER_MODE=false`.
 
 ## Exemplo de integracao no frontend
 
@@ -228,7 +228,7 @@ cmd /c npm run package:portable
 
 `DNMS Instalar Atualizar.cmd`
 
-Esse comando encerra uma instancia anterior, valida arquivos obrigatorios, cria/atualiza o atalho da area de trabalho e inicia o servico.
+Esse comando encerra uma instancia anterior, valida arquivos obrigatorios, cria/atualiza o atalho da area de trabalho, cria/atualiza o atalho de inicializacao do Windows e inicia o servico.
 
 5. Se existir `.codex-secrets.env` no computador que gerou o pacote, ele sera incluido no ZIP local para preservar `DATABASE_URL`, token e portas. Esse arquivo continua ignorado pelo Git.
 6. Se o PWA sera usado no proprio computador da impressora, nao e obrigatorio configurar `.codex-secrets.env`.
@@ -254,7 +254,7 @@ Esse monitor abre o status e consulta `/health` em ciclos. Ele nao imprime etiqu
 O servico esta operacional quando o painel mostrar bolinha verde para servico local, impressora Brother, autoimpressao do celular e fila da Brother.
 Para check-ins feitos no celular/outro computador, a linha "Autoimpressao do celular" precisa aparecer como ativa.
 
-Se o painel mostrar etiquetas pendentes na fila da Brother, limpe ou libere a fila pelo Windows antes de continuar. O servico bloqueia novas impressoes enquanto houver jobs pendentes e so marca `printed_at` depois que o Windows confirma que a etiqueta saiu da fila.
+Se o painel mostrar etiquetas pendentes na fila da Brother, limpe ou libere a fila pelo Windows antes de continuar. No modo rapido, o servico marca `printed_at` apos aceite no spooler para reduzir latencia; no modo conservador (`PRINT_FAST_SPOOLER_MODE=false`), ele so marca depois que o Windows confirma que a etiqueta saiu da fila.
 
 ## Validacao continua em ambiente real
 

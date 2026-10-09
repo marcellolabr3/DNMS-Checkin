@@ -1,5 +1,6 @@
 param(
   [switch]$NoShortcut,
+  [switch]$NoStartupShortcut,
   [switch]$StartNow,
   [switch]$StopExisting
 )
@@ -41,6 +42,18 @@ if (-not $NoShortcut) {
   $shortcut.Description = "Inicia o servico local de impressao do DNMS Check-in"
   $shortcut.Save()
   Write-Host "Atalho criado/atualizado na area de trabalho: $shortcutPath"
+}
+
+if (-not $NoStartupShortcut) {
+  $startup = [Environment]::GetFolderPath("Startup")
+  $startupShortcutPath = Join-Path $startup "DNMS Impressao.lnk"
+  $shell = New-Object -ComObject WScript.Shell
+  $startupShortcut = $shell.CreateShortcut($startupShortcutPath)
+  $startupShortcut.TargetPath = $launcher
+  $startupShortcut.WorkingDirectory = $root
+  $startupShortcut.Description = "Inicia automaticamente o servico local de impressao do DNMS Check-in"
+  $startupShortcut.Save()
+  Write-Host "Inicializacao com Windows criada/atualizada: $startupShortcutPath"
 }
 
 if ($StartNow) {

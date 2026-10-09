@@ -18,6 +18,7 @@ class WindowsPdfPrintAdapter {
     this.waitForPrinterQueueToSettle = options.waitForPrinterQueueToSettle;
     this.safeUnlink = options.safeUnlink;
     this.afterSpoolerDone = options.afterSpoolerDone || null;
+    this.fastSpoolerMode = options.fastSpoolerMode !== false;
   }
 
   async printJob(job, hooks = {}) {
@@ -33,6 +34,14 @@ class WindowsPdfPrintAdapter {
         printerName: printer.name || "",
         windowsJobId: null
       });
+      if (this.fastSpoolerMode) {
+        await this.afterSpoolerDone?.(job, { printerName: printer.name || "" });
+        return {
+          printerName: printer.name || "",
+          windowsJobId: null,
+          completedReason: "spooler_accepted_fast_mode"
+        };
+      }
       await this.waitForPrinterQueueToSettle(printer.name, pdfPath);
       await this.afterSpoolerDone?.(job, { printerName: printer.name || "" });
       return {
