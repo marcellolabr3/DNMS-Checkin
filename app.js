@@ -2901,14 +2901,15 @@ function renderDashboard() {
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
   const todayCheckins = getTodayCheckins({ includeTestRooms: true });
-  const todayCheckinStudentIds = new Set(
-    todayCheckins
+  const presentTodayCheckins = todayCheckins.filter((checkin) => !checkin.checkedOutAt);
+  const presentTodayStudentIds = new Set(
+    presentTodayCheckins
       .map((checkin) => checkin.studentId)
   );
   renderDashboardKpis(
     {
       checkins: todayCheckins.length,
-      kids: todayCheckinStudentIds.size,
+      kids: presentTodayStudentIds.size,
       rooms: openRooms.length,
       pending: todayCheckins.filter((checkin) => !checkin.checkedOutAt && !checkin.printedAt).length
     },
@@ -2924,7 +2925,7 @@ function renderDashboard() {
     dashboardViewSub.textContent = todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1);
   }
   const neuroStudents = state.students.filter((student) => {
-    return hasNeuroatypicalCondition(student.notes) && todayCheckinStudentIds.has(student.id);
+    return hasNeuroatypicalCondition(student.notes) && presentTodayStudentIds.has(student.id);
   });
 
   if (openRooms.length) {

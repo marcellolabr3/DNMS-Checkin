@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v194`, `app.js?v=20261009a`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
+- Cache atual: `checkin-cache-v195`, `app.js?v=20261009b`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -42,9 +42,9 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Estado validado
 
-- Dashboard PWA: KPIs/marcadores de check-ins do dia agora contam tambem check-ins feitos em salas teste; resumo do evento/log continuam excluindo salas teste conforme regra operacional.
+- Dashboard PWA: KPI "Check-ins hoje" conta registros do dia incluindo salas teste; KPI "Criancas presentes" conta apenas check-ins ativos sem checkout; resumo do evento/log continuam excluindo salas teste conforme regra operacional.
 - Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`.
-- Validacao: `node --check app.js` passou; `npm.cmd test -- tests/dashboard.spec.js tests/checkin.spec.js` passou com 128 testes.
+- Validacao: `node --check app.js` passou; `npm.cmd test -- tests/dashboard.spec.js tests/checkin.spec.js` passou com 130 testes.
 
 ## Pendencias reais
 

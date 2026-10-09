@@ -1999,6 +1999,43 @@ test("dashboard conta check-ins de sala teste nos marcadores sem entrar no resum
   await expect(page.locator("#dashboardEventSummary")).toContainText("Total geral: 0");
 });
 
+test("dashboard separa check-ins do dia de criancas atualmente presentes", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.checkins.push(
+      {
+        id: "checkin-dashboard-active",
+        student_id: "student-kids",
+        room_id: "room-kids",
+        room_name_snapshot: "Culto Kids",
+        class_name: "Kids",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T10:00:00.000Z`,
+        checked_out_at: null,
+        printed_at: `${today}T10:01:00.000Z`
+      },
+      {
+        id: "checkin-dashboard-checked-out",
+        student_id: "student-juniors",
+        room_id: "room-juniors",
+        room_name_snapshot: "Culto Juniors",
+        class_name: "Juniors",
+        actor_id: "admin-1",
+        notes_snapshot: "",
+        checked_in_at: `${today}T10:05:00.000Z`,
+        checked_out_at: `${today}T11:00:00.000Z`,
+        printed_at: `${today}T10:06:00.000Z`
+      }
+    );
+  }, todayIso());
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#kpiCheckins")).toContainText("2");
+  await expect(page.locator("#kpiPresent")).toContainText("1");
+  await expect(page.locator("#kpiPrint")).toContainText("0");
+});
+
 test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
