@@ -2552,11 +2552,15 @@ function renderStudents() {
 
 function renderCheckins() {}
 
-function getTodayCheckins() {
+function getTodayCheckins(options = {}) {
   const today = formatToday();
-  return (state.checkins || []).filter(
-    (checkin) => String(checkin.dateTime || "").startsWith(today) && !isCheckinFromTestRoom(checkin)
-  );
+  const includeTestRooms = Boolean(options.includeTestRooms);
+  return (state.checkins || []).filter((checkin) => {
+    if (!String(checkin.dateTime || "").startsWith(today)) {
+      return false;
+    }
+    return includeTestRooms || !isCheckinFromTestRoom(checkin);
+  });
 }
 
 function isCheckinFromTestRoom(checkin) {
@@ -2896,7 +2900,7 @@ function renderDashboard() {
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
-  const todayCheckins = getTodayCheckins();
+  const todayCheckins = getTodayCheckins({ includeTestRooms: true });
   const todayCheckinStudentIds = new Set(
     todayCheckins
       .map((checkin) => checkin.studentId)

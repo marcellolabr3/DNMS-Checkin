@@ -1963,6 +1963,42 @@ test("log gera resumo do evento com pendencias de impressao e exporta csv", asyn
   expect(whatsappText).not.toContain("impressao");
 });
 
+test("dashboard conta check-ins de sala teste nos marcadores sem entrar no resumo do evento", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((today) => {
+    window.__mockDnmsDb.rooms.push({
+      id: "room-test-kids",
+      name: "Culto Kids Teste",
+      date: today,
+      start_time: "09:00",
+      end_time: "12:00",
+      class_target: "Kids",
+      status: "Aberta",
+      opened_at: `${today}T09:00:00.000Z`,
+      closed_at: null,
+      is_test: true,
+      max_checkins: null
+    });
+    window.__mockDnmsDb.checkins.push({
+      id: "checkin-test-room",
+      student_id: "student-kids",
+      room_id: "room-test-kids",
+      room_name_snapshot: "Culto Kids Teste",
+      class_name: "Kids",
+      actor_id: "admin-1",
+      notes_snapshot: "",
+      checked_in_at: `${today}T10:00:00.000Z`,
+      checked_out_at: null,
+      printed_at: null
+    });
+  }, todayIso());
+  await loginAs(page, "admin@dnms.test");
+
+  await expect(page.locator("#kpiCheckins")).toContainText("1");
+  await expect(page.locator("#kpiPresent")).toContainText("1");
+  await expect(page.locator("#dashboardEventSummary")).toContainText("Total geral: 0");
+});
+
 test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
