@@ -32,6 +32,7 @@ const TIP_READ_SELECT_COLUMNS = "tip_id,user_id,read_at";
 const FAMILY_LINK_REQUEST_SELECT_COLUMNS = "id,requester_id,target_id,requester_name_snapshot,target_name_snapshot,tip_id,status,expires_at,responded_at,created_at";
 const CSV_DELIMITER = ";";
 const CSV_BOM = "\uFEFF";
+const STUDENT_CLASS_SEQUENCE = ["Maternal", "Kids", "Juniors", "Teens"];
 const INITIAL_PASSWORD_RECOVERY_URL = readPasswordRecoveryUrlFromLocation();
 const INITIAL_AUTH_CALLBACK_URL = readAuthCallbackUrlFromLocation();
 const { storage: authStorage, blocked: authStorageBlocked } = createAuthStorage();
@@ -192,6 +193,9 @@ const els = {
   studentExtractionMode: document.getElementById("studentExtractionMode"),
   studentExtractionClass: document.getElementById("studentExtractionClass"),
   studentExtractionSearch: document.getElementById("studentExtractionSearch"),
+  studentTransitionYear: document.getElementById("studentTransitionYear"),
+  studentTransitionType: document.getElementById("studentTransitionType"),
+  studentTransitionNote: document.getElementById("studentTransitionNote"),
   btnStudentExtractionSelectAll: document.getElementById("btnStudentExtractionSelectAll"),
   btnStudentExtractionClear: document.getElementById("btnStudentExtractionClear"),
   btnExportStudentsData: document.getElementById("btnExportStudentsData"),
@@ -414,6 +418,8 @@ function bindEvents() {
   });
   els.studentExtractionClass?.addEventListener("change", renderStudentExtraction);
   els.studentExtractionSearch?.addEventListener("input", renderStudentExtraction);
+  els.studentTransitionYear?.addEventListener("input", renderStudentExtraction);
+  els.studentTransitionType?.addEventListener("change", renderStudentExtraction);
   els.btnStudentExtractionSelectAll?.addEventListener("click", selectAllStudentExtractionRows);
   els.btnStudentExtractionClear?.addEventListener("click", clearStudentExtractionSelection);
   els.btnExportStudentsData?.addEventListener("click", exportStudentsDataExcel);
@@ -3409,11 +3415,24 @@ function renderStudentExtraction() {
   const mode = getStudentExtractionMode();
   const isClassMode = mode === "class";
   const isSelectedMode = mode === "selected";
+  const isTransitionMode = mode === "transition";
+  if (els.studentTransitionYear && !els.studentTransitionYear.value) {
+    els.studentTransitionYear.value = String(new Date().getFullYear() + 1);
+  }
   if (els.studentExtractionClass) {
     els.studentExtractionClass.closest(".field").style.display = isClassMode ? "" : "none";
   }
   if (els.studentExtractionSearch) {
     els.studentExtractionSearch.closest(".field").style.display = isSelectedMode ? "" : "none";
+  }
+  if (els.studentTransitionYear) {
+    els.studentTransitionYear.closest(".field").style.display = isTransitionMode ? "" : "none";
+  }
+  if (els.studentTransitionType) {
+    els.studentTransitionType.closest(".field").style.display = isTransitionMode ? "" : "none";
+  }
+  if (els.studentTransitionNote) {
+    els.studentTransitionNote.style.display = isTransitionMode ? "" : "none";
   }
   if (els.btnStudentExtractionSelectAll) {
     els.btnStudentExtractionSelectAll.style.display = isSelectedMode ? "" : "none";
@@ -3445,25 +3464,68 @@ function renderStudentExtraction() {
 
 function getStudentExtractionMode() {
   const mode = els.studentExtractionMode?.value || "all";
-  return ["all", "class", "selected"].includes(mode) ? mode : "all";
+  return ["all", "class", "selected", "transition"].includes(mode) ? mode : "all";
 }
 
 function getStudentExtractionClass() {
   return els.studentExtractionClass?.value || "all";
 }
 
+function getStudentTransitionYear() {
+  const raw = String(els.studentTransitionYear?.value || "").trim();
+  if (!/^\d{4}$/.test(raw)) {
+    return null;
+  }
+  const year = Number(raw);
+  return year >= 2000 && year <= 2100 ? year : null;
+}
+
+function getStudentTransitionType() {
+  const type = els.studentTransitionType?.value || "all";
+  return ["all", "advance", "exit"].includes(type) ? type : "all";
+}
+
+function getStudentClassTransition(student, targetYear) {
+  if (!targetYear) {
+    return null;
+  }
+  const currentClass = getClassForBirth(student?.birth, new Date(targetYear - 1, 11, 31));
+  const nextClass = getClassForBirth(student?.birth, new Date(targetYear, 11, 31));
+  if (!STUDENT_CLASS_SEQUENCE.includes(currentClass) || currentClass === nextClass) {
+    return null;
+  }
+  const movement = nextClass === "Fora da faixa" ? "exit" : "advance";
+  if (movement === "advance" && !STUDENT_CLASS_SEQUENCE.includes(nextClass)) {
+    return null;
+  }
+  return {
+    currentClass,
+    nextClass,
+    movement,
+    movementLabel: movement === "exit" ? "Sai do DNMS Kids" : "Passa para outra turma",
+    reviewOfficialClass: Boolean(student?.officialClassName)
+  };
+}
+
 function getStudentExtractionCandidates() {
+  const mode = getStudentExtractionMode();
   const search = normalizeDuplicateText(els.studentExtractionSearch?.value || "");
   const classFilter = getStudentExtractionClass();
+  const transitionYear = getStudentTransitionYear();
+  const transitionType = getStudentTransitionType();
   return (state.students || [])
     .filter((student) => {
-      if (getStudentExtractionMode() === "class" && classFilter !== "all") {
+      if (mode === "transition") {
+        const transition = getStudentClassTransition(student, transitionYear);
+        return Boolean(transition && (transitionType === "all" || transition.movement === transitionType));
+      }
+      if (mode === "class" && classFilter !== "all") {
         return getEffectiveClassForStudentToday(student) === classFilter;
       }
       return true;
     })
     .filter((student) => {
-      if (!search || getStudentExtractionMode() !== "selected") {
+      if (!search || mode !== "selected") {
         return true;
       }
       const contact = getResponsibleContactForStudent(student);
@@ -3514,7 +3576,10 @@ function buildStudentExtractionRow(student) {
     address: contact.address || student.address || "",
     notes: student.notes || "",
     isVisitor: student.isVisitor ? "Sim" : "Nao",
-    linkedGuardians: linkedGuardians.join(" | ")
+    linkedGuardians: linkedGuardians.join(" | "),
+    transition: getStudentExtractionMode() === "transition"
+      ? getStudentClassTransition(student, getStudentTransitionYear())
+      : null
   };
 }
 
@@ -3540,6 +3605,16 @@ function getLinkedGuardianLabelsForStudent(student) {
 
 function buildStudentExtractionSummary(rows, candidates) {
   const mode = getStudentExtractionMode();
+  if (mode === "transition") {
+    const year = getStudentTransitionYear();
+    if (!year) {
+      return "Informe um ano da mudanca entre 2000 e 2100.";
+    }
+    const advancing = rows.filter((row) => row.transition?.movement === "advance").length;
+    const leaving = rows.filter((row) => row.transition?.movement === "exit").length;
+    const review = rows.filter((row) => row.transition?.reviewOfficialClass).length;
+    return `${year - 1} para ${year}: ${rows.length} crianca(s) na previsao; ${advancing} avanca(m), ${leaving} sai(em) do DNMS Kids${review ? `; ${review} com turma oficial para conferir` : ""}.`;
+  }
   if (mode === "selected") {
     return `${rows.length} de ${candidates.length} crianca(s) selecionada(s) para extracao.`;
   }
@@ -3582,11 +3657,20 @@ function renderStudentExtractionList(candidates, rows, selectedIds) {
   previewRows.forEach((row) => {
     const item = document.createElement("div");
     item.className = "list-item";
-    item.innerHTML = `
-      <strong>${escapeHtml(row.name)}</strong>
-      <span class="muted">Turma: ${escapeHtml(row.effectiveClass)} | Responsavel: ${escapeHtml(row.guardian || "-")}</span>
-      <span class="muted">Telefone: ${escapeHtml(row.phone || "-")} | Nascimento: ${escapeHtml(row.birth || "-")}</span>
-    `;
+    if (mode === "transition") {
+      item.innerHTML = `
+        <strong>${escapeHtml(row.name)}</strong>
+        <span class="muted">${escapeHtml(row.transition.currentClass)} → ${escapeHtml(row.transition.nextClass)} | ${escapeHtml(row.transition.movementLabel)}</span>
+        <span class="muted">Responsavel: ${escapeHtml(row.guardian || "-")} | Telefone: ${escapeHtml(row.phone || "-")}</span>
+        ${row.transition.reviewOfficialClass ? `<span class="muted">Turma oficial cadastrada: ${escapeHtml(row.officialClass)} (conferir)</span>` : ""}
+      `;
+    } else {
+      item.innerHTML = `
+        <strong>${escapeHtml(row.name)}</strong>
+        <span class="muted">Turma: ${escapeHtml(row.effectiveClass)} | Responsavel: ${escapeHtml(row.guardian || "-")}</span>
+        <span class="muted">Telefone: ${escapeHtml(row.phone || "-")} | Nascimento: ${escapeHtml(row.birth || "-")}</span>
+      `;
+    }
     els.studentExtractionList.appendChild(item);
   });
   if (rows.length > previewRows.length) {
@@ -9227,47 +9311,81 @@ function buildStudentExtractionWorkbook(XLSX, rows) {
   const workbook = XLSX.utils.book_new();
   const generatedAt = formatDateTimeFromIso(new Date().toISOString());
   const scopeLabel = getStudentExtractionScopeLabel();
-  const classCounts = rows.reduce((acc, row) => {
-    const key = row.effectiveClass || "Indefinida";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-  const summaryRows = [
-    ["Extracao de criancas"],
-    ["Escopo", scopeLabel],
-    ["Total de criancas", rows.length],
-    ["Gerado em", generatedAt],
-    [],
-    ["Turma", "Quantidade"],
-    ...Object.entries(classCounts).sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([className, total]) => [className, total])
-  ];
+  const isTransition = getStudentExtractionMode() === "transition";
+  let summaryRows;
+  if (isTransition) {
+    const transitionCounts = rows.reduce((acc, row) => {
+      const key = `${row.transition.currentClass} → ${row.transition.nextClass}`;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    summaryRows = [
+      ["Previsao de mudanca de turma"],
+      ["Ano da mudanca", getStudentTransitionYear()],
+      ["Escopo", scopeLabel],
+      ["Total de criancas", rows.length],
+      ["Passam para outra turma", rows.filter((row) => row.transition.movement === "advance").length],
+      ["Saem do DNMS Kids", rows.filter((row) => row.transition.movement === "exit").length],
+      ["Turma oficial para conferir", rows.filter((row) => row.transition.reviewOfficialClass).length],
+      ["Gerado em", generatedAt],
+      [],
+      ["Turma no ano anterior", "Turma prevista", "Quantidade"],
+      ...Object.entries(transitionCounts)
+        .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+        .map(([transition, total]) => [...transition.split(" → "), total])
+    ];
+  } else {
+    const classCounts = rows.reduce((acc, row) => {
+      const key = row.effectiveClass || "Indefinida";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    summaryRows = [
+      ["Extracao de criancas"],
+      ["Escopo", scopeLabel],
+      ["Total de criancas", rows.length],
+      ["Gerado em", generatedAt],
+      [],
+      ["Turma", "Quantidade"],
+      ...Object.entries(classCounts).sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([className, total]) => [className, total])
+    ];
+  }
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-  summarySheet["!cols"] = [{ wch: 26 }, { wch: 24 }];
-  summarySheet["!autofilter"] = { ref: `A6:B${Math.max(6, summaryRows.length)}` };
+  summarySheet["!cols"] = isTransition ? [{ wch: 30 }, { wch: 24 }, { wch: 14 }] : [{ wch: 26 }, { wch: 24 }];
+  summarySheet["!autofilter"] = isTransition
+    ? { ref: `A10:C${Math.max(10, summaryRows.length)}` }
+    : { ref: `A6:B${Math.max(6, summaryRows.length)}` };
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumo");
 
   const dataHeader = getStudentExtractionExcelHeader();
   const dataRows = rows.map((row) => getStudentExtractionExcelRow(row));
   const dataSheet = XLSX.utils.aoa_to_sheet([dataHeader, ...dataRows]);
-  dataSheet["!cols"] = [
-    { wch: 28 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 24 },
-    { wch: 18 },
-    { wch: 28 },
-    { wch: 18 },
-    { wch: 36 },
-    { wch: 42 },
-    { wch: 10 },
-    { wch: 42 }
-  ];
-  dataSheet["!autofilter"] = { ref: `A1:K${Math.max(1, dataRows.length + 1)}` };
-  XLSX.utils.book_append_sheet(workbook, dataSheet, "Criancas");
+  dataSheet["!cols"] = isTransition
+    ? [28, 14, 24, 24, 18, 28, 22, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }))
+    : [28, 14, 18, 24, 18, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }));
+  dataSheet["!autofilter"] = { ref: `A1:${isTransition ? "M" : "K"}${Math.max(1, dataRows.length + 1)}` };
+  XLSX.utils.book_append_sheet(workbook, dataSheet, isTransition ? "Mudancas" : "Criancas");
   return workbook;
 }
 
 function getStudentExtractionExcelHeader() {
+  if (getStudentExtractionMode() === "transition") {
+    return [
+      "Nome",
+      "Nascimento",
+      `Turma em ${getStudentTransitionYear() - 1} (pela idade)`,
+      "Turma oficial cadastrada hoje",
+      "Turma prevista",
+      "Movimento",
+      "Conferir turma oficial",
+      "Responsavel principal",
+      "Telefone",
+      "Endereco",
+      "Observacoes",
+      "Visitante",
+      "Responsaveis vinculados"
+    ];
+  }
   return [
     "Nome",
     "Nascimento",
@@ -9284,6 +9402,23 @@ function getStudentExtractionExcelHeader() {
 }
 
 function getStudentExtractionExcelRow(row) {
+  if (getStudentExtractionMode() === "transition") {
+    return [
+      row.name,
+      row.birth,
+      row.transition.currentClass,
+      row.officialClass,
+      row.transition.nextClass,
+      row.transition.movementLabel,
+      row.transition.reviewOfficialClass ? "Sim" : "Nao",
+      row.guardian,
+      row.phone,
+      row.address,
+      row.notes,
+      row.isVisitor,
+      row.linkedGuardians
+    ];
+  }
   return [
     row.name,
     row.birth,
@@ -9313,14 +9448,24 @@ function shareStudentsDataWhatsapp() {
     `Extracao de criancas - ${getStudentExtractionScopeLabel()}`,
     `Total: ${rows.length}`,
     "",
-    "Nome | Turma | Responsavel | Telefone",
-    ...rows.map((row) => `${row.name} | ${row.effectiveClass} | ${row.guardian || "-"} | ${row.phone || "-"}`)
+    getStudentExtractionMode() === "transition"
+      ? "Nome | Turma no ano anterior -> prevista | Movimento | Responsavel | Telefone"
+      : "Nome | Turma | Responsavel | Telefone",
+    ...rows.map((row) => getStudentExtractionMode() === "transition"
+      ? `${row.name} | ${row.transition.currentClass} -> ${row.transition.nextClass} | ${row.transition.movementLabel} | ${row.guardian || "-"} | ${row.phone || "-"}`
+      : `${row.name} | ${row.effectiveClass} | ${row.guardian || "-"} | ${row.phone || "-"}`)
   ];
   window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener,noreferrer");
 }
 
 function getStudentExtractionScopeLabel() {
   const mode = getStudentExtractionMode();
+  if (mode === "transition") {
+    const year = getStudentTransitionYear();
+    const type = getStudentTransitionType();
+    const movement = type === "advance" ? "passam de turma" : type === "exit" ? "saem do DNMS Kids" : "avancam ou saem";
+    return `mudanca de turma ${year - 1} para ${year} - ${movement}`;
+  }
   if (mode === "class") {
     const className = getStudentExtractionClass();
     return className === "all" ? "todas as turmas" : `turma ${className}`;
@@ -9332,6 +9477,11 @@ function getStudentExtractionScopeLabel() {
 }
 
 function getStudentExtractionFileSuffix() {
+  if (getStudentExtractionMode() === "transition") {
+    const type = getStudentTransitionType();
+    const typeSuffix = type === "advance" ? "avancam" : type === "exit" ? "saem" : "todos";
+    return `mudanca_turmas_${getStudentTransitionYear()}_${typeSuffix}_${formatTodayIso()}`;
+  }
   const scope = getStudentExtractionScopeLabel()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

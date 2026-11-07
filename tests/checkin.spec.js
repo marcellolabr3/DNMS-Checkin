@@ -1794,6 +1794,103 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   expect(whatsappText).toContain("Joao Fora | Fora da faixa | Responsavel Fora |");
 });
 
+test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", async ({ page }) => {
+  const currentYear = new Date().getFullYear();
+  await openApp(page);
+  await page.evaluate((year) => {
+    const student = (id, name, ageInYear, officialClass = null) => ({
+      id,
+      name,
+      birth_date: `${year - ageInYear}-06-20`,
+      class_name: "",
+      official_class_name: officialClass,
+      primary_guardian_name: "Responsavel Transicao",
+      phone: "11988880000",
+      address: "Rua Transicao",
+      notes: "",
+      is_visitor: false,
+      photo_url: ""
+    });
+    window.__mockDnmsDb.students.push(
+      student("transition-maternal", "Cris Maternal", 4, "Maternal"),
+      student("transition-kids", "Dani Kids", 7, "Teens"),
+      student("transition-juniors", "Eli Juniors", 11),
+      student("transition-teens", "Fran Teens", 15),
+      student("transition-stays", "Gui Permanece", 6)
+    );
+  }, currentYear);
+  await loginAs(page, "admin@dnms.test");
+  await page.click("#btnLogPanel");
+  await page.locator("#studentExtractionPanel summary").click();
+  await page.selectOption("#studentExtractionMode", "transition");
+
+  await expect(page.locator("#studentTransitionYear")).toHaveValue(String(currentYear + 1));
+  await expect(page.locator("#studentTransitionType")).toHaveValue("advance");
+  await expect(page.locator("#studentExtractionSummary")).toContainText("3 crianca(s) na previsao; 3 avanca(m), 0 sai(em)");
+  await expect(page.locator("#studentExtractionList")).not.toContainText("Fran Teens");
+  await page.selectOption("#studentTransitionType", "all");
+  await expect(page.locator("#studentExtractionSummary")).toContainText("4 crianca(s) na previsao; 3 avanca(m), 1 sai(em)");
+  await expect(page.locator("#studentExtractionSummary")).toContainText("2 com turma oficial para conferir");
+  await expect(page.locator("#studentExtractionList")).toContainText("Maternal → Kids");
+  await expect(page.locator("#studentExtractionList")).toContainText("Teens → Fora da faixa");
+  await expect(page.locator("#studentExtractionList")).not.toContainText("Gui Permanece");
+
+  await page.evaluate(() => {
+    window.__studentWorkbookCapture = null;
+    window.XLSX = {
+      read() {},
+      writeFile(workbook, filename) {
+        window.__studentWorkbookCapture = { workbook, filename };
+      },
+      utils: {
+        sheet_to_json() { return []; },
+        aoa_to_sheet(rows) { return { __rows: rows }; },
+        book_new() { return { SheetNames: [], Sheets: {} }; },
+        book_append_sheet(workbook, sheet, name) {
+          workbook.SheetNames.push(name);
+          workbook.Sheets[name] = sheet;
+        }
+      }
+    };
+  });
+  await page.click("#btnExportStudentsData");
+  await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
+  const excel = await page.evaluate(() => window.__studentWorkbookCapture);
+  expect(excel.filename).toContain(`mudanca_turmas_${currentYear + 1}`);
+  expect(excel.workbook.SheetNames).toEqual(["Resumo", "Mudancas"]);
+  expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Passam para outra turma", 3]);
+  expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Saem do DNMS Kids", 1]);
+  expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Turma oficial para conferir", 2]);
+  expect(excel.workbook.Sheets.Mudancas.__rows[0]).toContain("Turma prevista");
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Cris Maternal").slice(2, 7))
+    .toEqual(["Maternal", "Maternal", "Kids", "Passa para outra turma", "Sim"]);
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Dani Kids").slice(2, 7))
+    .toEqual(["Kids", "Teens", "Juniors", "Passa para outra turma", "Sim"]);
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Fran Teens").slice(2, 7))
+    .toEqual(["Teens", "", "Fora da faixa", "Sai do DNMS Kids", "Nao"]);
+  expect(excel.workbook.Sheets.Mudancas["!autofilter"]).toEqual({ ref: "A1:M5" });
+
+  await page.selectOption("#studentTransitionType", "advance");
+  await page.evaluate(() => { window.__studentWorkbookCapture = null; });
+  await page.click("#btnExportStudentsData");
+  await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
+  const advanceExcel = await page.evaluate(() => window.__studentWorkbookCapture);
+  expect(advanceExcel.filename).toContain(`mudanca_turmas_${currentYear + 1}_avancam_`);
+  expect(advanceExcel.workbook.Sheets.Mudancas.__rows).toHaveLength(4);
+  expect(advanceExcel.workbook.Sheets.Mudancas.__rows.map((row) => row[0])).not.toContain("Fran Teens");
+
+  await page.selectOption("#studentTransitionType", "exit");
+  await expect(page.locator("#studentExtractionSummary")).toContainText("1 crianca(s) na previsao; 0 avanca(m), 1 sai(em)");
+  await expect(page.locator("#studentExtractionList")).toContainText("Fran Teens");
+  await expect(page.locator("#studentExtractionList")).not.toContainText("Cris Maternal");
+  await page.evaluate(() => { window.__studentWorkbookCapture = null; });
+  await page.click("#btnExportStudentsData");
+  await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
+  const exitExcel = await page.evaluate(() => window.__studentWorkbookCapture);
+  expect(exitExcel.filename).toContain(`mudanca_turmas_${currentYear + 1}_saem_`);
+  expect(exitExcel.workbook.Sheets.Mudancas.__rows).toHaveLength(2);
+});
+
 test("sadmin extrai criancas selecionadas usando busca por endereco do cadastro", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {

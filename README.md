@@ -33,6 +33,7 @@ O sistema permite:
 * ✅ Mensageria interna (dicas/avisos) com leitura e indicador de não lidas
 * ✅ Eventos (salas) com abrir/fechar, edição e controle por turma
 * ✅ Check-in por evento com log por período e exportação
+* ✅ Previsão de mudança de turma e saída do DNMS Kids com exportação para Excel
 * ✅ Reimpressão de etiquetas por check-in do dia no painel de impressão
 * ✅ PWA com cache/versionamento
 

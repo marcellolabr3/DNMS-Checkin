@@ -312,6 +312,7 @@
               <option value="all">Todas as crianças</option>
               <option value="class">Por turma</option>
               <option value="selected">Selecionar crianças</option>
+              <option value="transition">Alunos que trocam de classe</option>
             </select>
           </label>
           <label class="field">Turma
@@ -328,7 +329,18 @@
           <label class="field">Buscar criança
             <input id="studentExtractionSearch" type="text" placeholder="Nome, responsavel ou telefone" />
           </label>
+          <label class="field">Ano da mudança
+            <input id="studentTransitionYear" type="number" min="2000" max="2100" step="1" />
+          </label>
+          <label class="field">Movimento
+            <select id="studentTransitionType">
+              <option value="advance">Trocam de classe</option>
+              <option value="exit">Sai do DNMS Kids</option>
+              <option value="all">Quem avança ou sai</option>
+            </select>
+          </label>
         </div>
+        <div id="studentTransitionNote" class="summary" style="display:none">Previsão pela data de nascimento. Uma turma oficial definida manualmente precisa de conferência. A exportação não muda os cadastros.</div>
         <div class="actions">
           <button id="btnStudentExtractionSelectAll" class="ghost" type="button">Selecionar todas</button>
           <button id="btnStudentExtractionClear" class="ghost" type="button">Limpar seleção</button>
@@ -749,6 +761,6 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261009b"></script>
+  <script src="app.js?v=20261107b"></script>
 </body>
 </html>

@@ -3,9 +3,14 @@ const fs = require("fs");
 const path = require("path");
 
 test("service worker restringe cache a assets estaticos locais", async () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const root = path.join(__dirname, "..");
+  const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const appAsset = index.match(/src="(app\.js\?v=[^"]+)"/)?.[1];
 
-  expect(sw).toContain('const CACHE_NAME = "checkin-cache-v193"');
+  expect(sw).toMatch(/const CACHE_NAME = "checkin-cache-v\d+";/);
+  expect(appAsset).toBeTruthy();
+  expect(sw).toContain(`"./${appAsset}"`);
   expect(sw).toContain('"./vendor/jsQR.js"');
   expect(sw).toContain('"./qr-checkin-presencial.svg"');
   expect(sw).toContain("requestUrl.origin !== self.location.origin");
