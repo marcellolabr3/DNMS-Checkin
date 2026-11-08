@@ -148,5 +148,6 @@ test("redefinicao de senha valida confirmacao antes de atualizar", async ({ page
   await expect.poll(() => page.evaluate(() => window.__lastUpdatedPassword)).toBe("senha123");
   await expect(page.locator("#authCard")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__mockSignOutCount)).toBe(1);
-  await expect(page).toHaveURL(/\/index\.html$/);
+  // Cloudflare Pages canonicalizes /index.html to /; both must clear recovery tokens.
+  await expect(page).toHaveURL(/\/(?:index\.html)?$/);
 });

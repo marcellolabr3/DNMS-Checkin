@@ -30,10 +30,8 @@ async function openApp(page, options = {}) {
       window.promptMessages.push(String(message));
       return window.promptResponse || "ZERAR";
     };
-    Object.defineProperty(navigator, "serviceWorker", {
-      configurable: true,
-      value: undefined
-    });
+    // Remove the API so the app's feature detection also sees it as unavailable.
+    delete Navigator.prototype.serviceWorker;
   });
   await page.goto(options.path || "/index.html");
   if (options.waitForAuth !== false) {

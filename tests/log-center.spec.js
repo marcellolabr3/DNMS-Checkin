@@ -145,12 +145,14 @@ test("mudança de sessão interrompe um backup pendente sem baixar dados", async
 });
 
 test("Log unifica operações e mantém permissões de equipe e admin", async ({page}) => {
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
   await openApp(page); await loginAs(page,"equipe@dnms.test"); await page.click("#btnLogPanel");
   await expect(page.locator("#logDataOptions")).toHaveAttribute("hidden","");
   await expect(page.locator("#logBackupOptions")).toHaveAttribute("hidden","");
   await expect(page.locator("#logReportType option[value=attendance]")).toHaveCount(1);
   await expect(page.locator("#studentExtractionPanel")).toBeHidden();
   await expect(page.locator("#logCard details > summary").filter({hasText:/^Extração$/})).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
 
 test("extração consulta banco sem truncar e combina campos, busca, evento e período", async ({page}) => {
