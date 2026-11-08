@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json?v=20260824b" />
   <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261008b" />
+  <link rel="stylesheet" href="styles.css?v=20261108d" />
   <meta name="theme-color" content="#0f3d2e" />
 </head>
 <body>
@@ -205,6 +205,12 @@
         <button id="btnCreateRoom" class="primary">Criar evento</button>
         <button id="btnDeleteRoomFromEdit" class="ghost" type="button" style="display:none">Excluir sala</button>
       </div>
+      <label class="field">Mostrar salas
+        <select id="roomStatusFilter">
+          <option value="all">Abertas e programadas</option>
+          <option value="open">Somente abertas</option>
+        </select>
+      </label>
       <div class="actions" id="roomBulkActions">
         <label class="field checkbox-field">
           <span>Selecionar todas</span>
@@ -623,6 +629,16 @@
     </form>
   </dialog>
 
+  <dialog id="dashboardStudentsDialog" class="dialog" aria-labelledby="dashboardStudentsTitle" aria-describedby="dashboardStudentsSummary">
+    <form method="dialog" class="dialog-body">
+      <button class="dialog-close-x" type="submit" aria-label="Fechar">X</button>
+      <h3 id="dashboardStudentsTitle"></h3>
+      <p id="dashboardStudentsSummary" class="muted" aria-live="polite"></p>
+      <div id="dashboardStudentsList" class="list"></div>
+      <div class="dialog-actions"><button class="ghost" type="submit">Fechar lista</button></div>
+    </form>
+  </dialog>
+
   <dialog id="studentDetailsDialog" class="dialog">
     <div class="dialog-body">
       <button class="dialog-close-x" type="button" aria-label="Fechar" onclick="this.closest('dialog').close()">X</button>
@@ -787,7 +803,7 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261108c"></script>
+  <script src="app.js?v=20261108d"></script>
   <script src="log-center.js?v=20261108c"></script>
 </body>
 </html>

@@ -55,6 +55,7 @@ const scheduleSheetContext = {
 const signupContext = { role: "responsavel", inviteToken: "" };
 const roomFormContext = { editingId: "" };
 const studentDetailsContext = { studentId: "" };
+const dashboardStudentsContext = { mode: "", sessionId: "" };
 const studentDialogContext = { guardianProfileId: "", photoFile: null };
 const studentSaveContext = { inProgress: false };
 const labelContext = { checkinId: "", printStatusTimerId: null };
@@ -91,6 +92,10 @@ const els = {
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
   dashboardCard: document.getElementById("dashboardCard"),
+  dashboardStudentsDialog: document.getElementById("dashboardStudentsDialog"),
+  dashboardStudentsTitle: document.getElementById("dashboardStudentsTitle"),
+  dashboardStudentsSummary: document.getElementById("dashboardStudentsSummary"),
+  dashboardStudentsList: document.getElementById("dashboardStudentsList"),
   dashboardAlerts: document.getElementById("dashboardAlerts"),
   dashboardAttention: document.getElementById("dashboardAttention"),
   dashboardLessonToday: document.getElementById("dashboardLessonToday"),
@@ -116,6 +121,7 @@ const els = {
   btnSendTip: document.getElementById("btnSendTip"),
   btnClearTipMessage: document.getElementById("btnClearTipMessage"),
   roomStatus: document.getElementById("roomStatus"),
+  roomStatusFilter: document.getElementById("roomStatusFilter"),
   roomCurrent: document.getElementById("roomCurrent"),
   roomList: document.getElementById("roomList"),
   pastRoomsPanel: document.getElementById("pastRoomsPanel"),
@@ -376,6 +382,13 @@ function bindEvents() {
   els.btnSaveMyData?.addEventListener("click", handleSaveMyData);
   els.btnHomePanel?.addEventListener("click", goHomePanel);
   els.btnRoomsPanel?.addEventListener("click", () => setActivePanel("rooms"));
+  els.roomStatusFilter?.addEventListener("change", () => {
+    state.ui.roomStatusFilter = els.roomStatusFilter.value;
+    renderRooms();
+  });
+  els.dashboardStudentsDialog?.addEventListener("close", () => {
+    if (!els.dashboardStudentsDialog.open) clearDashboardStudents();
+  });
   els.btnStudentsPanel?.addEventListener("click", () => setActivePanel("students"));
   els.btnFamiliesPanel?.addEventListener("click", () => setActivePanel("families"));
   els.btnTipsInbox?.addEventListener("click", () => setActivePanel("tips"));
@@ -1983,9 +1996,16 @@ function formatAuditChanges(changes) {
     .join("; ");
 }
 
+function getVisibleRoomsForCurrentFilter(rooms = state.rooms) {
+  return rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room)
+    && (state.ui.roomStatusFilter !== "open" || room.status === "Aberta"));
+}
+
 function renderRooms() {
   const sortedRooms = state.rooms.slice().sort(compareRooms);
-  const visibleRooms = sortedRooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
+  const onlyOpen = state.ui.roomStatusFilter === "open";
+  if (els.roomStatusFilter) els.roomStatusFilter.value = onlyOpen ? "open" : "all";
+  const visibleRooms = getVisibleRoomsForCurrentFilter(sortedRooms);
   const pastRooms = sortedRooms.filter((room) => isRoomInPastHistoryWindow(room));
   const openRooms = visibleRooms.filter((room) => room.status === "Aberta");
   const canManageRoom = canManageRooms();
@@ -2015,7 +2035,7 @@ function renderRooms() {
   }
   if (!visibleRooms.length) {
     els.roomStatus.textContent = "Nenhuma sala aberta";
-    els.roomCurrent.textContent = "Nenhuma sala ativa na aba Eventos.";
+    els.roomCurrent.textContent = onlyOpen ? "Nenhuma sala aberta neste momento." : "Nenhuma sala ativa na aba Eventos.";
   } else if (openRooms.length) {
     els.roomStatus.textContent = openRooms.length > 1 ? "Salas abertas" : "Sala aberta";
     els.roomCurrent.textContent = "Clique em uma sala para abrir/fechar e gerenciar.";
@@ -2037,7 +2057,7 @@ function renderRooms() {
     });
     els.roomList.appendChild(details);
   });
-  renderPastRooms(pastRooms, canManageRoom, selectedSet);
+  renderPastRooms(onlyOpen ? [] : pastRooms, canManageRoom, selectedSet);
 }
 
 function renderPastRooms(rooms, canManageRoom, selectedSet) {
@@ -2126,7 +2146,7 @@ function formatMonthLabel(date) {
 
 function handleSelectAllRoomsInList(event) {
   const checked = Boolean(event?.target?.checked);
-  const selectableRooms = state.rooms.filter((room) => room.status !== "Fechada" && !isRoomPast(room));
+  const selectableRooms = getVisibleRoomsForCurrentFilter();
   state.ui.selectedRoomIds = checked ? selectableRooms.map((room) => room.id) : [];
   renderRooms();
 }
@@ -2850,8 +2870,78 @@ function toggleDashboardScheduleDate(date) {
   renderDashboard();
 }
 
-// Cards de KPI no topo do dashboard (mesma composicao do preview aprovado).
-function renderDashboardKpis(totals, openRooms) {
+function getDashboardStudents() {
+  const todayCheckins = getTodayCheckins({ includeTestRooms: true });
+  const todayIds = new Set(todayCheckins.map((checkin) => checkin.studentId));
+  const presentIds = new Set(getCurrentPresenceCheckins(todayCheckins).map((checkin) => checkin.studentId));
+  const students = state.students.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  const present = students.filter((student) => presentIds.has(student.id));
+  return {
+    present,
+    visitors: students.filter((student) => student.isVisitor && todayIds.has(student.id)),
+    notes: present.filter((student) => String(student.notes || "").trim())
+  };
+}
+
+function clearDashboardStudents() {
+  dashboardStudentsContext.mode = "";
+  dashboardStudentsContext.sessionId = "";
+  els.dashboardStudentsList?.replaceChildren();
+  if (els.dashboardStudentsSummary) els.dashboardStudentsSummary.textContent = "";
+}
+
+function renderDashboardStudents() {
+  if (!dashboardStudentsContext.mode) return;
+  if (!state.session || state.session.id !== dashboardStudentsContext.sessionId
+    || !(isAdmin() || isEquipe()) || getActivePanel() !== "dashboard") {
+    els.dashboardStudentsDialog?.close(); clearDashboardStudents(); return;
+  }
+  const modes = {
+    present: ["Presentes agora", "Crianças com check-in ativo hoje.", "Nenhuma criança presente neste momento."],
+    visitors: ["Visitantes do dia", "Visitantes que fizeram check-in hoje, incluindo quem já saiu.", "Nenhum visitante com check-in hoje."],
+    notes: ["Crianças com observação", "Crianças presentes com observação preenchida no cadastro.", "Nenhuma criança presente com observação cadastrada."]
+  };
+  const mode = dashboardStudentsContext.mode;
+  const [title, description, empty] = modes[mode];
+  const students = getDashboardStudents()[mode];
+  els.dashboardStudentsTitle.textContent = title;
+  els.dashboardStudentsSummary.textContent = `${students.length} criança(s). ${description}`;
+  els.dashboardStudentsList.replaceChildren();
+  if (!students.length) {
+    const message = document.createElement("p"); message.className = "muted"; message.textContent = empty;
+    els.dashboardStudentsList.append(message);
+  }
+  students.forEach((student) => {
+    const item = document.createElement("button"); item.type = "button"; item.className = "list-item dashboard-student-item";
+    const name = document.createElement("strong"); name.textContent = student.name || "Criança";
+    const detail = document.createElement("span"); detail.className = "muted";
+    detail.textContent = `Turma: ${getEffectiveClassForStudentToday(student)} | Responsável: ${student.guardian || "—"}`;
+    item.append(name, detail);
+    if (mode === "notes") {
+      const note = document.createElement("span"); note.className = "dashboard-student-note";
+      note.textContent = student.notes; item.append(note);
+    }
+    item.addEventListener("click", () => {
+      if (state.session?.id !== dashboardStudentsContext.sessionId || !(isAdmin() || isEquipe())) return;
+      const current = getDashboardStudents()[mode].find((entry) => entry.id === student.id);
+      if (!current) { renderDashboardStudents(); return; }
+      els.dashboardStudentsDialog.close(); clearDashboardStudents();
+      openStudentDetailsDialog(current);
+    });
+    els.dashboardStudentsList.append(item);
+  });
+}
+
+function openDashboardStudents(mode) {
+  if (!state.session || !(isAdmin() || isEquipe()) || getActivePanel() !== "dashboard"
+    || !["present", "visitors", "notes"].includes(mode)) return;
+  dashboardStudentsContext.mode = mode;
+  dashboardStudentsContext.sessionId = state.session.id;
+  renderDashboardStudents();
+  if (!els.dashboardStudentsDialog.open) els.dashboardStudentsDialog.showModal();
+}
+
+function renderDashboardKpis(students, openRooms) {
   const host = document.getElementById("dashboardKpis");
   if (!host) {
     return;
@@ -2862,47 +2952,60 @@ function renderDashboardKpis(totals, openRooms) {
     .join(" · ");
   const cards = [
     {
-      id: "kpiCheckins",
+      id: "kpiPresent",
       tone: "brand",
-      label: "Check-ins hoje",
-      value: totals.checkins,
-      note: "registros no dia"
+      label: "Presentes agora",
+      value: students.present.length,
+      note: "check-in ativo hoje",
+      mode: "present"
     },
     {
-      id: "kpiPresent",
+      id: "kpiVisitors",
       tone: "info",
-      label: "Criancas presentes",
-      value: totals.kids,
-      note: "com check-in hoje"
+      label: "Visitantes do dia",
+      value: students.visitors.length,
+      note: "com check-in hoje",
+      mode: "visitors"
+    },
+    {
+      id: "kpiNotes",
+      tone: "gold",
+      label: "Crianças com observação",
+      value: students.notes.length,
+      note: "presentes com observação",
+      mode: "notes"
     },
     {
       id: "kpiRooms",
-      tone: "gold",
+      tone: "info",
       label: "Salas abertas",
-      value: totals.rooms,
+      value: openRooms.length,
       note: roomLabels || "nenhuma sala aberta"
-    },
-    {
-      id: "kpiPrint",
-      tone: "danger",
-      label: "Etiquetas pendentes",
-      value: totals.pending,
-      note: "aguardando impressao"
     }
   ];
   host.innerHTML = cards
     .map(
       (card) => `
-      <div class="kpi-card kpi-${card.tone}" id="${card.id}">
+      <button type="button" class="kpi-card kpi-${card.tone}" id="${card.id}"
+        ${card.mode ? `data-dashboard-students="${card.mode}" aria-haspopup="dialog" aria-controls="dashboardStudentsDialog"` : 'data-dashboard-rooms="open"'}>
         <span class="kpi-label">${escapeHtml(card.label)}</span>
         <strong class="kpi-value">${escapeHtml(String(card.value))}</strong>
         <span class="kpi-note">${escapeHtml(card.note)}</span>
-      </div>`
+      </button>`
     )
     .join("");
+  host.querySelectorAll("[data-dashboard-students]").forEach((button) => {
+    button.addEventListener("click", () => openDashboardStudents(button.dataset.dashboardStudents));
+  });
+  host.querySelector("[data-dashboard-rooms]")?.addEventListener("click", () => {
+    if (!(isAdmin() || isEquipe())) return;
+    state.ui.roomStatusFilter = "open";
+    setActivePanel("rooms");
+  });
 }
 
 function renderDashboard() {
+  renderDashboardStudents();
   if (
     !els.dashboardAlerts ||
     !els.dashboardAttention ||
@@ -2914,7 +3017,7 @@ function renderDashboard() {
     return;
   }
 
-  const canViewDashboard = Boolean(state.session) && getActivePanel() === "dashboard";
+  const canViewDashboard = Boolean(state.session) && (isAdmin() || isEquipe()) && getActivePanel() === "dashboard";
   if (!canViewDashboard) {
     return;
   }
@@ -2922,26 +3025,14 @@ function renderDashboard() {
   const today = formatToday();
 
   const alerts = [];
-  const openRooms = state.rooms.filter((room) => room.status === "Aberta");
+  const openRooms = state.rooms.filter((room) => room.status === "Aberta" && !isRoomPast(room));
   const staleActiveCheckins = getStaleActiveCheckins();
   const roomsWithoutTime = state.rooms.filter(
     (room) => room.status !== "Fechada" && (!room.startTime || !room.endTime)
   );
-  const todayCheckins = getTodayCheckins({ includeTestRooms: true });
-  const presentTodayCheckins = todayCheckins.filter((checkin) => !checkin.checkedOutAt);
-  const presentTodayStudentIds = new Set(
-    presentTodayCheckins
-      .map((checkin) => checkin.studentId)
-  );
-  renderDashboardKpis(
-    {
-      checkins: todayCheckins.length,
-      kids: presentTodayStudentIds.size,
-      rooms: openRooms.length,
-      pending: todayCheckins.filter((checkin) => !checkin.checkedOutAt && !checkin.printedAt).length
-    },
-    openRooms
-  );
+  const students = getDashboardStudents();
+  const presentTodayStudentIds = new Set(students.present.map((student) => student.id));
+  renderDashboardKpis(students, openRooms);
   const dashboardViewSub = document.getElementById("dashboardViewSub");
   if (dashboardViewSub) {
     const todayLabel = new Date().toLocaleDateString("pt-BR", {
@@ -2955,9 +3046,6 @@ function renderDashboard() {
     return hasNeuroatypicalCondition(student.notes) && presentTodayStudentIds.has(student.id);
   });
 
-  if (openRooms.length) {
-    alerts.push(`${openRooms.length} sala(s) aberta(s) neste momento.`);
-  }
   if (roomsWithoutTime.length) {
     alerts.push(`${roomsWithoutTime.length} evento(s) sem horario completo (inicio/fim).`);
   }

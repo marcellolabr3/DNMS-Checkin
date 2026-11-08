@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v200`, `app.js?v=20261108c`, `log-center.js?v=20261108c`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
+- Cache atual: `checkin-cache-v201`, `app.js?v=20261108d`, `log-center.js?v=20261108c`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -43,9 +43,9 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 ## Estado validado
 
 - Log: seletor unico para relatorios, responsaveis e filhos, cadastros, troca de classe, consultas e backups JSON (global/especifico, SADMIN). Familias apenas encaminha a busca ao Log; CSV/Excel/JSON mantem vinculos e permissoes de equipe/admin. RPCs: `supabase/patch_log_data_center.sql`; frontend: `log-center.js`; restauracao: `scripts/restore-log-backup.cjs` e `docs/LOG_DATA_CENTER.md`. Snapshots completos, RLS preservada; backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas e Excel de criancas agora recusam sessao alterada. `PLAYWRIGHT_BASE_URL` permite testar o frontend publicado com fixtures, sem alterar producao.
-- Validacao atual: 264 testes locais e 264 contra o frontend publicado passaram em desktop/mobile, com fixtures Supabase. Cloudflare Pages confirmou `33ef657`; assets e cache v200 conferidos. Login publico sem erros JS; Excel com biblioteca real, JSON e checksums global/especifico passaram com dados de teste. Revisao sem alterar banco; quatro RPCs recusam acesso anonimo (401). Sem credenciais locais para repetir testes autenticados reais. Validacao anterior (v199): login e CSV/JSON/Excel reais, 145 arquivos e restauracao com rollback; conta temporaria removida.
+- Validacao: 276 testes locais passaram em desktop/mobile, com fixtures Supabase, incluindo os novos cards e regressao geral. Log publicado v200 ja validado com 264 testes, Excel real e checksums; quatro RPCs recusam anonimo (401). Sem credenciais locais para repetir testes autenticados reais. Validacao anterior (v199): login e exportacoes reais, 145 arquivos e restauracao com rollback; conta temporaria removida.
 
-- Dashboard PWA: KPI "Check-ins hoje" conta registros do dia incluindo salas teste; KPI "Criancas presentes" conta apenas check-ins ativos sem checkout.
+- Dashboard: quatro cards clicaveis: Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (flag `is_visitor` + check-in hoje, incluindo quem saiu, sem duplicar), Criancas com observacao (presentes com `notes` preenchido) e Salas abertas (abre Salas com filtro Somente abertas). Tres listas usam dialog compacto e cadastro existente; texto escapado, atualizacao com dados da tela e limpeza ao trocar sessao. Acesso somente admin/equipe; salas teste preservam regras anteriores. Filtro de salas permite voltar a abertas/programadas e limita selecao em lote aos itens visiveis. Mobile 2x2; temas claro/escuro. Sem alteracao de banco.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
 - Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`, `Servico de impressao/server.js`, `Servico de impressao/src/windows-pdf-print-adapter.js`, `Servico de impressao/scripts/install-portable.ps1`.
 - Validacao: `node --check app.js`, `node --check "Servico de impressao/server.js"`, `node --check "Servico de impressao/src/windows-pdf-print-adapter.js"` passaram; `npm.cmd test -- tests/print-service.spec.js tests/print-worker.spec.js` passou com 16 testes.

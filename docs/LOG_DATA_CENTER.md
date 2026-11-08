@@ -44,7 +44,7 @@ Aplicar `supabase/patch_log_data_center.sql` no banco antes da publicação. O p
 
 `node scripts/validate-log-backend.cjs` usa `DATABASE_URL` para testar permissões negativas, extração, snapshot global/específico, dependências e restauração. Toda a execução fica em uma transação com rollback, inclusive a instalação temporária do patch. Não imprime dados pessoais nem salva snapshots em disco.
 
-Testes de interface: `npm test -- tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. Use `PLAYWRIGHT_PORT` quando a porta padrão 4173 estiver ocupada por outro checkout. A publicação precisa servir `app.js?v=20261108c`, `log-center.js?v=20261108c` e `checkin-cache-v200`.
+Testes de interface: `npm test -- tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. Use `PLAYWRIGHT_PORT` quando a porta padrão 4173 estiver ocupada por outro checkout. A publicação atual precisa servir `app.js?v=20261108d`, `log-center.js?v=20261108c`, `styles.css?v=20261108d` e `checkin-cache-v201`.
 
 Para executar a suíte contra os arquivos publicados, defina `PLAYWRIGHT_BASE_URL=https://dnms-checkin.pages.dev` e execute `npm test`. Nesse modo o servidor local não é iniciado. Os testes de interface continuam usando dados fictícios do fixture Supabase e não modificam produção; essa execução confere o frontend publicado e não substitui os testes autenticados do banco real.
 

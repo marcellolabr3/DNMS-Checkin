@@ -2923,6 +2923,49 @@ body.theme-dark .main-nav .primary {
   border: 1px solid var(--stroke);
   border-radius: 16px;
   box-shadow: 0 6px 18px rgba(16, 32, 27, 0.05);
+  text-align: left;
+  align-items: flex-start;
+  cursor: pointer;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kpi-card:hover {
+  border-color: var(--accent);
+}
+
+.kpi-card:focus-visible,
+.dashboard-student-item:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.dashboard-student-item {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.dashboard-student-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#dashboardStudentsDialog .dialog-body {
+  background: var(--card);
+  color: var(--ink);
+}
+
+#dashboardStudentsDialog .dialog-close-x {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+#dashboardStudentsSummary {
+  margin: 0;
 }
 
 .kpi-card::after {
@@ -3172,6 +3215,15 @@ body.theme-dark .kpi-card {
 
   .kpi-value {
     font-size: 26px;
+  }
+
+  .kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .kpi-card {
+    padding: 12px;
   }
 
   .dashboard-tip-card,

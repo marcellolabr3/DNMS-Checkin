@@ -2062,7 +2062,7 @@ test("log gera resumo do evento com pendencias de impressao e exporta csv", asyn
   expect(whatsappText).not.toContain("impressao");
 });
 
-test("dashboard conta check-ins de sala teste nos marcadores sem entrar no resumo do evento", async ({ page }) => {
+test("dashboard inclui presenças de sala teste sem alterar o resumo do evento", async ({ page }) => {
   await openApp(page);
   // Keep the room open regardless of the time this test runs.
   await page.clock.install({ time: new Date(`${todayIso()}T10:30:00`) });
@@ -2095,12 +2095,12 @@ test("dashboard conta check-ins de sala teste nos marcadores sem entrar no resum
   }, todayIso());
   await loginAs(page, "admin@dnms.test");
 
-  await expect(page.locator("#kpiCheckins")).toContainText("1");
   await expect(page.locator("#kpiPresent")).toContainText("1");
+  await expect(page.locator("#kpiNotes .kpi-value")).toHaveText("1");
   await expect(page.locator("#dashboardEventSummary")).toContainText("Total geral: 0");
 });
 
-test("dashboard separa check-ins do dia de criancas atualmente presentes", async ({ page }) => {
+test("dashboard conta crianças presentes e observações sem incluir quem já saiu", async ({ page }) => {
   await openApp(page);
   await page.evaluate((today) => {
     window.__mockDnmsDb.checkins.push(
@@ -2132,9 +2132,10 @@ test("dashboard separa check-ins do dia de criancas atualmente presentes", async
   }, todayIso());
   await loginAs(page, "admin@dnms.test");
 
-  await expect(page.locator("#kpiCheckins")).toContainText("2");
-  await expect(page.locator("#kpiPresent")).toContainText("1");
-  await expect(page.locator("#kpiPrint")).toContainText("0");
+  await expect(page.locator("#kpiPresent .kpi-value")).toHaveText("1");
+  await expect(page.locator("#kpiNotes .kpi-value")).toHaveText("1");
+  await expect(page.locator("#kpiVisitors .kpi-value")).toHaveText("0");
+  await expect(page.locator("#kpiPrint, #kpiCheckins")).toHaveCount(0);
 });
 
 test("admin cadastra crianca sempre vinculada ao responsavel selecionado", async ({ page }) => {
