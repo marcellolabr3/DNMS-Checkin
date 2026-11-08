@@ -4,6 +4,50 @@ const {openApp,loginAs} = require("./helpers/app");
 const {verifyBackup} = require("../scripts/restore-log-backup.cjs");
 async function readDownload(download) { return fs.promises.readFile(await download.path(),"utf8"); }
 
+test("consulta combina critérios por campo e vários IDs sem filtrar o backup", async ({page}) => {
+  await openApp(page); await loginAs(page,"marvinlabre@gmail.com"); await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType","data");
+  await expect(page.locator("#logDataTable option")).toHaveCount(5);
+  await page.locator("#logDataCriteriaPanel > summary").click();
+  await page.click("#btnLogAddCriterion");
+  await page.getByLabel("Campo do critério",{exact:true}).selectOption("id");
+  await page.getByLabel("Operador do critério",{exact:true}).selectOption("in");
+  await page.getByLabel("Valor do critério",{exact:true}).fill("student-kids, student-juniors");
+  await page.click("#btnLogAddCriterion");
+  await page.getByLabel("Campo do critério",{exact:true}).nth(1).selectOption("class_name");
+  await page.getByLabel("Operador do critério",{exact:true}).nth(1).selectOption("eq");
+  await page.getByLabel("Valor do critério",{exact:true}).nth(1).fill("Kids");
+  await page.selectOption("#logExportFormat","json");
+  const pending=page.waitForEvent("download"); await page.click("#btnExport");
+  const result=JSON.parse(await readDownload(await pending));
+  expect(result.rows).toHaveLength(1); expect(result.rows[0].id).toBe("student-kids");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.selectOption("#logReportType","backup_specific");
+  await expect(page.locator("#logDataCriteriaPanel")).toBeHidden();
+  await page.selectOption("#logReportType","data");
+  await expect(page.locator("#logDataCriteria > div")).toHaveCount(0);
+});
+
+test("mudança de sessão interrompe um backup pendente sem baixar dados", async ({page}) => {
+  await openApp(page); await loginAs(page,"marvinlabre@gmail.com"); await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType","backup_global");
+  let downloads=0; page.on("download",()=>downloads++);
+  await page.evaluate(()=>{
+    const original=supabaseClient.rpc.bind(supabaseClient);
+    supabaseClient.rpc=async(name,params)=>{
+      const result=await original(name,params);
+      if(name==="log_recovery_snapshot") await new Promise(resolve=>{window.__releaseBackup=()=>{state.session=null;resolve()}});
+      return result;
+    };
+  });
+  await page.click("#btnExport");
+  await expect.poll(()=>page.evaluate(()=>typeof window.__releaseBackup)).toBe("function");
+  await page.evaluate(()=>window.__releaseBackup());
+  await expect.poll(()=>page.evaluate(()=>logCenter.busy)).toBe(false);
+  expect(await page.evaluate(()=>logCenter.error)).toContain("Sessão alterada");
+  expect(downloads).toBe(0);
+});
+
 test("Log unifica operações e mantém permissões de equipe e admin", async ({page}) => {
   await openApp(page); await loginAs(page,"equipe@dnms.test"); await page.click("#btnLogPanel");
   await expect(page.locator("#logDataOptions")).toHaveAttribute("hidden","");

@@ -11,6 +11,45 @@ const logEl = (id) => document.getElementById(id);
 const logOperation = () => getLogReportType();
 const isLogBackup = () => logOperation().startsWith("backup_");
 
+function requireLogSession(sessionId, backup = false) {
+  if (!sessionId || state.session?.id !== sessionId || !(backup ? isSadmin() : canExtractStudentData())) {
+    throw new Error("Sessão alterada. Entre novamente e repita a operação.");
+  }
+}
+
+function addLogCriterion() {
+  const table = logCenter.catalog.find((item) => item.name === logEl("logDataTable").value);
+  if (logOperation() !== "data" || !table || logCenter.busy) return;
+  const row = document.createElement("div"); row.className = "filters";
+  const field = document.createElement("select"); field.setAttribute("aria-label", "Campo do critério");
+  table.columns.forEach((name) => field.add(new Option(name, name)));
+  const operator = document.createElement("select"); operator.setAttribute("aria-label", "Operador do critério");
+  [["contains", "Contém"], ["eq", "Igual a"], ["in", "Um dos valores"], ["empty", "Vazio"], ["not_empty", "Preenchido"]]
+    .forEach(([value, label]) => operator.add(new Option(label, value)));
+  const value = document.createElement("input"); value.setAttribute("aria-label", "Valor do critério");
+  value.placeholder = "Para vários valores, separe por vírgula";
+  const remove = document.createElement("button"); remove.type = "button"; remove.className = "ghost"; remove.textContent = "Remover";
+  remove.addEventListener("click", () => { if (!logCenter.busy) row.remove(); });
+  operator.addEventListener("change", () => { value.disabled = ["empty", "not_empty"].includes(operator.value); });
+  row.append(field, operator, value, remove); logEl("logDataCriteria").append(row);
+}
+
+function getLogCriteria() {
+  return [...logEl("logDataCriteria").children].map((row) => ({ field: row.children[0].value, operator: row.children[1].value, value: row.children[2].value }));
+}
+
+function matchesLogCriteria(row, criteria) {
+  return criteria.every(({field, operator, value}) => {
+    const actual = row[field];
+    const text = actual == null ? "" : typeof actual === "object" ? JSON.stringify(actual) : String(actual);
+    if (operator === "empty") return text === "";
+    if (operator === "not_empty") return text !== "";
+    if (operator === "eq") return text === value;
+    if (operator === "in") return value.split(",").map((item) => item.trim()).filter(Boolean).includes(text);
+    return normalizeDuplicateText(text).includes(normalizeDuplicateText(value));
+  });
+}
+
 async function refreshLogSnapshot() {
   const {data,error} = await supabaseClient.rpc("log_report_snapshot");
   if (error) { logCenter.error = `Não foi possível carregar o Log completo: ${error.message}`; throw error; }
@@ -33,6 +72,7 @@ function renderLogCenter() {
   logEl("logDataOptions").hidden = !canExtractStudentData();
   logEl("logBackupOptions").hidden = !isSadmin();
   logEl("logDataControls").hidden = !(data || backup);
+  logEl("logDataCriteriaPanel").hidden = !data;
   logEl("logExportFormat").disabled = backup || logCenter.busy;
   if (backup) logEl("logExportFormat").value = "json";
   els.btnExport.textContent = backup ? "Gerar backup" : "Exportar";
@@ -94,6 +134,7 @@ function renderLogFields() {
   const choices = backup ? logCenter.catalog.map((item) => item.name) : table?.columns || [];
   logCenter.table = `${logOperation()}:${logEl("logDataTable").value}`;
   const fields = logEl("logDataFields"); fields.replaceChildren();
+  logEl("logDataCriteria").replaceChildren();
   choices.forEach((name) => {
     const label = document.createElement("label"); label.className = "checkbox-field";
     const box = document.createElement("input"); box.type = "checkbox"; box.value = name; box.checked = !backup;
@@ -115,6 +156,7 @@ function selectedLogFields() {
 
 async function queryLogData() {
   if (!canExtractStudentData()) throw new Error("Sem permissão");
+  const sessionId = state.session?.id;
   const name = logEl("logDataTable").value;
   const fields = selectedLogFields();
   if (!name || !fields.length) throw new Error("Selecione os dados e pelo menos um campo.");
@@ -124,7 +166,9 @@ async function queryLogData() {
   const event = logEl("logDataEvent").value;
   const search = normalizeDuplicateText(logEl("logDataSearch").value);
   const className = els.logClassFilter.value;
+  const criteria = getLogCriteria();
   const { data, error } = await supabaseClient.rpc("log_extract_data", { selected_tables: [name] });
+  requireLogSession(sessionId);
   if (error) throw error;
   if (!data || !Array.isArray(data[name])) throw new Error("Resposta incompleta; exportação cancelada.");
   const rows = data[name].filter((row) => {
@@ -138,7 +182,7 @@ async function queryLogData() {
       const actual = row.class_name || row.class_target || (student ? getEffectiveClassForStudentToday(student) : "");
       if (actual !== className) return false;
     }
-    return !search || normalizeDuplicateText(JSON.stringify(row)).includes(search);
+    return (!search || normalizeDuplicateText(JSON.stringify(row)).includes(search)) && matchesLogCriteria(row, criteria);
   });
   return { name, fields, rows: rows.map((row) => Object.fromEntries(fields.map((key) => [key, row[key] ?? null]))) };
 }
@@ -151,11 +195,13 @@ function logDownload(filename, content, type = "application/json") {
 
 async function downloadLogTable(filename, matrix) {
   try {
+    const sessionId = state.session?.id;
     const format = logEl("logExportFormat").value;
     const name = filename.replace(/\.csv$/, "");
     if (format === "csv") { downloadCsv(filename, matrix); return; }
     if (format === "json") { logDownload(`${name}.json`, JSON.stringify({ report: getLogReportType(), generated_at: new Date().toISOString(), rows: matrix }, null, 2)); return; }
     const XLSX = await ensureXlsxLoaded(); const workbook = XLSX.utils.book_new();
+    if (!sessionId || state.session?.id !== sessionId || !(isAdmin() || isEquipe())) throw new Error("Sessão alterada. Repita a operação.");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(matrix), "Dados");
     XLSX.writeFile(workbook, `${name}.xlsx`, { compression: true });
   } catch (e) { alert(`Exportação não concluída: ${e.message}`); }
@@ -169,6 +215,7 @@ function exportLogCenter() {
 
 async function runLogExport() {
   if (logCenter.busy) return;
+  const sessionId = state.session?.id;
   logCenter.busy = true; logCenter.error = ""; renderLog();
   try {
     if (["data","backup_specific"].includes(logOperation()) && !logCenter.catalog.length) {
@@ -183,6 +230,7 @@ async function runLogExport() {
     } else {
       if (!canExtractStudentData()) throw new Error("Sem permissão");
       await refreshLogSnapshot();
+      requireLogSession(sessionId);
       if (logEl("logExportFormat").value === "xlsx") await exportStudentsDataExcel();
       else {
         const rows = getStudentExtractionRows();
@@ -206,10 +254,12 @@ async function logSha256(bytes) {
 
 async function createLogBackup() {
   if (!isSadmin()) throw new Error("Backup permitido somente ao superadministrador.");
+  const sessionId = state.session?.id;
   const selected = logOperation() === "backup_global" ? null : selectedLogFields();
   if (selected && !selected.length) throw new Error("Selecione pelo menos uma tabela.");
   const read = async () => {
     const { data, error } = await supabaseClient.rpc("log_recovery_snapshot", { selected_tables: selected });
+    requireLogSession(sessionId, true);
     if (error) throw error;
     if (!data?.tables || !data?.columns || !Array.isArray(data.objects) || !Array.isArray(data.buckets)) throw new Error("Snapshot incompleto; nenhum backup foi gerado.");
     return data;
@@ -217,6 +267,7 @@ async function createLogBackup() {
   const snapshot = await read(); const files = [];
   for (const object of snapshot.objects) {
     const { data, error } = await supabaseClient.storage.from(object.bucket_id).download(object.name);
+    requireLogSession(sessionId, true);
     if (error || !data) throw new Error(`Arquivo não recuperado: ${object.bucket_id}/${object.name}. Backup cancelado.`);
     const bytes = new Uint8Array(await data.arrayBuffer());
     if (object.metadata?.size != null && bytes.length !== Number(object.metadata.size)) throw new Error("Tamanho de arquivo inconsistente; repita o backup.");
@@ -230,10 +281,12 @@ async function createLogBackup() {
     generated_at: new Date().toISOString(), excluded: ["auth sessions and transient tokens", "Supabase/Cloudflare infrastructure settings and source code"], snapshot, files };
   const serialized = canonicalLogJson(payload);
   const checksum = await logSha256(new TextEncoder().encode(serialized));
+  requireLogSession(sessionId, true);
   logDownload(`dnms_backup_${payload.scope}_${formatTodayIso()}.json`, JSON.stringify({ sha256: checksum, payload }));
 }
 
 logEl("logDataTable").addEventListener("change", renderLogFields);
+logEl("btnLogAddCriterion").addEventListener("click", addLogCriterion);
 logEl("btnLogConsult").addEventListener("click", async () => {
   if (logCenter.busy) return;
   logCenter.busy = true;

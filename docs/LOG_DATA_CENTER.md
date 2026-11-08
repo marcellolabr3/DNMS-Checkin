@@ -8,6 +8,10 @@ O seletor **Operação** concentra os quatro relatórios existentes, os cadastro
 
 ## Consulta e formatos
 
+Em **Dados do banco**, o controle recolhido **Combinar critérios por campo** permite cruzar igualdade, busca textual, valores vazios/preenchidos e listas separadas por vírgula. Todos os critérios são aplicados em conjunto com busca, turma, evento e período. Para delimitar cadastros, use `id`, `student_id` ou `guardian_id`, conforme a tabela. Mudar a tabela ou a operação limpa esses critérios; backups não usam filtros que descartem registros.
+
+Se a sessão mudar durante a leitura do banco ou a geração do backup, a operação é cancelada antes do download. A exportação Excel também verifica a sessão após carregar sua biblioteca.
+
 Em **Dados do banco**, escolha tabela, campos e busca. Combine evento e turma quando houver esses relacionamentos; escolha qual coluna de data será usada pelo período De/Até. Sem coluna de data selecionada, o período não restringe os registros. A prévia mostra até 100 registros; a exportação inclui todos os resultados filtrados. CSV protege células que poderiam executar fórmulas; JSON conserva valores e objetos; Excel usa o mecanismo XLSX existente. Relatórios também oferecem os três formatos, preservando seu conteúdo e resumo.
 
 ## Backup de recuperação
@@ -40,4 +44,4 @@ Aplicar `supabase/patch_log_data_center.sql` no banco antes da publicação. O p
 
 `node scripts/validate-log-backend.cjs` usa `DATABASE_URL` para testar permissões negativas, extração, snapshot global/específico, dependências e restauração. Toda a execução fica em uma transação com rollback, inclusive a instalação temporária do patch. Não imprime dados pessoais nem salva snapshots em disco.
 
-Testes de interface: `npm test -- tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. A publicação precisa servir `log-center.js?v=20261108a` e `checkin-cache-v198`.
+Testes de interface: `npm test -- tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. Use `PLAYWRIGHT_PORT` quando a porta padrão 4173 estiver ocupada por outro checkout. A publicação precisa servir `log-center.js?v=20261108b` e `checkin-cache-v199`.

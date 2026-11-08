@@ -317,6 +317,12 @@
           <label class="field">Data usada no período<select id="logDataDate"></select></label>
         </div>
         <details><summary>Campos e dados selecionados</summary><div id="logDataFields" class="filters"></div></details>
+        <details id="logDataCriteriaPanel">
+          <summary>Combinar critérios por campo</summary>
+          <p class="muted">Todos os critérios devem ser atendidos. Use o campo id ou student_id para delimitar cadastros.</p>
+          <div id="logDataCriteria"></div>
+          <button id="btnLogAddCriterion" class="ghost" type="button">Adicionar critério</button>
+        </details>
         <button id="btnLogConsult" class="ghost" type="button">Consultar</button>
       </div>
       <div id="logSelectedStudentsSummary" class="summary"></div>
@@ -780,7 +786,7 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261108a"></script>
-  <script src="log-center.js?v=20261108a"></script>
+  <script src="app.js?v=20261108b"></script>
+  <script src="log-center.js?v=20261108b"></script>
 </body>
 </html>

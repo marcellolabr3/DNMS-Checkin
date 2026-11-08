@@ -43,7 +43,7 @@ test("servico local de impressao tem protecoes HTTP compativeis", async () => {
     "utf8"
   );
   const app = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
-  const print = fs.readFileSync(path.join(__dirname, "..", "print.js"), "utf8");
+  const print = fs.readFileSync(path.join(__dirname, "..", "print.js"), "utf8").replace(/\r\n/g, "\n");
 
   expect(server).toContain('const HOST = process.env.PRINT_SERVICE_HOST || "127.0.0.1"');
   expect(server).toContain("app.listen(PORT, HOST");
