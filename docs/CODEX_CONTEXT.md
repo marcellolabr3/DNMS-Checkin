@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v199`, `app.js?v=20261108b`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
+- Cache atual: `checkin-cache-v200`, `app.js?v=20261108c`, `log-center.js?v=20261108c`, `styles.css?v=20261008b`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -42,7 +42,8 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Estado validado
 
-- Log: seletor unico de operacao para relatorios, cadastros, troca de classe, consulta por tabela/campos e backups JSON (global/especifico, SADMIN). RPCs em `supabase/patch_log_data_center.sql`; frontend `log-center.js`; restauracao administrativa em `scripts/restore-log-backup.cjs` e `docs/LOG_DATA_CENTER.md`. Dados completos por snapshot, sem limite de 1000 registros; RLS preservada. Backups incluem contas/MFA e arquivos com SHA-256, nao configuracao de infraestrutura. Filtros por campo combinam igualdade, listas de IDs, busca e vazio/preenchido; mudanca de sessao cancela downloads pendentes. Suite de 254 testes passou em desktop/mobile; snapshots e restauracao no banco foram validados com rollback na implementacao anterior. Producao: deploy confirmado em dnms-checkin.pages.dev (cache v199); login temporario e exportacoes CSV/JSON/Excel reais passaram, conta removida; 145 arquivos do Storage verificados. Sem restauracao efetiva de producao.
+- Log: seletor unico para relatorios, responsaveis e filhos, cadastros, troca de classe, consultas e backups JSON (global/especifico, SADMIN). Familias apenas encaminha a busca ao Log; CSV/Excel/JSON mantem vinculos e permissoes de equipe/admin. RPCs: `supabase/patch_log_data_center.sql`; frontend: `log-center.js`; restauracao: `scripts/restore-log-backup.cjs` e `docs/LOG_DATA_CENTER.md`. Snapshots completos, RLS preservada; backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas e Excel de criancas agora recusam sessao alterada. `PLAYWRIGHT_BASE_URL` permite testar o frontend publicado com fixtures, sem alterar producao.
+- Validacao atual: 264 testes locais passaram em desktop/mobile, incluindo regressao de check-in, cadastro, auth, impressao e Log. Revisao sem alteracoes no banco; acesso anonimo as quatro RPCs recusado pelo Supabase publicado (HTTP 401). Sem credenciais administrativas locais para repetir testes autenticados reais. Validacao anterior em producao (v199): login temporario e CSV/JSON/Excel reais passaram; conta removida, 145 arquivos verificados e restauracao com rollback.
 
 - Dashboard PWA: KPI "Check-ins hoje" conta registros do dia incluindo salas teste; KPI "Criancas presentes" conta apenas check-ins ativos sem checkout.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.

@@ -273,6 +273,7 @@
             <option value="event_summary">Resumo do evento</option>
             <option value="changes">Alteracoes de dados</option>
             <option value="audit_all">Todos os eventos</option>
+            <option value="families">Responsáveis e filhos</option>
             <optgroup label="Cadastros e dados" id="logDataOptions">
               <option value="extract_all">Crianças — todas</option>
               <option value="extract_class">Crianças — por turma</option>
@@ -303,7 +304,7 @@
             <option value="Visitante">Visitante</option>
           </select>
         </label>
-        <label class="field">Crianca
+        <label class="field"><span id="logStudentFilterLabel">Crianca</span>
           <input id="logStudentFilter" type="text" placeholder="Digite o nome da crianca" list="logStudentOptions" />
           <datalist id="logStudentOptions"></datalist>
         </label>
@@ -426,7 +427,7 @@
       <p class="muted">Responsaveis com filhos cadastrados.</p>
       <div class="filters">
         <input id="familySearch" type="text" placeholder="Buscar por nome, email ou telefone" />
-        <button id="btnExportFamilies" class="ghost" type="button">Exportar usuarios</button>
+        <button id="btnExportFamilies" class="ghost" type="button">Consultar no Log</button>
       </div>
       <div class="family-workspace">
         <div id="familyList" class="list family-list"></div>
@@ -786,7 +787,7 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261108b"></script>
-  <script src="log-center.js?v=20261108b"></script>
+  <script src="app.js?v=20261108c"></script>
+  <script src="log-center.js?v=20261108c"></script>
 </body>
 </html>

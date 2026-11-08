@@ -4,6 +4,102 @@ const {openApp,loginAs} = require("./helpers/app");
 const {verifyBackup} = require("../scripts/restore-log-backup.cjs");
 async function readDownload(download) { return fs.promises.readFile(await download.path(),"utf8"); }
 
+for (const email of ["admin@dnms.test", "equipe@dnms.test"]) {
+  test(`Famílias consulta e exporta pelo Log preservando a busca e os vínculos (${email})`, async ({page}) => {
+    await openApp(page); await loginAs(page,email); await page.click("#btnFamiliesPanel");
+    await page.fill("#familySearch","Responsavel Teste");
+    let downloads = 0; page.on("download", () => downloads++);
+    await page.click("#btnExportFamilies");
+    await expect(page.locator("#logCard")).toBeVisible();
+    await expect(page.locator("#familiesCard")).toBeHidden();
+    await expect(page.locator("#logReportType")).toHaveValue("families");
+    await expect(page.locator("#logStudentFilter")).toHaveValue("Responsavel Teste");
+    await expect(page.locator("#logList")).toContainText("Ana Kids");
+    await expect(page.locator("#logStart")).toBeHidden();
+    await expect(page.locator("#logDataControls")).toBeHidden();
+    expect(downloads).toBe(0);
+
+    await page.evaluate(() => { window.__mockDnmsDb.profiles.find((p) => p.id === "parent-1").address = "Endereço atualizado no banco"; });
+    let pending = page.waitForEvent("download"); await page.click("#btnExport");
+    const csv = await readDownload(await pending);
+    expect(csv).toContain("Ana Kids"); expect(csv).toContain("Endereço atualizado no banco");
+
+    await page.selectOption("#logExportFormat","json");
+    pending = page.waitForEvent("download"); await page.click("#btnExport");
+    const data = JSON.parse(await readDownload(await pending));
+    expect(data.report).toBe("families"); expect(data.rows).toHaveLength(2);
+    expect(data.rows[1]).toContain("Ana Kids"); expect(data.rows[1]).toContain("responsavel@dnms.test");
+
+    await page.evaluate(() => {
+      window.XLSX = {read(){},utils:{sheet_to_json(){},aoa_to_sheet(rows){return {rows}},book_new(){return {sheets:[]}},book_append_sheet(w,s,n){w.sheets.push({name:n,...s})}},writeFile(workbook,name){window.__familyWorkbook={workbook,name}}};
+    });
+    await page.selectOption("#logExportFormat","xlsx"); await page.click("#btnExport");
+    await expect.poll(() => page.evaluate(() => window.__familyWorkbook?.name)).toMatch(/^familias_.*\.xlsx$/);
+    expect(await page.evaluate(() => JSON.stringify(window.__familyWorkbook.workbook))).toContain("Ana Kids");
+
+    await page.fill("#logStudentFilter", "");
+    await expect(page.locator("#logCounts")).toContainText("2 usuário(s)");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+test("Excel de crianças cancela o download se a sessão mudar durante o carregamento", async ({page}) => {
+  await openApp(page); await loginAs(page,"admin@dnms.test"); await page.click("#btnLogPanel");
+  await page.selectOption("#logReportType","extract_all"); await page.selectOption("#logExportFormat","xlsx");
+  await page.evaluate(() => {
+    window.__excelWrites = 0;
+    ensureXlsxLoaded = () => new Promise((resolve) => {
+      window.__releaseExcel = () => resolve({utils:{
+        book_new:() => ({}), aoa_to_sheet:() => ({}), book_append_sheet:() => {}
+      },writeFile:() => window.__excelWrites++});
+    });
+  });
+  await page.click("#btnExport");
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseExcel)).toBe("function");
+  await page.evaluate(() => { state.session = null; window.__releaseExcel(); });
+  await expect.poll(() => page.evaluate(() => logCenter.busy)).toBe(false);
+  expect(await page.evaluate(() => window.__excelWrites)).toBe(0);
+  expect((await page.evaluate(() => window.alertMessages)).join(" ")).toContain("Sessão alterada");
+});
+
+test("resposta atrasada do Log não repõe os dados de uma sessão encerrada", async ({page}) => {
+  await openApp(page); await loginAs(page,"equipe@dnms.test");
+  await page.evaluate(() => {
+    const original = supabaseClient.rpc.bind(supabaseClient);
+    supabaseClient.rpc = async (name, params) => {
+      const response = await original(name, params);
+      if (name === "log_report_snapshot") await new Promise((resolve) => { window.__releaseLog = resolve; });
+      return response;
+    };
+    window.__pendingLog = refreshLogSnapshot().then(() => "accepted", (e) => e.message);
+  });
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseLog)).toBe("function");
+  const result = await page.evaluate(async () => {
+    state.session = null; state.students = []; state.profiles = []; state.rooms = []; state.checkins = []; state.auditLogs = [];
+    window.__releaseLog();
+    return {message:await window.__pendingLog,students:state.students.length,profiles:state.profiles.length,rooms:state.rooms.length};
+  });
+  expect(result.message).toContain("Sessão alterada");
+  expect([result.students,result.profiles,result.rooms]).toEqual([0,0,0]);
+});
+
+test("catálogo atrasado não é aplicado depois da troca de usuário", async ({page}) => {
+  await openApp(page); await loginAs(page,"admin@dnms.test"); await page.click("#btnLogPanel");
+  await page.evaluate(() => {
+    const original = supabaseClient.rpc.bind(supabaseClient);
+    supabaseClient.rpc = async (name, params) => {
+      const response = await original(name, params);
+      if (name === "log_data_catalog") await new Promise((resolve) => { window.__releaseCatalog = resolve; });
+      return response;
+    };
+  });
+  await page.selectOption("#logReportType","data");
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseCatalog)).toBe("function");
+  await page.evaluate(() => { state.session = {id:"parent-1",role:"responsavel"}; window.__releaseCatalog(); });
+  await expect.poll(() => page.evaluate(() => logCenter.loading)).toBe(false);
+  expect(await page.evaluate(() => logCenter.catalog)).toEqual([]);
+});
+
 test("consulta combina critérios por campo e vários IDs sem filtrar o backup", async ({page}) => {
   await openApp(page); await loginAs(page,"marvinlabre@gmail.com"); await page.click("#btnLogPanel");
   await page.selectOption("#logReportType","data");

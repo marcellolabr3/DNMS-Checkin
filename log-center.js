@@ -11,8 +11,10 @@ const logEl = (id) => document.getElementById(id);
 const logOperation = () => getLogReportType();
 const isLogBackup = () => logOperation().startsWith("backup_");
 
-function requireLogSession(sessionId, backup = false) {
-  if (!sessionId || state.session?.id !== sessionId || !(backup ? isSadmin() : canExtractStudentData())) {
+function requireLogSession(sessionId, permission = "data") {
+  const allowed = permission === "backup" ? isSadmin()
+    : permission === "report" ? isAdmin() || isEquipe() : canExtractStudentData();
+  if (!sessionId || state.session?.id !== sessionId || !allowed) {
     throw new Error("Sessão alterada. Entre novamente e repita a operação.");
   }
 }
@@ -51,7 +53,10 @@ function matchesLogCriteria(row, criteria) {
 }
 
 async function refreshLogSnapshot() {
+  const sessionId = state.session?.id;
+  requireLogSession(sessionId, "report");
   const {data,error} = await supabaseClient.rpc("log_report_snapshot");
+  requireLogSession(sessionId, "report");
   if (error) { logCenter.error = `Não foi possível carregar o Log completo: ${error.message}`; throw error; }
   const required=["students","student_guardians","profiles","rooms","checkins","audit_logs"];
   if (!data || required.some((name)=>!Array.isArray(data[name]))) throw new Error("Snapshot do Log incompleto; exportação cancelada.");
@@ -66,7 +71,12 @@ function renderLogCenter() {
   const extract = operation.startsWith("extract_");
   const backup = isLogBackup();
   const data = operation === "data";
-  const special = extract || backup || data;
+  const families = operation === "families";
+  const special = extract || backup || data || families;
+  logEl("logStudentFilterLabel").textContent = families ? "Buscar responsável ou filho" : "Crianca";
+  els.logStudentFilter.placeholder = families ? "Nome, email ou telefone" : "Digite o nome da crianca";
+  if (families) els.logStudentFilter.removeAttribute("list");
+  else els.logStudentFilter.setAttribute("list", "logStudentOptions");
   els.logReportType.disabled = logCenter.busy;
   if (!data) els.logClassFilter.disabled = false;
   logEl("logDataOptions").hidden = !canExtractStudentData();
@@ -76,19 +86,32 @@ function renderLogCenter() {
   logEl("logExportFormat").disabled = backup || logCenter.busy;
   if (backup) logEl("logExportFormat").value = "json";
   els.btnExport.textContent = backup ? "Gerar backup" : "Exportar";
-  els.btnShareWhatsapp.style.display = data || backup ? "none" : "";
+  els.btnShareWhatsapp.style.display = data || backup || families ? "none" : "";
   [els.logStart, els.logEnd].forEach((el) => { el.closest(".field").style.display = special && !data ? "none" : ""; });
   logEl("logCenterStatus").textContent = logCenter.busy ? "Processando; aguarde o arquivo completo..." : logCenter.error;
   if (!special) return false;
   els.logList.replaceChildren(); els.logCounts.textContent = ""; els.logSelectedStudentsSummary.textContent = "";
   els.logClassFilter.closest(".field").style.display = data ? "" : "none";
-  els.logStudentFilter.closest(".field").style.display = "none";
+  els.logStudentFilter.closest(".field").style.display = families ? "" : "none";
   els.btnLogSelectStudents.style.display = "none";
-  els.btnExport.disabled = logCenter.busy || !(backup ? isSadmin() : canExtractStudentData());
-  if (!(backup ? isSadmin() : canExtractStudentData())) {
+  const allowed = families ? isAdmin() || isEquipe() : backup ? isSadmin() : canExtractStudentData();
+  els.btnExport.disabled = logCenter.busy || !allowed;
+  if (!allowed) {
     els.logSummary.textContent = "Sem permissão para esta operação."; renderStudentExtraction(); return true;
   }
-  if (extract) {
+  if (families) {
+    renderStudentExtraction();
+    const { filtered } = getFilteredFamiliesForCurrentSearch(els.logStudentFilter.value, true);
+    els.logSummary.textContent = "Responsáveis, contatos e filhos vinculados. Busque por nome, email ou telefone e escolha CSV, Excel ou JSON.";
+    els.logCounts.textContent = `${filtered.length} usuário(s). Prévia de até 100; a exportação inclui todos os resultados.`;
+    filtered.slice(0, 100).forEach(({profile, children}) => {
+      const item = document.createElement("div"); item.className = "list-item";
+      const name = document.createElement("strong"); name.textContent = profile.name || "Sem nome";
+      const detail = document.createElement("span"); detail.textContent = `Filhos: ${children.map((child) => child.name).join(" | ") || "—"}`;
+      item.append(name, detail); els.logList.append(item);
+    });
+    els.btnExport.disabled = logCenter.busy || !filtered.length;
+  } else if (extract) {
     els.studentExtractionMode.value = operation.slice(8);
     renderStudentExtraction();
     els.logSummary.textContent = "Selecione os critérios e exporte os cadastros.";
@@ -113,9 +136,12 @@ function renderLogCenter() {
 
 async function loadLogCatalog() {
   if (logCenter.loading || logCenter.catalog.length || logCenter.error) return;
+  const sessionId = state.session?.id;
   logCenter.loading = true;
   try {
+    requireLogSession(sessionId);
     const { data, error } = await supabaseClient.rpc("log_data_catalog");
+    requireLogSession(sessionId);
     if (error) throw error;
     if (!Array.isArray(data) || !data.length) throw new Error("Catálogo indisponível; nenhuma exportação foi gerada.");
     logCenter.catalog = data;
@@ -201,7 +227,7 @@ async function downloadLogTable(filename, matrix) {
     if (format === "csv") { downloadCsv(filename, matrix); return; }
     if (format === "json") { logDownload(`${name}.json`, JSON.stringify({ report: getLogReportType(), generated_at: new Date().toISOString(), rows: matrix }, null, 2)); return; }
     const XLSX = await ensureXlsxLoaded(); const workbook = XLSX.utils.book_new();
-    if (!sessionId || state.session?.id !== sessionId || !(isAdmin() || isEquipe())) throw new Error("Sessão alterada. Repita a operação.");
+    requireLogSession(sessionId, "report");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(matrix), "Dados");
     XLSX.writeFile(workbook, `${name}.xlsx`, { compression: true });
   } catch (e) { alert(`Exportação não concluída: ${e.message}`); }
@@ -209,7 +235,7 @@ async function downloadLogTable(filename, matrix) {
 
 function exportLogCenter() {
   const operation = logOperation();
-  if (!(operation.startsWith("extract_") || isLogBackup() || operation === "data")) return false;
+  if (!(operation.startsWith("extract_") || isLogBackup() || operation === "data" || operation === "families")) return false;
   runLogExport(); return true;
 }
 
@@ -227,6 +253,10 @@ async function runLogExport() {
       const result = await queryLogData();
       if (logEl("logExportFormat").value === "json") logDownload(`${result.name}_${formatTodayIso()}.json`, JSON.stringify({ table: result.name, fields: result.fields, generated_at: new Date().toISOString(), rows: result.rows }, null, 2));
       else await downloadLogTable(`${result.name}_${formatTodayIso()}.csv`, [result.fields, ...result.rows.map((row) => result.fields.map((key) => typeof row[key] === "object" && row[key] !== null ? JSON.stringify(row[key]) : row[key]))]);
+    } else if (logOperation() === "families") {
+      await refreshLogSnapshot();
+      requireLogSession(sessionId, "report");
+      await exportFamiliesCsv();
     } else {
       if (!canExtractStudentData()) throw new Error("Sem permissão");
       await refreshLogSnapshot();
@@ -259,7 +289,7 @@ async function createLogBackup() {
   if (selected && !selected.length) throw new Error("Selecione pelo menos uma tabela.");
   const read = async () => {
     const { data, error } = await supabaseClient.rpc("log_recovery_snapshot", { selected_tables: selected });
-    requireLogSession(sessionId, true);
+    requireLogSession(sessionId, "backup");
     if (error) throw error;
     if (!data?.tables || !data?.columns || !Array.isArray(data.objects) || !Array.isArray(data.buckets)) throw new Error("Snapshot incompleto; nenhum backup foi gerado.");
     return data;
@@ -267,7 +297,7 @@ async function createLogBackup() {
   const snapshot = await read(); const files = [];
   for (const object of snapshot.objects) {
     const { data, error } = await supabaseClient.storage.from(object.bucket_id).download(object.name);
-    requireLogSession(sessionId, true);
+    requireLogSession(sessionId, "backup");
     if (error || !data) throw new Error(`Arquivo não recuperado: ${object.bucket_id}/${object.name}. Backup cancelado.`);
     const bytes = new Uint8Array(await data.arrayBuffer());
     if (object.metadata?.size != null && bytes.length !== Number(object.metadata.size)) throw new Error("Tamanho de arquivo inconsistente; repita o backup.");
@@ -281,7 +311,7 @@ async function createLogBackup() {
     generated_at: new Date().toISOString(), excluded: ["auth sessions and transient tokens", "Supabase/Cloudflare infrastructure settings and source code"], snapshot, files };
   const serialized = canonicalLogJson(payload);
   const checksum = await logSha256(new TextEncoder().encode(serialized));
-  requireLogSession(sessionId, true);
+  requireLogSession(sessionId, "backup");
   logDownload(`dnms_backup_${payload.scope}_${formatTodayIso()}.json`, JSON.stringify({ sha256: checksum, payload }));
 }
 

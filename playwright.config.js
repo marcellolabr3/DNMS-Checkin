@@ -1,5 +1,6 @@
 const { defineConfig, devices } = require("@playwright/test");
 const port = Number(process.env.PLAYWRIGHT_PORT || 4173);
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`;
 
 module.exports = defineConfig({
   testDir: "./tests",
@@ -10,10 +11,10 @@ module.exports = defineConfig({
   fullyParallel: false,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: `http://127.0.0.1:${port}`,
+    baseURL,
     trace: "on-first-retry"
   },
-  webServer: {
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: `npx http-server . -p ${port} -a 127.0.0.1 --silent`,
     url: `http://127.0.0.1:${port}/index.html`,
     reuseExistingServer: !process.env.CI,

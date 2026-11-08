@@ -461,7 +461,7 @@ function bindEvents() {
   els.btnPrintPresenceQr?.addEventListener("click", printPresenceQr);
   els.btnLinkFamilyResponsible?.addEventListener("click", handleLinkFamilyResponsible);
   els.familySearch?.addEventListener("input", renderFamiliesPanel);
-  els.btnExportFamilies?.addEventListener("click", exportFamiliesCsv);
+  els.btnExportFamilies?.addEventListener("click", openFamiliesLog);
   els.btnFamilyCreateResponsible?.addEventListener("click", handleCreateFamilyResponsible);
   els.btnFamilyClearCreate?.addEventListener("click", clearFamilyCreateForm);
   els.btnCreateTemporaryAssignment?.addEventListener("click", handleCreateTemporaryAssignment);
@@ -6204,11 +6204,11 @@ function getFamiliesWithChildren() {
   return result;
 }
 
-function getFilteredFamiliesForCurrentSearch() {
+function getFilteredFamiliesForCurrentSearch(searchValue = els.familySearch?.value, includeAll = false) {
   const families = getFamiliesWithChildren();
-  const search = normalizeMatchText(String(els.familySearch?.value || "").trim());
+  const search = normalizeMatchText(String(searchValue || "").trim());
   if (!search) {
-    return { search: "", filtered: [] };
+    return { search: "", filtered: includeAll ? families : [] };
   }
   const filtered = families.filter((entry) => {
     const memberBlob = (entry.networkMembers || [])
@@ -9281,12 +9281,21 @@ function exportAuditCsv(reportType) {
   render();
 }
 
-function exportFamiliesCsv() {
+function openFamiliesLog() {
+  if (!state.session || !(isAdmin() || isEquipe())) return;
+  if (logCenter.busy) return;
+  els.logReportType.value = "families";
+  els.logStudentFilter.value = els.familySearch?.value || "";
+  setActivePanel("log");
+}
+
+async function exportFamiliesCsv() {
   if (!state.session || !(isAdmin() || isEquipe())) {
     alert("Sem permissao para exportar.");
     return;
   }
-  const { filtered } = getFilteredFamiliesForCurrentSearch();
+  const searchValue = els.logStudentFilter.value;
+  const { filtered } = getFilteredFamiliesForCurrentSearch(searchValue, true);
   if (!filtered.length) {
     alert("Nenhum usuario encontrado para exportar.");
     return;
@@ -9300,9 +9309,9 @@ function exportFamiliesCsv() {
     entry.children.length,
     entry.children.map((child) => child.name).join(" | ")
   ]);
-  const searchRaw = String(els.familySearch?.value || "").trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
-  const fileSuffix = searchRaw || "busca";
-  downloadCsv(`familias_${fileSuffix}.csv`, [header, ...csvRows]);
+  const searchRaw = String(searchValue || "").trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
+  const fileSuffix = searchRaw || "todos";
+  await downloadLogTable(`familias_${fileSuffix}.csv`, [header, ...csvRows]);
 }
 
 async function exportStudentsDataExcel() {
@@ -9310,6 +9319,7 @@ async function exportStudentsDataExcel() {
     alert("Sem permissao para extrair dados de criancas.");
     return;
   }
+  const sessionId = state.session.id;
   const rows = getStudentExtractionRows();
   if (!rows.length) {
     alert("Nenhuma crianca encontrada para extrair.");
@@ -9323,6 +9333,7 @@ async function exportStudentsDataExcel() {
   }
   try {
     const XLSX = await ensureXlsxLoaded();
+    requireLogSession(sessionId);
     const workbook = buildStudentExtractionWorkbook(XLSX, rows);
     XLSX.writeFile(workbook, `criancas_${getStudentExtractionFileSuffix()}.xlsx`, { compression: true });
   } catch (error) {
