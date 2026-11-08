@@ -267,14 +267,26 @@
         </div>
       </div>
       <div class="filters">
-        <label class="field">Relatorio
+        <label class="field">Operação
           <select id="logReportType">
             <option value="attendance">Assiduidade</option>
             <option value="event_summary">Resumo do evento</option>
             <option value="changes">Alteracoes de dados</option>
             <option value="audit_all">Todos os eventos</option>
+            <optgroup label="Cadastros e dados" id="logDataOptions">
+              <option value="extract_all">Crianças — todas</option>
+              <option value="extract_class">Crianças — por turma</option>
+              <option value="extract_selected">Crianças — selecionar</option>
+              <option value="extract_transition">Alunos que trocam de classe</option>
+              <option value="data">Dados do banco — selecionar campos</option>
+            </optgroup>
+            <optgroup label="Recuperação" id="logBackupOptions">
+              <option value="backup_global">Backup global</option>
+              <option value="backup_specific">Backup específico</option>
+            </optgroup>
           </select>
         </label>
+        <label class="field">Formato<select id="logExportFormat"><option value="csv">CSV</option><option value="xlsx">Excel</option><option value="json">JSON</option></select></label>
         <label class="field">De
           <input id="logStart" type="date" />
         </label>
@@ -297,17 +309,24 @@
         </label>
         <button id="btnLogSelectStudents" type="button" class="ghost">Selecionar criancas</button>
       </div>
+      <div id="logDataControls" hidden>
+        <div class="filters">
+          <label class="field">Dados<select id="logDataTable"></select></label>
+          <label class="field">Buscar no cadastro<input id="logDataSearch" type="search" placeholder="Nome, contato ou identificador" /></label>
+          <label class="field">Evento<select id="logDataEvent"><option value="">Todos</option></select></label>
+          <label class="field">Data usada no período<select id="logDataDate"></select></label>
+        </div>
+        <details><summary>Campos e dados selecionados</summary><div id="logDataFields" class="filters"></div></details>
+        <button id="btnLogConsult" class="ghost" type="button">Consultar</button>
+      </div>
       <div id="logSelectedStudentsSummary" class="summary"></div>
       <div id="logSummary" class="summary"></div>
       <div id="logCounts" class="summary"></div>
+      <div id="logCenterStatus" class="summary" role="status" aria-live="polite"></div>
       <div id="logList" class="list"></div>
-      <details id="studentExtractionPanel" class="collapsible-panel extraction-panel">
-        <summary>
-          <span>Extração</span>
-          <span class="collapse-icon" aria-hidden="true"></span>
-        </summary>
+      <div id="studentExtractionPanel" style="display:none">
         <div class="filters">
-          <label class="field">Dados
+          <label class="field" hidden style="display:none">Dados
             <select id="studentExtractionMode">
               <option value="all">Todas as crianças</option>
               <option value="class">Por turma</option>
@@ -344,12 +363,12 @@
         <div class="actions">
           <button id="btnStudentExtractionSelectAll" class="ghost" type="button">Selecionar todas</button>
           <button id="btnStudentExtractionClear" class="ghost" type="button">Limpar seleção</button>
-          <button id="btnExportStudentsData" class="primary" type="button">Exportar Excel</button>
-          <button id="btnShareStudentsWhatsapp" class="ghost" type="button">Enviar WhatsApp</button>
+          <button hidden style="display:none" id="btnExportStudentsData" class="primary" type="button">Exportar Excel</button>
+          <button hidden style="display:none" id="btnShareStudentsWhatsapp" class="ghost" type="button">Enviar WhatsApp</button>
         </div>
         <div id="studentExtractionSummary" class="summary"></div>
         <div id="studentExtractionList" class="list extraction-list"></div>
-      </details>
+      </div>
     </section>
 
     <section class="card" id="inviteCard" style="display:none">
@@ -761,6 +780,7 @@
 
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261107b"></script>
+  <script src="app.js?v=20261108a"></script>
+  <script src="log-center.js?v=20261108a"></script>
 </body>
 </html>

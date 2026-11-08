@@ -1713,10 +1713,10 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   });
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnLogPanel");
-  await page.locator("#studentExtractionPanel summary").click();
 
+  await page.selectOption("#logReportType", "extract_all");
   await expect(page.locator("#studentExtractionSummary")).toContainText("3 crianca(s)");
-  await page.selectOption("#studentExtractionMode", "class");
+  await page.selectOption("#logReportType", "extract_class");
   await page.selectOption("#studentExtractionClass", "Fora da faixa");
   await expect(page.locator("#studentExtractionSummary")).toContainText("1 crianca(s) na turma Fora da faixa");
   await expect(page.locator("#studentExtractionList")).toContainText("Joao Fora");
@@ -1745,7 +1745,8 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
       }
     };
   });
-  await page.click("#btnExportStudentsData");
+  await page.selectOption("#logExportFormat", "xlsx");
+  await page.click("#btnExport");
   const excel = await page.evaluate(() => window.__studentWorkbookCapture);
   expect(excel.filename).toMatch(/^criancas_turma_fora_da_faixa_\d{4}-\d{2}-\d{2}\.xlsx$/);
   expect(excel.options).toEqual({ compression: true });
@@ -1787,7 +1788,7 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
       return null;
     };
   });
-  await page.click("#btnShareStudentsWhatsapp");
+  await page.click("#btnShareWhatsapp");
   const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
   expect(whatsappText).toContain("Extracao de criancas - turma Fora da faixa");
   expect(whatsappText).toContain("Total: 1");
@@ -1821,8 +1822,7 @@ test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", as
   }, currentYear);
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnLogPanel");
-  await page.locator("#studentExtractionPanel summary").click();
-  await page.selectOption("#studentExtractionMode", "transition");
+  await page.selectOption("#logReportType", "extract_transition");
 
   await expect(page.locator("#studentTransitionYear")).toHaveValue(String(currentYear + 1));
   await expect(page.locator("#studentTransitionType")).toHaveValue("advance");
@@ -1853,7 +1853,8 @@ test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", as
       }
     };
   });
-  await page.click("#btnExportStudentsData");
+  await page.selectOption("#logExportFormat", "xlsx");
+  await page.click("#btnExport");
   await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
   const excel = await page.evaluate(() => window.__studentWorkbookCapture);
   expect(excel.filename).toContain(`mudanca_turmas_${currentYear + 1}`);
@@ -1872,7 +1873,8 @@ test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", as
 
   await page.selectOption("#studentTransitionType", "advance");
   await page.evaluate(() => { window.__studentWorkbookCapture = null; });
-  await page.click("#btnExportStudentsData");
+  await page.selectOption("#logExportFormat", "xlsx");
+  await page.click("#btnExport");
   await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
   const advanceExcel = await page.evaluate(() => window.__studentWorkbookCapture);
   expect(advanceExcel.filename).toContain(`mudanca_turmas_${currentYear + 1}_avancam_`);
@@ -1884,7 +1886,8 @@ test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", as
   await expect(page.locator("#studentExtractionList")).toContainText("Fran Teens");
   await expect(page.locator("#studentExtractionList")).not.toContainText("Cris Maternal");
   await page.evaluate(() => { window.__studentWorkbookCapture = null; });
-  await page.click("#btnExportStudentsData");
+  await page.selectOption("#logExportFormat", "xlsx");
+  await page.click("#btnExport");
   await expect.poll(() => page.evaluate(() => window.__studentWorkbookCapture)).not.toBeNull();
   const exitExcel = await page.evaluate(() => window.__studentWorkbookCapture);
   expect(exitExcel.filename).toContain(`mudanca_turmas_${currentYear + 1}_saem_`);
@@ -1910,8 +1913,7 @@ test("sadmin extrai criancas selecionadas usando busca por endereco do cadastro"
   });
   await loginAs(page, "marvinlabre@gmail.com");
   await page.click("#btnLogPanel");
-  await page.locator("#studentExtractionPanel summary").click();
-  await page.selectOption("#studentExtractionMode", "selected");
+  await page.selectOption("#logReportType", "extract_selected");
   await page.fill("#studentExtractionSearch", "Codigo Unico Extracao");
   await expect(page.locator("#studentExtractionList")).toContainText("Lia Selecao");
   await page.click('input[data-student-extraction-id="student-selected-extract"]');
@@ -2062,6 +2064,8 @@ test("log gera resumo do evento com pendencias de impressao e exporta csv", asyn
 
 test("dashboard conta check-ins de sala teste nos marcadores sem entrar no resumo do evento", async ({ page }) => {
   await openApp(page);
+  // Keep the room open regardless of the time this test runs.
+  await page.clock.install({ time: new Date(`${todayIso()}T10:30:00`) });
   await page.evaluate((today) => {
     window.__mockDnmsDb.rooms.push({
       id: "room-test-kids",

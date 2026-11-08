@@ -799,7 +799,8 @@ async function refreshPanelData(panel) {
     return;
   }
   if (panel === "log") {
-    await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs(), fetchProfilesIfAllowed()]);
+    if (typeof refreshLogSnapshot === "function") { await fetchRooms(); await refreshLogSnapshot(); }
+    else await Promise.all([fetchCheckins(), fetchStudents(), fetchRooms(), fetchAuditLogs(), fetchProfilesIfAllowed()]);
     return;
   }
   if (panel === "invite") {
@@ -1713,6 +1714,10 @@ async function fetchStudents() {
       });
     }
   }
+  applyStudentRows(rows, guardianLinkMap);
+}
+
+function applyStudentRows(rows, guardianLinkMap) {
   state.students = rows.map((student) => ({
     id: student.id,
     name: student.name,
@@ -1780,6 +1785,10 @@ async function fetchRooms() {
       });
     }
   }
+  applyRoomRows(rows);
+}
+
+function applyRoomRows(rows) {
   state.rooms = rows.map((room) => {
     const dateObj = parseInputDate(room.date);
     const dateLabel = dateObj ? formatDate(dateObj) : room.date;
@@ -1809,6 +1818,10 @@ async function fetchCheckins() {
     console.warn("Falha ao buscar check-ins", error);
     return;
   }
+  applyCheckinRows(data);
+}
+
+function applyCheckinRows(data) {
   const roomMap = new Map(state.rooms.map((room) => [room.id, room]));
   state.checkins = data.map((checkin) => {
     const room = roomMap.get(checkin.room_id);
@@ -1866,6 +1879,10 @@ async function fetchAuditLogs() {
     state.auditLogs = [];
     return;
   }
+  applyAuditRows(data);
+}
+
+function applyAuditRows(data) {
   state.auditLogs = (data || [])
     .map((row) => ({
       id: row.id,
@@ -2283,6 +2300,10 @@ async function fetchProfiles() {
     state.profiles = [];
     return;
   }
+  applyProfileRows(data);
+}
+
+function applyProfileRows(data) {
   state.profiles = (data || []).map((profile) => ({
     id: profile.id,
     name: profile.name || profile.nome || "Usuario",
@@ -3320,6 +3341,7 @@ function renderLog() {
     return;
   }
 
+  if (typeof renderLogCenter === "function" && renderLogCenter()) return;
   const reportType = getLogReportType();
   renderLogClassFilterOptions();
   renderLogStudentFilterOptions();
@@ -3407,7 +3429,8 @@ function renderStudentExtraction() {
   if (!els.studentExtractionPanel) {
     return;
   }
-  const canExtract = canExtractStudentData() && getActivePanel() === "log";
+  const canExtract = canExtractStudentData() && getActivePanel() === "log"
+    && getLogReportType().startsWith("extract_");
   els.studentExtractionPanel.style.display = canExtract ? "" : "none";
   if (!canExtract) {
     return;
@@ -3454,6 +3477,10 @@ function renderStudentExtraction() {
   }
   renderStudentExtractionList(candidates, rows, selectedIds);
   const hasRows = rows.length > 0;
+  if (getLogReportType().startsWith("extract_")) {
+    els.btnExport.disabled = !hasRows || (typeof logCenter !== "undefined" && logCenter.busy);
+    if (els.btnShareWhatsapp) els.btnShareWhatsapp.disabled = !hasRows;
+  }
   if (els.btnExportStudentsData) {
     els.btnExportStudentsData.disabled = !hasRows;
   }
@@ -9177,11 +9204,13 @@ function buildLabelDocumentHtml(labelBodyHtml) {
 </html>`;
 }
 
-function exportCsv() {
+async function exportCsv() {
   if (!state.session || !(isAdmin() || isEquipe())) {
     alert("Sem permissao para exportar.");
     return;
   }
+  if (typeof exportLogCenter === "function" && exportLogCenter()) return;
+  try { await refreshLogSnapshot(); } catch (error) { alert(`Exportacao cancelada: ${error.message}`); return; }
   const reportType = getLogReportType();
   if (reportType === "event_summary") {
     exportEventSummaryCsv();
@@ -9211,7 +9240,7 @@ function exportCsv() {
   const periodStart = els.logStart?.value || "";
   const periodEnd = els.logEnd?.value || "";
   const periodLabel = periodStart && periodEnd ? `${periodStart}_${periodEnd}` : "periodo";
-  downloadCsv(`frequencia_${periodLabel}.csv`, csvRows);
+  downloadLogTable(`frequencia_${periodLabel}.csv`, csvRows);
   render();
 }
 
@@ -9226,7 +9255,7 @@ function exportEventSummaryCsv() {
   const rows = buildEventSummaryCsvRows(summary);
   const periodStart = els.logStart?.value || "inicio";
   const periodEnd = els.logEnd?.value || "fim";
-  downloadCsv(`resumo_evento_${periodStart}_${periodEnd}.csv`, [header, ...rows]);
+  downloadLogTable(`resumo_evento_${periodStart}_${periodEnd}.csv`, [header, ...rows]);
   render();
 }
 
@@ -9248,7 +9277,7 @@ function exportAuditCsv(reportType) {
   ]);
   const startValue = els.logStart?.value || "inicio";
   const endValue = els.logEnd?.value || "fim";
-  downloadCsv(`${reportType}_${startValue}_${endValue}.csv`, [header, ...csvRows]);
+  downloadLogTable(`${reportType}_${startValue}_${endValue}.csv`, [header, ...csvRows]);
   render();
 }
 
@@ -9493,6 +9522,7 @@ function getStudentExtractionFileSuffix() {
 }
 
 function shareLogWhatsapp() {
+  if (getLogReportType().startsWith("extract_") && canExtractStudentData()) { shareStudentsDataWhatsapp(); return; }
   if (!state.session || !(isAdmin() || isEquipe())) {
     alert("Sem permissao para compartilhar.");
     return;

@@ -1047,6 +1047,24 @@ function createMockSupabaseScript() {
           return new Query(table);
         },
         async rpc(name, params) {
+          if (name.startsWith("log_")) {
+            if (window.__mockLogError) return { data: null, error: {message: window.__mockLogError} };
+            const actor = db.profiles.find((p) => p.id === currentUser?.id);
+            if (name === "log_report_snapshot") return {data:Object.fromEntries(["students","student_guardians","profiles","rooms","checkins","audit_logs"].map((name)=>[name,db[name]])),error:null};
+            if (name === "log_data_catalog") return {data: ["students", "profiles", "rooms", "checkins", "audit_logs"].map((name) => ({name,columns: Object.keys(db[name][0] || {id:null,created_at:null})})),error:null};
+            if (name === "log_extract_data") {
+              if (actor?.role !== "admin") return {data:null,error:{message:"Sem permissao"}};
+              return {data: Object.fromEntries(params.selected_tables.map((name) => [name,db[name] || []])),error:null};
+            }
+            if (name === "log_recovery_snapshot") {
+              if (currentUser?.email !== "marvinlabre@gmail.com") return {data:null,error:{message:"Sem permissao"}};
+              window.__mockBackupReadCount = (window.__mockBackupReadCount || 0) + 1;
+              const tables = Object.fromEntries((params.selected_tables || ["students", "profiles", "rooms", "checkins"]).map((name) => ["public."+name,db[name] || []]));
+              tables["auth.users"] = db.auth_users; tables["auth.identities"] = [];
+              if (window.__mockBackupMoving) tables["public.changing"] = [{version:window.__mockBackupReadCount}];
+              return {data:{tables, columns:Object.fromEntries(Object.keys(tables).map((key)=>[key,[]])),objects:window.__mockBackupObjects || [],buckets:[]},error:null};
+            }
+          }
           if (name === "delete_user_account") {
             return deleteUserAccount(params?.target_profile_id);
           }
@@ -1097,6 +1115,9 @@ function createMockSupabaseScript() {
         storage: {
           from() {
             return {
+              async download() {
+                return window.__mockStorageDownloadError ? {data:null,error:{message:"download failed"}} : {data:new Blob(["photo"],{type:"image/png"}),error:null};
+              },
               async upload(path, file) {
                 window.__mockStorageUploads.push({ path, name: file?.name || "", type: file?.type || "", size: file?.size || 0 });
                 if (window.__mockStorageUploadError) {
