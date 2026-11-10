@@ -1,5 +1,5 @@
 /* One Log workflow. Existing reports and student projections remain canonical. */
-const logCenter = { catalog: [], loading: false, busy: false, error: "", table: "" };
+const logCenter = { catalog: [], loading: false, busy: false, error: "", table: "", excelExport: null, preparingShare: false };
 const logTableLabels = {
   students: "Crianças / cadastros", profiles: "Responsáveis e usuários", student_guardians: "Vínculos de responsáveis",
   checkins: "Frequência / check-ins", rooms: "Eventos / salas", audit_logs: "Histórico de alterações",
@@ -17,6 +17,121 @@ function requireLogSession(sessionId, permission = "data") {
   if (!sessionId || state.session?.id !== sessionId || !allowed) {
     throw new Error("Sessão alterada. Entre novamente e repita a operação.");
   }
+}
+
+function logExcelScope() {
+  return JSON.stringify({
+    controls: [...document.querySelectorAll("#logCard input, #logCard select")]
+      .map((el) => [el.id, el.value, el.type === "checkbox" ? el.checked : null]),
+    students: state.ui.logSelectedStudentIds || [],
+    extraction: state.ui.studentExtractionSelectedIds || []
+  });
+}
+
+function createLogExcelContext(permission = "report") {
+  const context = { session: state.session, sessionId: state.session?.id, permission, scope: logExcelScope() };
+  requireLogSession(context.sessionId, permission);
+  return context;
+}
+
+function requireLogExcelContext(context) {
+  requireLogSession(context.sessionId, context.permission);
+  if (state.session !== context.session || logExcelScope() !== context.scope) {
+    throw new Error("Os filtros ou a sessão mudaram. Gere o Excel novamente.");
+  }
+}
+
+function rememberLogExcel(XLSX, workbook, filename, context) {
+  requireLogExcelContext(context);
+  logCenter.excelExport = { XLSX, workbook, filename, context, file: null };
+}
+
+function clearLogExcel() {
+  logCenter.excelExport = null;
+  logEl("logExcelShareDialog").close();
+  logEl("logExcelShareFilename").textContent = "";
+  logEl("logExcelShareStatus").textContent = "";
+}
+
+function syncLogExcelSession() {
+  if (!logCenter.excelExport) return;
+  try { requireLogExcelContext(logCenter.excelExport.context); }
+  catch (_) { clearLogExcel(); }
+}
+
+function getLogExcelFile(record) {
+  requireLogExcelContext(record.context);
+  if (!record.file) {
+    const bytes = record.XLSX.write(record.workbook, { bookType: "xlsx", type: "array", compression: true });
+    record.file = new File([bytes], record.filename, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+  return record.file;
+}
+
+function canShareLogExcel(file) {
+  try { return typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }); }
+  catch (_) { return false; }
+}
+
+function showLogExcelShare(record, message = "") {
+  const dialog = logEl("logExcelShareDialog");
+  const file = record ? getLogExcelFile(record) : null;
+  const nativeShare = file && canShareLogExcel(file);
+  logEl("logExcelShareFilename").textContent = file?.name || "Preparando Excel...";
+  logEl("logExcelShareStatus").textContent = message || (nativeShare
+    ? "Toque em Compartilhar arquivo e escolha o WhatsApp. Depois, selecione a conversa e confirme o envio."
+    : "Baixe o Excel e, no WhatsApp, use Anexar → Documento para escolher este arquivo.");
+  logEl("btnLogShareExcelFile").hidden = !nativeShare;
+  logEl("btnLogDownloadExcelFile").hidden = !file;
+  logEl("logExcelOpenWhatsapp").hidden = !file || nativeShare;
+  ["btnLogShareExcelFile", "btnLogDownloadExcelFile", "logExcelOpenWhatsapp"].forEach((id) => {
+    const action = logEl(id);
+    action.style.display = action.hidden ? "none" : "";
+  });
+  if (!dialog.open) dialog.showModal();
+}
+
+function shareLogExcelRecord(record) {
+  try {
+    const file = getLogExcelFile(record);
+    if (!canShareLogExcel(file)) { showLogExcelShare(record); return; }
+    // Keep this call in the click handler: native sharing requires user activation.
+    navigator.share({ files: [file], title: "DNMS Check-in — Excel" }).then(() => {
+      if (logCenter.excelExport === record) logEl("logExcelShareDialog").close();
+    }).catch((error) => {
+      if (error.name === "AbortError") return;
+      try {
+        requireLogExcelContext(record.context);
+        showLogExcelShare(record, "Não foi possível abrir o compartilhamento. Tente novamente ou baixe o Excel para anexar como Documento no WhatsApp.");
+      } catch (_) { clearLogExcel(); }
+    });
+  } catch (error) { alert(`Compartilhamento não concluído: ${error.message}`); }
+}
+
+async function prepareLogExcelShare() {
+  if (logCenter.preparingShare || logCenter.busy) return;
+  logCenter.preparingShare = true;
+  clearLogExcel();
+  showLogExcelShare(null, "Gerando o arquivo Excel. Aguarde...");
+  try {
+    if (logOperation().startsWith("extract_") || ["data", "families"].includes(logOperation())) await runLogExport();
+    else await exportCsv();
+    if (!logCenter.excelExport) throw new Error(logCenter.error || "Não foi possível gerar o Excel. Confira os dados e tente novamente.");
+    if (logEl("logExcelShareDialog").open) showLogExcelShare(logCenter.excelExport);
+  } catch (error) {
+    logEl("logExcelShareDialog").close();
+    alert(`Compartilhamento não concluído: ${error.message}`);
+  } finally { logCenter.preparingShare = false; }
+}
+
+function shareLogExcel() {
+  try {
+    if (isLogBackup()) throw new Error("Use o download administrativo para backups.");
+    requireLogSession(state.session?.id, logOperation().startsWith("extract_") || logOperation() === "data" ? "data" : "report");
+    syncLogExcelSession();
+    if (logCenter.excelExport) shareLogExcelRecord(logCenter.excelExport);
+    else prepareLogExcelShare();
+  } catch (error) { alert(`Compartilhamento não concluído: ${error.message}`); }
 }
 
 function addLogCriterion() {
@@ -86,7 +201,9 @@ function renderLogCenter() {
   logEl("logExportFormat").disabled = backup || logCenter.busy;
   if (backup) logEl("logExportFormat").value = "json";
   els.btnExport.textContent = backup ? "Gerar backup" : "Exportar";
-  els.btnShareWhatsapp.style.display = data || backup || families ? "none" : "";
+  const excel = logEl("logExportFormat").value === "xlsx";
+  els.btnShareWhatsapp.textContent = excel ? "Enviar Excel no WhatsApp" : "Enviar WhatsApp";
+  els.btnShareWhatsapp.style.display = backup || ((data || families) && !excel) ? "none" : "";
   [els.logStart, els.logEnd].forEach((el) => { el.closest(".field").style.display = special && !data ? "none" : ""; });
   logEl("logCenterStatus").textContent = logCenter.busy ? "Processando; aguarde o arquivo completo..." : logCenter.error;
   if (!special) return false;
@@ -96,6 +213,7 @@ function renderLogCenter() {
   els.btnLogSelectStudents.style.display = "none";
   const allowed = families ? isAdmin() || isEquipe() : backup ? isSadmin() : canExtractStudentData();
   els.btnExport.disabled = logCenter.busy || !allowed;
+  els.btnShareWhatsapp.disabled = els.btnExport.disabled;
   if (!allowed) {
     els.logSummary.textContent = "Sem permissão para esta operação."; renderStudentExtraction(); return true;
   }
@@ -131,6 +249,7 @@ function renderLogCenter() {
     logEl("btnLogConsult").style.display = backup ? "none" : "";
     if (logCenter.table !== `${operation}:${logEl("logDataTable").value}`) renderLogFields();
   }
+  els.btnShareWhatsapp.disabled = els.btnExport.disabled;
   return true;
 }
 
@@ -243,10 +362,13 @@ async function downloadLogTable(filename, matrix) {
     const name = filename.replace(/\.csv$/, "");
     if (format === "csv") { downloadCsv(filename, matrix); return; }
     if (format === "json") { logDownload(`${name}.json`, JSON.stringify({ report: getLogReportType(), generated_at: new Date().toISOString(), rows: matrix }, null, 2)); return; }
+    const context = createLogExcelContext(getLogReportType() === "data" ? "data" : "report");
     const XLSX = await ensureXlsxLoaded(); const workbook = XLSX.utils.book_new();
     requireLogSession(sessionId, "report");
+    requireLogExcelContext(context);
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(matrix), "Dados");
     XLSX.writeFile(workbook, `${name}.xlsx`, { compression: true });
+    rememberLogExcel(XLSX, workbook, `${name}.xlsx`, context);
   } catch (e) { alert(`Exportação não concluída: ${e.message}`); }
 }
 
@@ -333,6 +455,16 @@ async function createLogBackup() {
 }
 
 logEl("logDataTable").addEventListener("change", renderLogFields);
+logEl("btnLogShareExcelFile").addEventListener("click", () => {
+  if (logCenter.excelExport) shareLogExcelRecord(logCenter.excelExport);
+});
+logEl("btnLogDownloadExcelFile").addEventListener("click", () => {
+  try {
+    if (!logCenter.excelExport) return;
+    const file = getLogExcelFile(logCenter.excelExport);
+    logDownload(file.name, file, file.type);
+  } catch (error) { alert(`Download não concluído: ${error.message}`); }
+});
 logEl("btnLogAddCriterion").addEventListener("click", addLogCriterion);
 logEl("btnLogConsult").addEventListener("click", async () => {
   if (logCenter.busy) return;

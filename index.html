@@ -801,9 +801,23 @@
     </form>
   </dialog>
 
+  <dialog id="logExcelShareDialog" class="dialog" aria-labelledby="logExcelShareTitle">
+    <form method="dialog" class="dialog-body">
+      <h3 id="logExcelShareTitle">Compartilhar Excel</h3>
+      <strong id="logExcelShareFilename"></strong>
+      <p id="logExcelShareStatus" class="summary" role="status"></p>
+      <div class="actions">
+        <button id="btnLogShareExcelFile" type="button" class="primary" hidden>Compartilhar arquivo</button>
+        <button id="btnLogDownloadExcelFile" type="button" class="ghost" hidden>Baixar Excel</button>
+        <a id="logExcelOpenWhatsapp" href="https://web.whatsapp.com/" target="_blank" rel="noopener noreferrer" class="ghost" hidden>Abrir WhatsApp Web</a>
+      </div>
+      <div class="dialog-actions"><button value="close" class="ghost">Fechar</button></div>
+    </form>
+  </dialog>
+
   <script src="vendor/supabase-js.js?v=20260330h"></script>
   <script src="vendor/jsQR.js?v=20260831a"></script>
-  <script src="app.js?v=20261110a"></script>
-  <script src="log-center.js?v=20261110a"></script>
+  <script src="app.js?v=20261110b"></script>
+  <script src="log-center.js?v=20261110b"></script>
 </body>
 </html>

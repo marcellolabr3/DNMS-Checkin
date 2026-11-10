@@ -1783,6 +1783,7 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   expect(excel.workbook.Sheets.Criancas["!autofilter"]).toEqual({ ref: "A1:L2" });
   expect(excel.workbook.Sheets.Criancas["!cols"].length).toBe(12);
 
+  await page.selectOption("#logExportFormat", "csv");
   await page.evaluate(() => {
     window.__lastOpenedUrl = "";
     window.open = (url) => {

@@ -95,6 +95,7 @@ for (const mode of ["all", "class", "selected", "transition"]) {
     expect(workbook.sheets.Resumo.rows).toContainEqual(["Membros", 1]);
     expect(workbook.sheets.Resumo.rows).toContainEqual(["Visitantes", 1]);
     expect(sheet["!autofilter"].ref).toBe(mode === "transition" ? "A1:N3" : "A1:L3");
+    await page.selectOption("#logExportFormat", "csv");
     await page.click("#btnShareWhatsapp");
     const text = await page.evaluate(() => new URL(window.__membershipShareUrl).searchParams.get("text"));
     expect(text).toContain("Ana Kids | Membro |");
@@ -108,6 +109,7 @@ test("frequência e resumo distinguem vínculos sem duplicar a quantidade de cri
   expect(await exportLog(page, "csv")).toContain("Bia Visitante;Visitante;Kids;1;");
   assertChildMatrix((await exportLog(page, "json")).rows, "Aluno");
   assertChildMatrix((await exportLog(page, "xlsx")).sheets.Dados.rows, "Aluno");
+  await page.selectOption("#logExportFormat", "csv");
   await page.locator(".attendance-class-group > summary").click();
   await expect(page.locator("#logList")).toContainText("Membro/Visitante: Visitante");
   await page.click("#btnShareWhatsapp");

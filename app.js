@@ -539,6 +539,7 @@ function bindEvents() {
 }
 
 function render() {
+  if (typeof syncLogExcelSession === "function") syncLogExcelSession();
   renderSession();
   renderRoleVisibility();
   renderDashboard();
@@ -3989,7 +3990,7 @@ function renderAuditReport(reportType) {
   }
   els.btnExport.disabled = !rows.length;
   if (els.btnShareWhatsapp) {
-    els.btnShareWhatsapp.disabled = true;
+    els.btnShareWhatsapp.disabled = !rows.length || document.getElementById("logExportFormat")?.value !== "xlsx";
   }
   if (els.btnLogSelectStudents) {
     els.btnLogSelectStudents.disabled = true;
@@ -9343,11 +9344,11 @@ async function exportCsv() {
   try { await refreshLogSnapshot(); } catch (error) { alert(`Exportacao cancelada: ${error.message}`); return; }
   const reportType = getLogReportType();
   if (reportType === "event_summary") {
-    exportEventSummaryCsv();
+    await exportEventSummaryCsv();
     return;
   }
   if (reportType !== "attendance") {
-    exportAuditCsv(reportType);
+    await exportAuditCsv(reportType);
     return;
   }
   const filteredCheckins = getFilteredCheckins();
@@ -9370,11 +9371,11 @@ async function exportCsv() {
   const periodStart = els.logStart?.value || "";
   const periodEnd = els.logEnd?.value || "";
   const periodLabel = periodStart && periodEnd ? `${periodStart}_${periodEnd}` : "periodo";
-  downloadLogTable(`frequencia_${periodLabel}.csv`, csvRows);
+  await downloadLogTable(`frequencia_${periodLabel}.csv`, csvRows);
   render();
 }
 
-function exportEventSummaryCsv() {
+async function exportEventSummaryCsv() {
   const items = getFilteredCheckins();
   const summary = buildEventSummary(items);
   if (!summary.totalCheckins) {
@@ -9385,11 +9386,11 @@ function exportEventSummaryCsv() {
   const rows = buildEventSummaryCsvRows(summary);
   const periodStart = els.logStart?.value || "inicio";
   const periodEnd = els.logEnd?.value || "fim";
-  downloadLogTable(`resumo_evento_${periodStart}_${periodEnd}.csv`, [header, ...rows]);
+  await downloadLogTable(`resumo_evento_${periodStart}_${periodEnd}.csv`, [header, ...rows]);
   render();
 }
 
-function exportAuditCsv(reportType) {
+async function exportAuditCsv(reportType) {
   const rows = getFilteredAuditRows(reportType);
   if (!rows.length) {
     alert("Nenhum evento encontrado para exportar.");
@@ -9408,7 +9409,7 @@ function exportAuditCsv(reportType) {
   ]);
   const startValue = els.logStart?.value || "inicio";
   const endValue = els.logEnd?.value || "fim";
-  downloadLogTable(`${reportType}_${startValue}_${endValue}.csv`, [header, ...csvRows]);
+  await downloadLogTable(`${reportType}_${startValue}_${endValue}.csv`, [header, ...csvRows]);
   render();
 }
 
@@ -9452,6 +9453,7 @@ async function exportStudentsDataExcel() {
     return;
   }
   const sessionId = state.session.id;
+  const excelContext = createLogExcelContext("data");
   const rows = getStudentExtractionRows();
   if (!rows.length) {
     alert("Nenhuma crianca encontrada para extrair.");
@@ -9466,8 +9468,10 @@ async function exportStudentsDataExcel() {
   try {
     const XLSX = await ensureXlsxLoaded();
     requireLogSession(sessionId);
+    requireLogExcelContext(excelContext);
     const workbook = buildStudentExtractionWorkbook(XLSX, rows);
     XLSX.writeFile(workbook, `criancas_${getStudentExtractionFileSuffix()}.xlsx`, { compression: true });
+    rememberLogExcel(XLSX, workbook, `criancas_${getStudentExtractionFileSuffix()}.xlsx`, excelContext);
   } catch (error) {
     console.warn("Falha ao gerar Excel de criancas", error);
     alert(`Falha ao gerar Excel: ${error?.message || "biblioteca indisponivel"}`);
@@ -9614,6 +9618,7 @@ function getStudentExtractionExcelRow(row) {
 }
 
 function shareStudentsDataWhatsapp() {
+  if (document.getElementById("logExportFormat")?.value === "xlsx") { shareLogExcel(); return; }
   if (!state.session || !canExtractStudentData()) {
     alert("Sem permissao para compartilhar dados de criancas.");
     return;
@@ -9672,6 +9677,7 @@ function getStudentExtractionFileSuffix() {
 }
 
 function shareLogWhatsapp() {
+  if (document.getElementById("logExportFormat")?.value === "xlsx") { shareLogExcel(); return; }
   if (getLogReportType().startsWith("extract_") && canExtractStudentData()) { shareStudentsDataWhatsapp(); return; }
   if (!state.session || !(isAdmin() || isEquipe())) {
     alert("Sem permissao para compartilhar.");

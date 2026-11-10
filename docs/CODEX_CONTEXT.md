@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache do checkout: `checkin-cache-v202`, `app.js?v=20261110a`, `log-center.js?v=20261110a`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
+- Cache do checkout: `checkin-cache-v203`, `app.js?v=20261110b`, `log-center.js?v=20261110b`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -42,16 +42,17 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Estado validado
 
-- Log: operacao unica para relatorios, familias, cadastros, troca de classe, consultas e backups JSON (SADMIN). Previa e CSV/Excel/JSON/WhatsApp identificam Membro/Visitante por `students.is_visitor`, inclusive na previsao anual. Excel separa totais; familias identificam cada filho; resumo do evento agrupa vinculos sem duplicar criancas. Consultas acrescentam a classificacao mesmo com campos parciais e leem relacionamentos na mesma RPC. Cadastro ausente = Nao identificado; auditoria usa o vinculo atual, sem inferir historico. Backups conservam o formato e a flag original. Sem mudanca de banco/RLS.
+- Log: relatorios, familias, cadastros, previsao anual, consultas e backups. Membro/Visitante por `students.is_visitor`; cadastro ausente = Nao identificado. Excel separa totais; familias identificam cada filho. Auditoria usa vinculo atual. Consultas leem relacionamentos no mesmo snapshot, mesmo com campos parciais. Backups mantem o formato e a flag original. Sem mudanca de banco/RLS.
 - Arquivos do Log: `app.js`, `log-center.js`, `supabase/patch_log_data_center.sql`, `docs/LOG_DATA_CENTER.md`; restauracao: `scripts/restore-log-backup.cjs`. Backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas/Excel recusam sessao alterada. `PLAYWRIGHT_BASE_URL` testa frontend publicado com fixtures.
-- Validacao: 298 testes locais desktop/mobile passaram, incluindo 22 novos de vinculo; sintaxe JS conferida. Publicacao `e3c7955` confirmada pelo check Cloudflare Pages: `https://dnms-checkin.pages.dev`, cache v202. HTML, app.js, log-center.js e sw.js publicados iguais ao checkout. Dois testes de transicao passaram contra o frontend publicado (desktop/mobile, CSV/Excel/JSON/WhatsApp, dados simulados). Excel: vinculo na coluna B da aba Mudancas/Criancas; Resumo separa totais. Arquivos antigos precisam ser gerados novamente.
+- Compartilhamento Excel: `log-center.js` guarda a planilha exportada em memoria e compartilha um File XLSX pelo seletor nativo (usuario escolhe WhatsApp e confirma). Se ainda nao gerou, prepara e pede novo clique. Sem suporte, oferece download para anexar como Documento. Nunca substitui Excel por texto. Filtros/sessao/permissoes invalidam o cache; logout limpa arquivo/dialogo. CSV/JSON conservam texto; backups nao sao compartilhados.
+- Validacao local: 330 testes desktop/mobile passaram; inclui 32 novos de compartilhamento com XLSX real, comparacao dos bytes, ativacao, cancelamento, fallback e isolamento de sessao/filtros. Sintaxe JS conferida. API nativa simulada; nenhum envio a contatos. Publicacao v203 a conferir; ultima validada v202 (`e3c7955`). Excel: vinculo na coluna B da aba Mudancas/Criancas; Resumo separa totais.
 
 - Dashboard: cards Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (`is_visitor`, check-in hoje, incluindo saidas), Criancas com observacao (presentes com `notes`) e Salas abertas (filtro). Listas compactas abrem cadastro; texto escapado, limpeza ao trocar sessao; somente admin/equipe. Selecao em lote respeita salas visiveis. Mobile 2x2 e temas claro/escuro; regras de salas teste preservadas.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
-- Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`, `Servico de impressao/server.js`, `Servico de impressao/src/windows-pdf-print-adapter.js`, `Servico de impressao/scripts/install-portable.ps1`.
-- Validacao: `node --check app.js`, `node --check "Servico de impressao/server.js"`, `node --check "Servico de impressao/src/windows-pdf-print-adapter.js"` passaram; `npm.cmd test -- tests/print-service.spec.js tests/print-worker.spec.js` passou com 16 testes.
+- Print Service: arquivos em `Servico de impressao/server.js`, `Servico de impressao/src/windows-pdf-print-adapter.js` e `Servico de impressao/scripts/install-portable.ps1`.
 
 ## Pendencias reais
 
 1. Print Service: retencao/limpeza do SQLite.
 2. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.
+3. Conferir publicacao do compartilhamento Excel, cache v203/20261110b.
