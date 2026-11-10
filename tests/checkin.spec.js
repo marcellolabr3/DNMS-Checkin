@@ -1655,15 +1655,13 @@ test("log sem historico anterior abre com periodo de hoje e mostra assiduidade",
   await expect(page.locator("#logStart")).toHaveValue(todayIso());
   await expect(page.locator("#logEnd")).toHaveValue(todayIso());
   await expect(page.locator("#logSelectedStudentsSummary")).toBeEmpty();
-  await expect(page.locator("#logSummary")).toContainText("Frequencia");
-  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 presenca(s).");
-  await expect(page.locator("#logSummary")).not.toContainText("Total geral");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 presenca(s)");
-  const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
-  await expect(kidsGroup.locator("summary")).toContainText("1 crianca(s) | 1 presenca(s)");
-  await expect(kidsGroup.getByText("Ana Kids")).not.toBeVisible();
-  await kidsGroup.locator("summary").click();
-  await expect(kidsGroup.getByText("Ana Kids")).toBeVisible();
+  await expect(page.locator("#logSummary")).toContainText("Assiduidade");
+  await expect(page.locator("#logAttendanceWithCount")).toHaveText("1");
+  await expect(page.locator("#logAttendanceTotalCount")).toHaveText("1");
+  await expect(page.locator("#logAttendanceWithoutCount")).toHaveText("1");
+  const kidsRow = page.locator('#logList tr[data-student-id="student-kids"]');
+  await expect(kidsRow.getByText("Ana Kids")).toBeVisible();
+  await expect(kidsRow.locator('td[data-label="Presenças"]')).toHaveText("1");
   await expect(page.locator("#btnExport")).toBeEnabled();
 
   const downloadPromise = page.waitForEvent("download");
@@ -1672,10 +1670,9 @@ test("log sem historico anterior abre com periodo de hoje e mostra assiduidade",
   const filePath = await download.path();
   const buffer = fs.readFileSync(filePath);
   const csv = buffer.toString("utf8");
-  expect(csv).toContain("Secao;Nome;Total;Criancas;Ativos;Check-outs;Pendentes de impressao");
-  expect(csv).toContain("Resumo;Geral;1;1;1;0;1");
-  expect(csv).toContain("Aluno;Membro/Visitante;Turma;Presencas;Horarios de check-in");
-  expect(csv).toContain("Ana Kids;Membro;Kids;1;");
+  expect(csv).toContain("Turma atual;Criança;Vínculo;Presenças;Primeira presença;Última presença");
+  expect(csv).toContain("Kids;Ana Kids;Membro;1;");
+  expect(csv).not.toContain("Resumo;Geral");
 
   await page.evaluate(() => {
     window.__lastOpenedUrl = "";
@@ -1686,11 +1683,11 @@ test("log sem historico anterior abre com periodo de hoje e mostra assiduidade",
   });
   await page.click("#btnShareWhatsapp");
   const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
-  expect(whatsappText).toContain("Resumo do evento");
-  expect(whatsappText).toContain("Total geral: 1 check-in(s), 1 crianca(s)");
+  expect(whatsappText).toContain("Assiduidade de");
+  expect(whatsappText).toContain("Total de presenças: 1");
   expect(whatsappText).not.toContain("checkout");
   expect(whatsappText).not.toContain("Impressao pendente");
-  expect(whatsappText).toContain("Frequencia detalhada");
+  expect(whatsappText).toContain("Primeira presença");
   expect(whatsappText).toContain("Ana Kids | Membro | Kids |");
 });
 
@@ -1981,14 +1978,11 @@ test("log de frequencia preserva presencas apos checkout e deduplica reentradas"
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnLogPanel");
 
-  await expect(page.locator("#logSummary")).toContainText("2 crianca(s) com presenca. 2 presenca(s).");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 presenca(s)");
-  await expect(page.locator("#logCounts")).toContainText("Juniors: 1 presenca(s)");
+  await expect(page.locator("#logAttendanceWithCount")).toHaveText("2");
+  await expect(page.locator("#logAttendanceTotalCount")).toHaveText("2");
   await expect(page.locator("#logList")).toContainText("Ana Kids");
   await expect(page.locator("#logList")).toContainText("Bia Juniors");
-  const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
-  await kidsGroup.locator("summary").click();
-  await expect(kidsGroup.locator(".list-item")).toHaveCount(1);
+  await expect(page.locator('#logList tr[data-student-id="student-kids"]')).toHaveCount(1);
 });
 
 test("log gera resumo do evento com pendencias de impressao e exporta csv", async ({ page }) => {

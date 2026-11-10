@@ -75,7 +75,8 @@ for (const operation of ["extract_transition", "attendance", "event_summary", "c
     expect(file.name).toBe(download.name);
     expect(Buffer.from(file.bytes).equals(download.bytes)).toBe(true);
     const workbook = XLSX.read(Buffer.from(file.bytes), { type: "buffer" });
-    expect(workbook.SheetNames).toContain(operation === "extract_transition" ? "Mudancas" : "Dados");
+    if (operation === "attendance") expect(workbook.SheetNames).toEqual(["Assiduidade", "Presenças", "Resumo"]);
+    else expect(workbook.SheetNames).toContain(operation === "extract_transition" ? "Mudancas" : "Dados");
     expect(await page.evaluate(() => window.__openedShareUrls)).toEqual([]);
   });
 }

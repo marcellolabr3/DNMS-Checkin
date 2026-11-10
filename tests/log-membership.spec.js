@@ -106,12 +106,15 @@ for (const mode of ["all", "class", "selected", "transition"]) {
 
 test("frequência e resumo distinguem vínculos sem duplicar a quantidade de crianças", async ({ page }) => {
   await prepareLog(page, "equipe@dnms.test");
-  expect(await exportLog(page, "csv")).toContain("Bia Visitante;Visitante;Kids;1;");
-  assertChildMatrix((await exportLog(page, "json")).rows, "Aluno");
-  assertChildMatrix((await exportLog(page, "xlsx")).sheets.Dados.rows, "Aluno");
+  expect(await exportLog(page, "csv")).toContain("Kids;Bia Visitante;Visitante;1;");
+  const jsonRows = (await exportLog(page, "json")).rows;
+  expect(jsonRows[0]).toEqual(["Turma atual", "Criança", "Vínculo", "Presenças", "Primeira presença", "Última presença"]);
+  expect(jsonRows.find((row) => row[1] === "Ana Kids")?.[2]).toBe("Membro");
+  expect(jsonRows.find((row) => row[1] === "Bia Visitante")?.[2]).toBe("Visitante");
+  const excelRows = (await exportLog(page, "xlsx")).sheets.Assiduidade.rows;
+  expect(excelRows.find((row) => row[1] === "Bia Visitante")?.[2]).toBe("Visitante");
   await page.selectOption("#logExportFormat", "csv");
-  await page.locator(".attendance-class-group > summary").click();
-  await expect(page.locator("#logList")).toContainText("Membro/Visitante: Visitante");
+  await expect(page.locator('#logList tr').filter({ hasText: "Bia Visitante" }).locator('td[data-label="Vínculo"]')).toHaveText("Visitante");
   await page.click("#btnShareWhatsapp");
   expect(await page.evaluate(() => new URL(window.__membershipShareUrl).searchParams.get("text"))).toContain("Bia Visitante | Visitante |");
   await page.selectOption("#logReportType", "event_summary");

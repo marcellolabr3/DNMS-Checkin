@@ -207,7 +207,6 @@ function renderLogCenter() {
   els.btnShareWhatsapp.textContent = excel ? "Enviar Excel no WhatsApp" : "Enviar WhatsApp";
   els.btnShareWhatsapp.style.display = backup || ((data || families) && !excel) ? "none" : "";
   [els.logStart, els.logEnd].forEach((el) => { el.closest(".field").style.display = special && !data ? "none" : ""; });
-  logEl("btnLogFullPeriod").style.display = special && !data ? "none" : "";
   logEl("logCenterStatus").textContent = logCenter.busy ? "Processando; aguarde o arquivo completo..." : logCenter.error;
   if (!special) return false;
   els.logList.replaceChildren(); els.logCounts.textContent = ""; els.logSelectedStudentsSummary.textContent = "";
@@ -356,6 +355,73 @@ function logDownload(filename, content, type = "application/json") {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement("a"); link.href = url; link.download = filename;
   document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function downloadLogAttendance(report, context) {
+  requireLogExcelContext(context);
+  const { rows, details, summary } = report;
+  const start = els.logStart.value;
+  const end = els.logEnd.value;
+  if (!start || !end || start > end) throw new Error("Selecione um período válido.");
+  const filename = `assiduidade_${start}_a_${end}`;
+  const header = ["Turma atual", "Criança", "Vínculo", "Presenças", "Primeira presença", "Última presença"];
+  const detailHeader = ["Data", "Horário", "Criança", "Turma na aula", "Evento", "Vínculo"];
+  const matrix = [header, ...rows.map((row) => [row.className, row.studentName, row.membership, row.checkinCount,
+    row.firstPresence ? formatLogAttendanceDate(row.firstPresence) : "",
+    row.lastPresence ? formatLogAttendanceDate(row.lastPresence) : ""] )];
+  const detailMatrix = [detailHeader, ...details.map((detail) => [formatLogAttendanceDate(detail.date), detail.time,
+    detail.studentName, detail.className, detail.roomName, detail.membership])];
+  const format = logEl("logExportFormat").value;
+  if (format === "csv") { downloadCsv(`${filename}.csv`, matrix); return; }
+  const filters = { start, end, className: els.logClassFilter.value, studentName: els.logStudentFilter.value,
+    selectedStudentIds: [...(state.ui.logSelectedStudentIds || [])] };
+  if (format === "json") {
+    logDownload(`${filename}.json`, JSON.stringify({ report: "attendance", generated_at: new Date().toISOString(),
+      filters, summary, rows: matrix, presences: detailMatrix }, null, 2));
+    return;
+  }
+  const XLSX = await ensureXlsxLoaded();
+  requireLogExcelContext(context);
+  const workbook = XLSX.utils.book_new();
+  const append = (name, headings, data, widths, dateColumns = [], timeColumns = []) => {
+    const sheet = XLSX.utils.aoa_to_sheet([headings, ...data], { cellDates: true });
+    sheet["!cols"] = widths.map((wch) => ({ wch }));
+    sheet["!autofilter"] = { ref: `A1:${String.fromCharCode(64 + headings.length)}${data.length + 1}` };
+    data.forEach((row, index) => {
+      [...dateColumns, ...timeColumns].forEach((column) => {
+        const cell = sheet[`${String.fromCharCode(65 + column)}${index + 2}`];
+        if (cell && row[column] !== "" && row[column] != null) cell.z = timeColumns.includes(column) ? "hh:mm" : "dd/mm/yyyy";
+      });
+    });
+    XLSX.utils.book_append_sheet(workbook, sheet, name);
+    return sheet;
+  };
+  append("Assiduidade", header, rows.map((row) => [row.className, row.studentName, row.membership, row.checkinCount,
+    parseInputDate(row.firstPresence) || "", parseInputDate(row.lastPresence) || ""]), [17, 32, 18, 13, 20, 20], [4, 5]);
+  append("Presenças", detailHeader, details.map((detail) => {
+    const [hour, minute] = detail.time.split(":").map(Number);
+    const time = Number.isFinite(hour) && Number.isFinite(minute) ? (hour * 60 + minute) / 1440 : "";
+    return [parseInputDate(detail.date), time, detail.studentName, detail.className, detail.roomName, detail.membership];
+  }), [14, 12, 32, 18, 30, 18], [0], [1]);
+  const summaryRows = [
+    ["Crianças consultadas", "Total", summary.children],
+    ["Crianças com presença", "Total", summary.withAttendance],
+    ["Crianças sem presença", "Total", summary.withoutAttendance],
+    ["Presenças", "Total", summary.presences],
+    ...summary.byClass.flatMap((group) => [["Crianças consultadas", group.label, group.children], ["Presenças", group.label, group.presences]]),
+    ...summary.byMembership.flatMap((group) => [["Crianças consultadas", group.label, group.children], ["Presenças", group.label, group.presences]])
+  ];
+  const filterRows = [["Data inicial", parseInputDate(start)], ["Data final", parseInputDate(end)],
+    ["Turma atual", filters.className === "all" ? "Todas as turmas" : filters.className],
+    ["Busca por criança", filters.studentName || "Todas"],
+    ["Seleção de crianças", filters.selectedStudentIds.length ? `${filters.selectedStudentIds.length} selecionada(s)` : "Todas"]];
+  const summarySheet = append("Resumo", ["Indicador", "Grupo", "Quantidade", "", "Filtro", "Valor"],
+    summaryRows.map((row, index) => [...row, "", ...(filterRows[index] || ["", ""])]), [28, 22, 15, 3, 24, 32], [5]);
+  // Summary metrics and filter metadata occupy separate ranges in this sheet.
+  summarySheet["!autofilter"] = { ref: `A1:C${summaryRows.length + 1}` };
+  requireLogExcelContext(context);
+  XLSX.writeFile(workbook, `${filename}.xlsx`, { compression: true });
+  rememberLogExcel(XLSX, workbook, `${filename}.xlsx`, context);
 }
 
 async function downloadLogTable(filename, matrix) {

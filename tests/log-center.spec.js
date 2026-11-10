@@ -225,7 +225,7 @@ test("relatórios preservam resumo e dados em JSON e Excel",async({page})=>{
   });
   await loginAs(page,"admin@dnms.test");await page.click("#btnLogPanel");await page.selectOption("#logExportFormat","json");
   const pending=page.waitForEvent("download");await page.click("#btnExport");const data=JSON.parse(await readDownload(await pending));expect(data.report).toBe("attendance");expect(JSON.stringify(data.rows)).toContain("Ana Kids");
-  await page.selectOption("#logExportFormat","xlsx");await page.click("#btnExport");await expect.poll(()=>page.evaluate(()=>window.__logWorkbook?.name)).toMatch(/frequencia_.*\.xlsx/);
+  await page.selectOption("#logExportFormat","xlsx");await page.click("#btnExport");await expect.poll(()=>page.evaluate(()=>window.__logWorkbook?.name)).toMatch(/assiduidade_.*\.xlsx/);
   expect(await page.evaluate(()=>JSON.stringify(window.__logWorkbook.workbook))).toContain("Ana Kids");
   await page.selectOption("#logReportType","event_summary");await page.selectOption("#logExportFormat","json");const next=page.waitForEvent("download");await page.click("#btnExport");expect(JSON.parse(await readDownload(await next)).report).toBe("event_summary");
 });

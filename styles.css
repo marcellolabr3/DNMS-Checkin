@@ -3387,3 +3387,62 @@ body.theme-dark .main-nav #btnLogout:hover {
     border-radius: 999px;
   }
 }
+
+/* Assiduidade: totals, one row per child and attendance details. */
+.log-attendance #logFilters {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.3fr) minmax(95px, .65fr) repeat(2, minmax(135px, 1fr)) minmax(135px, 1fr) minmax(160px, 1.2fr);
+  gap: 12px;
+  padding: 16px;
+}
+.log-attendance #logFilters .field { min-width: 0; }
+.log-attendance #logFilters input,
+.log-attendance #logFilters select { min-width: 0; width: 100%; }
+.log-attendance #btnLogSelectStudents { grid-column: 1 / -1; justify-self: start; }
+.log-attendance #logCounts,
+.log-attendance #logSelectedStudentsSummary:empty,
+.log-attendance #logCenterStatus:empty { display: none; }
+.attendance-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.attendance-metrics[hidden], .attendance-views[hidden] { display: none; }
+.attendance-metrics > div { background: var(--card); border: 1px solid var(--stroke); border-radius: 10px; padding: 16px 18px; }
+.attendance-metrics span { display: block; font-size: 12px; color: var(--muted); }
+.attendance-metrics strong { display: block; margin-top: 5px; font-size: 28px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.attendance-views { display: flex; gap: 6px; border-bottom: 1px solid var(--stroke); }
+.attendance-views > button { background: transparent; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 12px 14px; color: var(--muted); }
+.attendance-views > button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.attendance-table-wrap { width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--stroke); border-radius: 10px; background: var(--card); }
+.attendance-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.attendance-table th { padding: 13px 16px; color: var(--muted); font-size: 12px; font-weight: 650; background: var(--surface); border-bottom: 1px solid var(--stroke); white-space: nowrap; }
+.attendance-table td { padding: 15px 16px; border-bottom: 1px solid var(--stroke); vertical-align: middle; }
+.attendance-table tbody tr:last-child td { border-bottom: 0; }
+.attendance-table .attendance-number { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.attendance-table-caption { caption-side: bottom; padding: 11px 16px; font-size: 12px; color: var(--muted); text-align: left; border-top: 1px solid var(--stroke); }
+.attendance-membership { display: inline-block; border-radius: 20px; padding: 4px 9px; color: var(--accent); background: var(--accent-soft); font-size: 12px; }
+.attendance-membership.attendance-visitor { color: var(--ink); background: color-mix(in srgb, var(--accent-2) 17%, var(--card)); }
+.attendance-detail-button { font-size: 12px; white-space: nowrap; }
+.attendance-dialog { width: min(940px, 94vw); max-width: 94vw; max-height: 90vh; overflow-y: auto; background: var(--card); color: var(--ink); border: 1px solid var(--stroke); }
+.attendance-dialog .dialog-body { min-width: 0; }
+.attendance-dialog-header { display: flex; justify-content: space-between; align-items: start; gap: 14px; position: sticky; top: 0; z-index: 1; background: var(--card); }
+.attendance-dialog-header h3 { margin: 0 0 8px; overflow-wrap: anywhere; }
+.attendance-dialog-header p { margin: 0 0 16px; }
+.attendance-dialog-header > button { flex-shrink: 0; }
+@media (max-width: 1180px) {
+  .log-attendance #logFilters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .log-attendance #logFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 13px; }
+  .log-attendance #logFilters > .field:nth-of-type(-n+2) { grid-column: 1 / -1; }
+  .log-attendance #btnLogSelectStudents { justify-self: stretch; }
+  .attendance-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .attendance-metrics > div { padding: 12px 14px; }
+  .attendance-metrics strong { font-size: 24px; }
+  .attendance-views > button { padding: 11px 9px; font-size: 13px; }
+  .attendance-table-wrap { border: 0; background: transparent; overflow: visible; }
+  .attendance-table, .attendance-table tbody { display: block; }
+  .attendance-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .attendance-table tbody tr { display: block; padding: 11px 14px; margin-bottom: 12px; border: 1px solid var(--stroke); border-radius: 10px; background: var(--card); }
+  .attendance-table td { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 7px 0; border: 0; overflow-wrap: anywhere; }
+  .attendance-table td::before { content: attr(data-label); color: var(--muted); flex: 0 0 40%; font-weight: 400; text-align: left; }
+  .attendance-table .attendance-number { text-align: left; }
+  .attendance-table-caption { display: block; padding: 2px 0 8px; border: 0; }
+}
