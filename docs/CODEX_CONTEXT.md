@@ -46,7 +46,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Assiduidade: uma linha por ID, com turma atual, nome, vinculo, total e primeira/ultima presenca. Inclui zero; filtra pela turma atual e preserva turma da aula no detalhe. Checkout preserva presenca; reentrada na mesma sala/dia nao duplica. Periodo inicial automatico desde primeiro `created_at`/`checked_in_at`; preserva datas manuais, sem botao extra. Excel: Assiduidade/Presencas/Resumo, datas/horarios nativos e filtros; CSV: tabela unica. Testes: `tests/log-attendance.spec.js`, `tests/checkin.spec.js`.
 - Arquivos do Log: `app.js`, `log-center.js`, `supabase/patch_log_data_center.sql`, `docs/LOG_DATA_CENTER.md`; restauracao: `scripts/restore-log-backup.cjs`. Backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas/Excel recusam sessao alterada. `PLAYWRIGHT_BASE_URL` testa frontend publicado com fixtures.
 - Excel: `log-center.js` guarda XLSX em memoria e compartilha pelo seletor nativo. Sem arquivo pronto, prepara e pede novo clique; sem suporte, oferece download para anexar como Documento. Filtros/sessao/permissoes invalidam o cache; logout limpa arquivo/dialogo. CSV/JSON conservam texto; backups nao sao compartilhados.
-- Validacao local v205: 360 testes desktop/mobile passaram, incluindo XLSX real, filtros, homonimos, mudanca de turma, sessao e mais de mil registros. Sintaxe JS, diff e visual claro/escuro conferidos. Ultima publicacao: `9cb17a0`, cache v204 em `https://dnms-checkin.pages.dev`. Fixtures Supabase; extracao autenticada real nao repetida.
+- Publicado: `16784d8`, cache v205 em `https://dnms-checkin.pages.dev`; Cloudflare Pages confirmou sucesso. HTML/app/log-center/CSS/SW identicos ao checkout. Passaram 360 testes locais e 114 publicados desktop/mobile com fixtures, incluindo XLSX real, filtros, homonimos e sessao. Visual claro/escuro, SW ativo e login sem erros JS conferidos. Extracao autenticada real nao repetida. Artefatos: `D:\Dev\dnms-published-audit\assiduidade-v205`.
 
 - Dashboard: Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (`is_visitor`, incluindo saidas), Criancas com observacao (presentes com `notes`) e Salas abertas. Listas abrem cadastro; texto escapado, limpeza ao trocar sessao; somente admin/equipe. Selecao em lote respeita salas visiveis; mobile 2x2 e temas claro/escuro.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
@@ -54,6 +54,5 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Pendencias reais
 
-1. Publicar organizacao aprovada da assiduidade/cache v205 e validar frontend publicado. Artefatos locais: `D:\Dev\dnms-published-audit\assiduidade-v205`.
-2. Print Service: retencao/limpeza do SQLite.
-3. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.
+1. Print Service: retencao/limpeza do SQLite.
+2. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.
