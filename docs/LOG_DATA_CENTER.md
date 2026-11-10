@@ -8,6 +8,10 @@ O seletor **Operação** concentra os quatro relatórios existentes, responsáve
 
 ## Consulta e formatos
 
+As prévias e exportações de crianças incluem **Membro/Visitante** ao lado do nome, inclusive na previsão anual de troca de classe, em CSV, Excel, JSON e no texto para WhatsApp. A classificação vem de `students.is_visitor`: `true` é Visitante e `false` é Membro; não é inferida da turma nem do responsável. O JSON de cadastros acrescenta `membership` e conserva `isVisitor`. O resumo do Excel separa os totais de membros e visitantes.
+
+Frequência e auditoria identificam o vínculo da criança; responsáveis e filhos preservam a lista original de nomes e acrescentam uma coluna que identifica cada filho, inclusive em famílias mistas. O resumo do evento inclui grupos por vínculo com quantidade de check-ins e de crianças distintas. Na consulta de tabelas com crianças ou `student_id`, e na auditoria, a coluna **Membro/Visitante** é acrescentada mesmo se os campos originais forem selecionados parcialmente. Os registros relacionados vêm da mesma RPC/snapshot, respeitando RLS. Se o cadastro não existir mais, o vínculo aparece como **Não identificado**; ações sem relação com crianças ficam sem classificação infantil. É a classificação atual do cadastro, não uma reconstrução histórica. Backups mantêm o `is_visitor` original e seu formato de recuperação.
+
 Em **Dados do banco**, o controle recolhido **Combinar critérios por campo** permite cruzar igualdade, busca textual, valores vazios/preenchidos e listas separadas por vírgula. Todos os critérios são aplicados em conjunto com busca, turma, evento e período. Para delimitar cadastros, use `id`, `student_id` ou `guardian_id`, conforme a tabela. Mudar a tabela ou a operação limpa esses critérios; backups não usam filtros que descartem registros.
 
 Se a sessão mudar durante a leitura do banco ou a geração do backup, a operação é cancelada antes do download. A exportação Excel, incluindo os cadastros de crianças, também verifica a sessão e as permissões após carregar sua biblioteca. Respostas atrasadas de relatórios e catálogo não são aplicadas ao estado de outro usuário ou após encerrar a sessão.
@@ -44,7 +48,7 @@ Aplicar `supabase/patch_log_data_center.sql` no banco antes da publicação. O p
 
 `node scripts/validate-log-backend.cjs` usa `DATABASE_URL` para testar permissões negativas, extração, snapshot global/específico, dependências e restauração. Toda a execução fica em uma transação com rollback, inclusive a instalação temporária do patch. Não imprime dados pessoais nem salva snapshots em disco.
 
-Testes de interface: `npm test -- tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. Use `PLAYWRIGHT_PORT` quando a porta padrão 4173 estiver ocupada por outro checkout. A publicação atual precisa servir `app.js?v=20261108d`, `log-center.js?v=20261108c`, `styles.css?v=20261108d` e `checkin-cache-v201`.
+Testes de interface: `npm test -- tests/log-membership.spec.js tests/log-center.spec.js tests/checkin.spec.js tests/service-worker.spec.js`. Use `PLAYWRIGHT_PORT` quando a porta padrão 4173 estiver ocupada por outro checkout. Esta alteração precisa servir `app.js?v=20261110a`, `log-center.js?v=20261110a`, `styles.css?v=20261108d` e `checkin-cache-v202`.
 
 Para executar a suíte contra os arquivos publicados, defina `PLAYWRIGHT_BASE_URL=https://dnms-checkin.pages.dev` e execute `npm test`. Nesse modo o servidor local não é iniciado. Os testes de interface continuam usando dados fictícios do fixture Supabase e não modificam produção; essa execução confere o frontend publicado e não substitui os testes autenticados do banco real.
 

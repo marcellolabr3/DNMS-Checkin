@@ -107,7 +107,7 @@ function renderLogCenter() {
     filtered.slice(0, 100).forEach(({profile, children}) => {
       const item = document.createElement("div"); item.className = "list-item";
       const name = document.createElement("strong"); name.textContent = profile.name || "Sem nome";
-      const detail = document.createElement("span"); detail.textContent = `Filhos: ${children.map((child) => child.name).join(" | ") || "—"}`;
+      const detail = document.createElement("span"); detail.textContent = `Filhos: ${children.map((child) => `${child.name} (${getStudentMembershipLabel(child)})`).join(" | ") || "—"}`;
       item.append(name, detail); els.logList.append(item);
     });
     els.btnExport.disabled = logCenter.busy || !filtered.length;
@@ -193,10 +193,15 @@ async function queryLogData() {
   const search = normalizeDuplicateText(logEl("logDataSearch").value);
   const className = els.logClassFilter.value;
   const criteria = getLogCriteria();
-  const { data, error } = await supabaseClient.rpc("log_extract_data", { selected_tables: [name] });
+  const table = logCenter.catalog.find((item) => item.name === name);
+  const hasStudent = name === "students" || name === "audit_logs" || table?.columns.includes("student_id");
+  const selectedTables = new Set([name]);
+  if (hasStudent) selectedTables.add("students");
+  if (name === "audit_logs") selectedTables.add("checkins");
+  const { data, error } = await supabaseClient.rpc("log_extract_data", { selected_tables: [...selectedTables] });
   requireLogSession(sessionId);
   if (error) throw error;
-  if (!data || !Array.isArray(data[name])) throw new Error("Resposta incompleta; exportação cancelada.");
+  if (!data || [...selectedTables].some((tableName) => !Array.isArray(data[tableName]))) throw new Error("Resposta incompleta; exportação cancelada.");
   const rows = data[name].filter((row) => {
     if (dateField) {
       const date = String(row[dateField] || "").slice(0, 10);
@@ -210,7 +215,19 @@ async function queryLogData() {
     }
     return (!search || normalizeDuplicateText(JSON.stringify(row)).includes(search)) && matchesLogCriteria(row, criteria);
   });
-  return { name, fields, rows: rows.map((row) => Object.fromEntries(fields.map((key) => [key, row[key] ?? null]))) };
+  const outputFields = fields.slice();
+  if (hasStudent) {
+    const anchor = name === "students" ? "name" : name === "audit_logs" ? "target_name" : "student_id";
+    outputFields.splice(Math.max(0, outputFields.indexOf(anchor) + 1), 0, "Membro/Visitante");
+  }
+  const students = new Map((data.students || []).map((student) => [student.id, student]));
+  return { name, fields: outputFields, rows: rows.map((row) => {
+    const result = Object.fromEntries(fields.map((key) => [key, row[key] ?? null]));
+    if (hasStudent) result["Membro/Visitante"] = name === "audit_logs"
+      ? getAuditStudentMembershipLabel(row, data.students, data.checkins)
+      : getStudentMembershipLabel(students.get(name === "students" ? row.id : row.student_id));
+    return result;
+  }) };
 }
 
 function logDownload(filename, content, type = "application/json") {

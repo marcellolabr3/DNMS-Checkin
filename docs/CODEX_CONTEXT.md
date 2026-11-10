@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache atual: `checkin-cache-v201`, `app.js?v=20261108d`, `log-center.js?v=20261108c`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
+- Cache do checkout: `checkin-cache-v202`, `app.js?v=20261110a`, `log-center.js?v=20261110a`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -42,10 +42,11 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Estado validado
 
-- Log: seletor unico para relatorios, responsaveis e filhos, cadastros, troca de classe, consultas e backups JSON (global/especifico, SADMIN). Familias apenas encaminha a busca ao Log; CSV/Excel/JSON mantem vinculos e permissoes de equipe/admin. RPCs: `supabase/patch_log_data_center.sql`; frontend: `log-center.js`; restauracao: `scripts/restore-log-backup.cjs` e `docs/LOG_DATA_CENTER.md`. Snapshots completos, RLS preservada; backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas e Excel de criancas agora recusam sessao alterada. `PLAYWRIGHT_BASE_URL` permite testar o frontend publicado com fixtures, sem alterar producao.
-- Validacao atual: 276 testes locais e 276 com frontend publicado passaram em desktop/mobile, com fixtures Supabase. Pages confirmou `32e70c6`; assets/cache v201 e inicializacao real de login/SW sem erros. Banco preservado. Testes autenticados com dados reais nao foram repetidos por falta de credenciais locais. Validacao anterior (v199): login/exportacoes reais, 145 arquivos e restauracao com rollback; conta temporaria removida.
+- Log: operacao unica para relatorios, familias, cadastros, troca de classe, consultas e backups JSON (SADMIN). Previa e CSV/Excel/JSON/WhatsApp identificam Membro/Visitante por `students.is_visitor`, inclusive na previsao anual. Excel separa totais; familias identificam cada filho; resumo do evento agrupa vinculos sem duplicar criancas. Consultas acrescentam a classificacao mesmo com campos parciais e leem relacionamentos na mesma RPC. Cadastro ausente = Nao identificado; auditoria usa o vinculo atual, sem inferir historico. Backups conservam o formato e a flag original. Sem mudanca de banco/RLS.
+- Arquivos do Log: `app.js`, `log-center.js`, `supabase/patch_log_data_center.sql`, `docs/LOG_DATA_CENTER.md`; restauracao: `scripts/restore-log-backup.cjs`. Backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas/Excel recusam sessao alterada. `PLAYWRIGHT_BASE_URL` testa frontend publicado com fixtures.
+- Validacao local desta alteracao: `npm.cmd test` passou com 298 testes desktop/mobile, incluindo 22 verificacoes novas de vinculo; `node --check` passou em `app.js`, `log-center.js`, `sw.js` e no teste novo. Dados simulados; nao houve operacoes em producao. Publicacao pendente. Ultima publicacao registrada: `32e70c6`, cache v201, 276 testes com frontend publicado.
 
-- Dashboard: quatro cards clicaveis: Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (flag `is_visitor` + check-in hoje, incluindo quem saiu, sem duplicar), Criancas com observacao (presentes com `notes` preenchido) e Salas abertas (abre Salas com filtro Somente abertas). Tres listas usam dialog compacto e cadastro existente; texto escapado, atualizacao com dados da tela e limpeza ao trocar sessao. Acesso somente admin/equipe; salas teste preservam regras anteriores. Filtro de salas permite voltar a abertas/programadas e limita selecao em lote aos itens visiveis. Mobile 2x2; temas claro/escuro. Sem alteracao de banco.
+- Dashboard: cards Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (`is_visitor`, check-in hoje, incluindo saidas), Criancas com observacao (presentes com `notes`) e Salas abertas (filtro). Listas compactas abrem cadastro; texto escapado, limpeza ao trocar sessao; somente admin/equipe. Selecao em lote respeita salas visiveis. Mobile 2x2 e temas claro/escuro; regras de salas teste preservadas.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
 - Arquivos principais recentes: `app.js`, `index.html`, `sw.js`, `tests/checkin.spec.js`, `Servico de impressao/server.js`, `Servico de impressao/src/windows-pdf-print-adapter.js`, `Servico de impressao/scripts/install-portable.ps1`.
 - Validacao: `node --check app.js`, `node --check "Servico de impressao/server.js"`, `node --check "Servico de impressao/src/windows-pdf-print-adapter.js"` passaram; `npm.cmd test -- tests/print-service.spec.js tests/print-worker.spec.js` passou com 16 testes.
@@ -54,3 +55,4 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 1. Print Service: retencao/limpeza do SQLite.
 2. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.
+3. Publicar e conferir a identificacao Membro/Visitante do Log (assets de 20261110a, cache v202).

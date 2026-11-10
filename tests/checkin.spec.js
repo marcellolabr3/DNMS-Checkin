@@ -1637,7 +1637,7 @@ test("exportacao do log usa formato legivel para planilhas", async ({ page }) =>
   const csv = buffer.toString("utf8");
 
   expect(Array.from(buffer.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
-  expect(csv).toContain("Data;Relatorio;Acao;Alvo;Autor;Perfil;Detalhes");
+  expect(csv).toContain("Data;Relatorio;Acao;Alvo;Membro/Visitante;Autor;Perfil;Detalhes");
   expect(csv).toContain("Alteracoes de dados");
   expect(csv).toContain("José Exportação");
   expect(csv).not.toContain("Data,Relatorio,Acao");
@@ -1674,8 +1674,8 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   const csv = buffer.toString("utf8");
   expect(csv).toContain("Secao;Nome;Total;Criancas;Ativos;Check-outs;Pendentes de impressao");
   expect(csv).toContain("Resumo;Geral;1;1;1;0;1");
-  expect(csv).toContain("Aluno;Turma;Presencas;Horarios de check-in");
-  expect(csv).toContain("Ana Kids;Kids;1;");
+  expect(csv).toContain("Aluno;Membro/Visitante;Turma;Presencas;Horarios de check-in");
+  expect(csv).toContain("Ana Kids;Membro;Kids;1;");
 
   await page.evaluate(() => {
     window.__lastOpenedUrl = "";
@@ -1691,7 +1691,7 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   expect(whatsappText).not.toContain("checkout");
   expect(whatsappText).not.toContain("Impressao pendente");
   expect(whatsappText).toContain("Frequencia detalhada");
-  expect(whatsappText).toContain("Ana Kids | Kids |");
+  expect(whatsappText).toContain("Ana Kids | Membro | Kids |");
 });
 
 test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ page }) => {
@@ -1754,6 +1754,7 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Total de criancas", 1]);
   expect(excel.workbook.Sheets.Criancas.__rows[0]).toEqual([
     "Nome",
+    "Membro/Visitante",
     "Nascimento",
     "Turma efetiva",
     "Classificacao automatica",
@@ -1767,6 +1768,7 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   ]);
   expect(excel.workbook.Sheets.Criancas.__rows[1]).toEqual([
     "Joao Fora",
+    "Membro",
     "10/01/2009",
     "Fora da faixa",
     "Fora da faixa",
@@ -1778,8 +1780,8 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
     "Nao",
     ""
   ]);
-  expect(excel.workbook.Sheets.Criancas["!autofilter"]).toEqual({ ref: "A1:K2" });
-  expect(excel.workbook.Sheets.Criancas["!cols"].length).toBe(11);
+  expect(excel.workbook.Sheets.Criancas["!autofilter"]).toEqual({ ref: "A1:L2" });
+  expect(excel.workbook.Sheets.Criancas["!cols"].length).toBe(12);
 
   await page.evaluate(() => {
     window.__lastOpenedUrl = "";
@@ -1792,7 +1794,7 @@ test("admin extrai dados de criancas por turma e envia por WhatsApp", async ({ p
   const whatsappText = await page.evaluate(() => decodeURIComponent(new URL(window.__lastOpenedUrl).searchParams.get("text") || ""));
   expect(whatsappText).toContain("Extracao de criancas - turma Fora da faixa");
   expect(whatsappText).toContain("Total: 1");
-  expect(whatsappText).toContain("Joao Fora | Fora da faixa | Responsavel Fora |");
+  expect(whatsappText).toContain("Joao Fora | Membro | Fora da faixa | Responsavel Fora |");
 });
 
 test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", async ({ page }) => {
@@ -1863,13 +1865,13 @@ test("admin exporta previsao anual de mudanca de turma e saida do DNMS Kids", as
   expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Saem do DNMS Kids", 1]);
   expect(excel.workbook.Sheets.Resumo.__rows).toContainEqual(["Turma oficial para conferir", 2]);
   expect(excel.workbook.Sheets.Mudancas.__rows[0]).toContain("Turma prevista");
-  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Cris Maternal").slice(2, 7))
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Cris Maternal").slice(3, 8))
     .toEqual(["Maternal", "Maternal", "Kids", "Passa para outra turma", "Sim"]);
-  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Dani Kids").slice(2, 7))
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Dani Kids").slice(3, 8))
     .toEqual(["Kids", "Teens", "Juniors", "Passa para outra turma", "Sim"]);
-  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Fran Teens").slice(2, 7))
+  expect(excel.workbook.Sheets.Mudancas.__rows.find((row) => row[0] === "Fran Teens").slice(3, 8))
     .toEqual(["Teens", "", "Fora da faixa", "Sai do DNMS Kids", "Nao"]);
-  expect(excel.workbook.Sheets.Mudancas["!autofilter"]).toEqual({ ref: "A1:M5" });
+  expect(excel.workbook.Sheets.Mudancas["!autofilter"]).toEqual({ ref: "A1:N5" });
 
   await page.selectOption("#studentTransitionType", "advance");
   await page.evaluate(() => { window.__studentWorkbookCapture = null; });

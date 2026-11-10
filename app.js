@@ -2623,6 +2623,8 @@ function buildEventSummary(checkins) {
   const uniqueStudents = new Set();
   const byClass = new Map();
   const byRoom = new Map();
+  const byMembership = new Map();
+  const students = new Map(state.students.map((student) => [student.id, student]));
   rows.forEach((checkin) => {
     if (checkin.studentId) {
       uniqueStudents.add(checkin.studentId);
@@ -2637,6 +2639,13 @@ function buildEventSummary(checkins) {
     }
     updateEventSummaryGroup(byClass.get(className), checkin);
     updateEventSummaryGroup(byRoom.get(roomName), checkin);
+    const membership = getStudentMembershipLabel(students.get(checkin.studentId));
+    if (!byMembership.has(membership)) {
+      byMembership.set(membership, { ...createEventSummaryGroup(membership), studentIds: new Set() });
+    }
+    const membershipGroup = byMembership.get(membership);
+    if (checkin.studentId) membershipGroup.studentIds.add(checkin.studentId);
+    updateEventSummaryGroup(membershipGroup, checkin);
   });
   return {
     totalCheckins: rows.length,
@@ -2645,7 +2654,10 @@ function buildEventSummary(checkins) {
     checkedOut: rows.filter((checkin) => Boolean(checkin.checkedOutAt)).length,
     pendingPrint: rows.filter((checkin) => !checkin.checkedOutAt && !checkin.printedAt).length,
     byClass: Array.from(byClass.values()).sort(compareEventSummaryGroups),
-    byRoom: Array.from(byRoom.values()).sort(compareEventSummaryGroups)
+    byRoom: Array.from(byRoom.values()).sort(compareEventSummaryGroups),
+    byMembership: Array.from(byMembership.values())
+      .map(({ studentIds, ...group }) => ({ ...group, uniqueStudents: studentIds.size }))
+      .sort(compareEventSummaryGroups)
   };
 }
 
@@ -2705,6 +2717,8 @@ function buildEventSummaryTextLines(summary, periodLabel = getLogPeriodLabel()) 
   return [
     `Resumo do evento (${periodLabel})`,
     formatEventSummaryDisplayTotals(summary),
+    "Por vínculo:",
+    ...summary.byMembership.map((group) => `- ${group.label}: ${group.uniqueStudents} crianca(s), ${group.total} check-in(s)`),
     "Por turma:",
     ...(summary.byClass.length ? summary.byClass.map((group) => `- ${formatEventSummaryDisplayLine(group)}`) : ["- Nenhum check-in"]),
     "Por sala:",
@@ -2715,6 +2729,7 @@ function buildEventSummaryTextLines(summary, periodLabel = getLogPeriodLabel()) 
 function buildEventSummaryCsvRows(summary) {
   return [
     ["Resumo", "Geral", summary.totalCheckins, summary.uniqueStudents, summary.active, summary.checkedOut, summary.pendingPrint],
+    ...summary.byMembership.map((group) => ["Vínculo", group.label, group.total, group.uniqueStudents, group.active, group.checkedOut, group.pendingPrint]),
     ...summary.byClass.map((group) => ["Turma", group.label, group.total, "", group.active, group.checkedOut, group.pendingPrint]),
     ...summary.byRoom.map((group) => ["Sala", group.label, group.total, "", group.active, group.checkedOut, group.pendingPrint])
   ];
@@ -3682,6 +3697,7 @@ function buildStudentExtractionRow(student) {
   return {
     id: student.id,
     name: student.name || "",
+    membership: getStudentMembershipLabel(student),
     birth: formatBirthDateForExtraction(student.birth),
     effectiveClass: getEffectiveClassForStudentToday(student),
     automaticClass: getStudentAutomaticClass(student),
@@ -3696,6 +3712,28 @@ function buildStudentExtractionRow(student) {
       ? getStudentClassTransition(student, getStudentTransitionYear())
       : null
   };
+}
+
+function getStudentMembershipLabel(student) {
+  if (!student) return "Não identificado";
+  return (student.isVisitor ?? student.is_visitor) ? "Visitante" : "Membro";
+}
+
+function getAuditStudentMembershipLabel(row, students = state.students, checkins = state.checkins) {
+  const metadata = row.metadata || {};
+  if (Array.isArray(metadata.studentIds) && metadata.studentIds.length) {
+    return [...new Set(metadata.studentIds)].map((id) => {
+      const student = students.find((item) => item.id === id);
+      return `${student?.name || id} (${getStudentMembershipLabel(student)})`;
+    }).join(" | ");
+  }
+  const targetType = row.targetType || row.target_type;
+  const targetId = row.targetId || row.target_id;
+  const checkin = targetType === "checkin" ? checkins.find((item) => item.id === targetId) : null;
+  const studentId = targetType === "student" ? targetId
+    : metadata.studentId || metadata.student_id || checkin?.studentId || checkin?.student_id;
+  if (!studentId && !["student", "checkin"].includes(targetType)) return "";
+  return getStudentMembershipLabel(students.find((student) => student.id === studentId));
 }
 
 function formatBirthDateForExtraction(value) {
@@ -3755,7 +3793,7 @@ function renderStudentExtractionList(candidates, rows, selectedIds) {
       const item = document.createElement("label");
       item.className = "field checkbox-field extraction-student-row";
       item.innerHTML = `
-        <span>${escapeHtml(row.name)} (${escapeHtml(row.effectiveClass)})</span>
+        <span>${escapeHtml(row.name)} (${escapeHtml(row.membership)}) — ${escapeHtml(row.effectiveClass)}</span>
         <input type="checkbox" data-student-extraction-id="${escapeAttribute(student.id)}" ${selectedIds.has(student.id) ? "checked" : ""} />
       `;
       const box = item.querySelector("input[data-student-extraction-id]");
@@ -3774,14 +3812,14 @@ function renderStudentExtractionList(candidates, rows, selectedIds) {
     item.className = "list-item";
     if (mode === "transition") {
       item.innerHTML = `
-        <strong>${escapeHtml(row.name)}</strong>
+        <strong>${escapeHtml(row.name)} (${escapeHtml(row.membership)})</strong>
         <span class="muted">${escapeHtml(row.transition.currentClass)} → ${escapeHtml(row.transition.nextClass)} | ${escapeHtml(row.transition.movementLabel)}</span>
         <span class="muted">Responsavel: ${escapeHtml(row.guardian || "-")} | Telefone: ${escapeHtml(row.phone || "-")}</span>
         ${row.transition.reviewOfficialClass ? `<span class="muted">Turma oficial cadastrada: ${escapeHtml(row.officialClass)} (conferir)</span>` : ""}
       `;
     } else {
       item.innerHTML = `
-        <strong>${escapeHtml(row.name)}</strong>
+        <strong>${escapeHtml(row.name)} (${escapeHtml(row.membership)})</strong>
         <span class="muted">Turma: ${escapeHtml(row.effectiveClass)} | Responsavel: ${escapeHtml(row.guardian || "-")}</span>
         <span class="muted">Telefone: ${escapeHtml(row.phone || "-")} | Nascimento: ${escapeHtml(row.birth || "-")}</span>
       `;
@@ -3844,6 +3882,7 @@ function appendAttendanceClassSections(rows) {
         item.className = "list-item";
         item.innerHTML = `
           <strong>${escapeHtml(row.studentName)}</strong>
+          <span class="muted">Membro/Visitante: ${escapeHtml(row.membership)}</span>
           <span class="muted">Presencas: ${row.checkinCount}</span>
           <span class="muted">Horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
         `;
@@ -3887,6 +3926,7 @@ function renderEventSummaryReport() {
   els.logCounts.textContent = summary.byClass.map(formatEventSummaryDisplayLine).join(" | ");
   appendEventSummarySection("Por turma", summary.byClass);
   appendEventSummarySection("Por sala", summary.byRoom);
+  appendEventSummarySection("Por vínculo", summary.byMembership);
   els.btnExport.disabled = false;
   if (els.btnShareWhatsapp) {
     els.btnShareWhatsapp.disabled = false;
@@ -3925,6 +3965,8 @@ function renderAuditReport(reportType) {
     item.className = "list-item";
     const title = document.createElement("strong");
     title.textContent = `${formatAuditAction(row.actionType)} - ${row.targetName || row.targetType || "-"}`;
+    const membership = getAuditStudentMembershipLabel(row);
+    if (membership) title.textContent += ` (${membership})`;
     const date = document.createElement("span");
     date.className = "muted";
     date.textContent = `Data: ${formatDateTimeFromIso(row.createdAt)}`;
@@ -9317,13 +9359,13 @@ async function exportCsv() {
   }
   const summary = buildEventSummary(currentPresenceItems);
   const summaryHeader = ["Secao", "Nome", "Total", "Criancas", "Ativos", "Check-outs", "Pendentes de impressao"];
-  const detailHeader = ["Aluno", "Turma", "Presencas", "Horarios de check-in"];
+  const detailHeader = ["Aluno", "Membro/Visitante", "Turma", "Presencas", "Horarios de check-in"];
   const csvRows = [
     summaryHeader,
     ...buildEventSummaryCsvRows(summary),
     [],
     detailHeader,
-    ...rows.map((row) => [row.studentName, row.className, row.checkinCount, row.timesLabel])
+    ...rows.map((row) => [row.studentName, row.membership, row.className, row.checkinCount, row.timesLabel])
   ];
   const periodStart = els.logStart?.value || "";
   const periodEnd = els.logEnd?.value || "";
@@ -9353,12 +9395,13 @@ function exportAuditCsv(reportType) {
     alert("Nenhum evento encontrado para exportar.");
     return;
   }
-  const header = ["Data", "Relatorio", "Acao", "Alvo", "Autor", "Perfil", "Detalhes"];
+  const header = ["Data", "Relatorio", "Acao", "Alvo", "Membro/Visitante", "Autor", "Perfil", "Detalhes"];
   const csvRows = rows.slice().sort(compareAuditRowsForExport).map((row) => [
     formatDateTimeFromIso(row.createdAt),
     formatReportType(reportType),
     formatAuditAction(row.actionType),
     row.targetName || "",
+    getAuditStudentMembershipLabel(row),
     row.actorName || "",
     formatRole(row.actorRole),
     row.details || formatAuditMetadata(row)
@@ -9388,14 +9431,15 @@ async function exportFamiliesCsv() {
     alert("Nenhum usuario encontrado para exportar.");
     return;
   }
-  const header = ["Responsavel", "Email", "Telefone", "Endereco", "Qtd filhos", "Filhos"];
+  const header = ["Responsavel", "Email", "Telefone", "Endereco", "Qtd filhos", "Filhos", "Membro/Visitante dos filhos"];
   const csvRows = filtered.map((entry) => [
     entry.profile.name || "",
     entry.profile.email || "",
     formatPhoneForDisplay(entry.profile.phone || ""),
     entry.profile.address || "",
     entry.children.length,
-    entry.children.map((child) => child.name).join(" | ")
+    entry.children.map((child) => child.name).join(" | "),
+    entry.children.map((child) => `${child.name} (${getStudentMembershipLabel(child)})`).join(" | ")
   ]);
   const searchRaw = String(searchValue || "").trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "_");
   const fileSuffix = searchRaw || "todos";
@@ -9452,6 +9496,8 @@ function buildStudentExtractionWorkbook(XLSX, rows) {
       ["Ano da mudanca", getStudentTransitionYear()],
       ["Escopo", scopeLabel],
       ["Total de criancas", rows.length],
+      ["Membros", rows.filter((row) => row.membership === "Membro").length],
+      ["Visitantes", rows.filter((row) => row.membership === "Visitante").length],
       ["Passam para outra turma", rows.filter((row) => row.transition.movement === "advance").length],
       ["Saem do DNMS Kids", rows.filter((row) => row.transition.movement === "exit").length],
       ["Turma oficial para conferir", rows.filter((row) => row.transition.reviewOfficialClass).length],
@@ -9472,6 +9518,8 @@ function buildStudentExtractionWorkbook(XLSX, rows) {
       ["Extracao de criancas"],
       ["Escopo", scopeLabel],
       ["Total de criancas", rows.length],
+      ["Membros", rows.filter((row) => row.membership === "Membro").length],
+      ["Visitantes", rows.filter((row) => row.membership === "Visitante").length],
       ["Gerado em", generatedAt],
       [],
       ["Turma", "Quantidade"],
@@ -9480,18 +9528,17 @@ function buildStudentExtractionWorkbook(XLSX, rows) {
   }
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
   summarySheet["!cols"] = isTransition ? [{ wch: 30 }, { wch: 24 }, { wch: 14 }] : [{ wch: 26 }, { wch: 24 }];
-  summarySheet["!autofilter"] = isTransition
-    ? { ref: `A10:C${Math.max(10, summaryRows.length)}` }
-    : { ref: `A6:B${Math.max(6, summaryRows.length)}` };
+  const summaryHeaderRow = summaryRows.findIndex((row) => row[0] === (isTransition ? "Turma no ano anterior" : "Turma")) + 1;
+  summarySheet["!autofilter"] = { ref: `A${summaryHeaderRow}:${isTransition ? "C" : "B"}${summaryRows.length}` };
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumo");
 
   const dataHeader = getStudentExtractionExcelHeader();
   const dataRows = rows.map((row) => getStudentExtractionExcelRow(row));
   const dataSheet = XLSX.utils.aoa_to_sheet([dataHeader, ...dataRows]);
   dataSheet["!cols"] = isTransition
-    ? [28, 14, 24, 24, 18, 28, 22, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }))
-    : [28, 14, 18, 24, 18, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }));
-  dataSheet["!autofilter"] = { ref: `A1:${isTransition ? "M" : "K"}${Math.max(1, dataRows.length + 1)}` };
+    ? [28, 20, 14, 24, 24, 18, 28, 22, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }))
+    : [28, 20, 14, 18, 24, 18, 28, 18, 36, 42, 10, 42].map((wch) => ({ wch }));
+  dataSheet["!autofilter"] = { ref: `A1:${isTransition ? "N" : "L"}${Math.max(1, dataRows.length + 1)}` };
   XLSX.utils.book_append_sheet(workbook, dataSheet, isTransition ? "Mudancas" : "Criancas");
   return workbook;
 }
@@ -9500,6 +9547,7 @@ function getStudentExtractionExcelHeader() {
   if (getStudentExtractionMode() === "transition") {
     return [
       "Nome",
+      "Membro/Visitante",
       "Nascimento",
       `Turma em ${getStudentTransitionYear() - 1} (pela idade)`,
       "Turma oficial cadastrada hoje",
@@ -9516,6 +9564,7 @@ function getStudentExtractionExcelHeader() {
   }
   return [
     "Nome",
+    "Membro/Visitante",
     "Nascimento",
     "Turma efetiva",
     "Classificacao automatica",
@@ -9533,6 +9582,7 @@ function getStudentExtractionExcelRow(row) {
   if (getStudentExtractionMode() === "transition") {
     return [
       row.name,
+      row.membership,
       row.birth,
       row.transition.currentClass,
       row.officialClass,
@@ -9549,6 +9599,7 @@ function getStudentExtractionExcelRow(row) {
   }
   return [
     row.name,
+    row.membership,
     row.birth,
     row.effectiveClass,
     row.automaticClass,
@@ -9577,11 +9628,11 @@ function shareStudentsDataWhatsapp() {
     `Total: ${rows.length}`,
     "",
     getStudentExtractionMode() === "transition"
-      ? "Nome | Turma no ano anterior -> prevista | Movimento | Responsavel | Telefone"
-      : "Nome | Turma | Responsavel | Telefone",
+      ? "Nome | Membro/Visitante | Turma no ano anterior -> prevista | Movimento | Responsavel | Telefone"
+      : "Nome | Membro/Visitante | Turma | Responsavel | Telefone",
     ...rows.map((row) => getStudentExtractionMode() === "transition"
-      ? `${row.name} | ${row.transition.currentClass} -> ${row.transition.nextClass} | ${row.transition.movementLabel} | ${row.guardian || "-"} | ${row.phone || "-"}`
-      : `${row.name} | ${row.effectiveClass} | ${row.guardian || "-"} | ${row.phone || "-"}`)
+      ? `${row.name} | ${row.membership} | ${row.transition.currentClass} -> ${row.transition.nextClass} | ${row.transition.movementLabel} | ${row.guardian || "-"} | ${row.phone || "-"}`
+      : `${row.name} | ${row.membership} | ${row.effectiveClass} | ${row.guardian || "-"} | ${row.phone || "-"}`)
   ];
   window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener,noreferrer");
 }
@@ -9651,12 +9702,12 @@ function shareLogWhatsapp() {
     return;
   }
   const summary = buildEventSummary(currentPresenceItems);
-  const lines = rows.map((row) => `${row.studentName} | ${row.className} | ${row.timesLabel}`);
+  const lines = rows.map((row) => `${row.studentName} | ${row.membership} | ${row.className} | ${row.timesLabel}`);
   const message = [
     ...buildEventSummaryTextLines(summary, getLogPeriodLabel()),
     "",
     `Frequencia detalhada de ${periodStart} ate ${periodEnd}`,
-    "Nome | Turma | Horarios de check-in",
+    "Nome | Membro/Visitante | Turma | Horarios de check-in",
     ...lines
   ].join("\n");
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
@@ -10735,7 +10786,7 @@ function buildLogFrequencyRows(checkins) {
     const className = checkin.className || student?.className || "Visitante";
     const key = `${checkin.studentId || studentName}|${className}`;
     if (!grouped.has(key)) {
-      grouped.set(key, { studentName, className, checkinTimes: [] });
+      grouped.set(key, { studentName, membership: getStudentMembershipLabel(student), className, checkinTimes: [] });
     }
     grouped.get(key).checkinTimes.push(checkin.dateTime || "");
   }
@@ -10753,6 +10804,7 @@ function buildLogFrequencyRows(checkins) {
         });
       return {
         studentName: item.studentName,
+        membership: item.membership,
         className: item.className,
         checkinCount: orderedTimes.length,
         timesLabel: orderedTimes.join(" | ")
