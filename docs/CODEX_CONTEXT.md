@@ -16,7 +16,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Backend: Supabase Auth/Postgres/Storage; nao ha backend web proprio.
 - Print Service local: `Servico de impressao/server.js` em `http://127.0.0.1:3001`, Brother QL-810W.
 - Auth/roles: Supabase Auth + `profiles.role` (`admin`, `equipe`, `responsavel`, `dnms_kids`). SADMIN: `marvinlabre@gmail.com`.
-- Cache do checkout: `checkin-cache-v203`, `app.js?v=20261110b`, `log-center.js?v=20261110b`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
+- Cache do checkout: `checkin-cache-v204`, `app.js?v=20261110c`, `log-center.js?v=20261110c`, `styles.css?v=20261108d`, `print.js?v=20261008a`.
 - App nativo separado: `D:\Dev\APKCheckin`; nao modificar este repo para tarefas do APK.
 
 ## Regras criticas
@@ -27,7 +27,7 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 - Maximo um check-in ativo por crianca (`checked_out_at is null`).
 - Salas nascem `Programada`, abertura manual por admin/equipe; salas teste somente por SADMIN e fora dos relatorios/autoimpressao.
 - Turma por progressao anual: Maternal 2-4, Kids 5-7, Juniors 8-11, Teens 12-15; aniversario nao troca turma no meio do ano, exceto entrada inicial no Maternal aos 2.
-- Presenca atual: ultimo estado valido por crianca/aula; check-in aberto = presente, checkout = ausente.
+- Presenca atual: ultimo estado valido por crianca/aula; check-in aberto = presente, checkout = ausente. Assiduidade historica inclui saidas, contando uma presenca por crianca/sala/dia.
 - `max_checkins = null` significa sem limite.
 - Ao alterar HTML/CSS/JS, atualizar querystring em `index.html` e `CACHE_NAME`/assets em `sw.js`.
 - Dados de usuario/banco devem usar `textContent`, `createElement` ou escape antes de `innerHTML`.
@@ -43,9 +43,10 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 ## Estado validado
 
 - Log: relatorios, familias, cadastros, previsao anual, consultas e backups. Membro/Visitante por `students.is_visitor`; cadastro ausente = Nao identificado. Excel separa totais; familias identificam cada filho. Auditoria usa vinculo atual. Consultas leem relacionamentos no mesmo snapshot, mesmo com campos parciais. Backups mantem o formato e a flag original. Sem mudanca de banco/RLS.
+- Assiduidade local: checkout preserva presenca; reentradas na mesma sala/dia nao duplicam. Busca sem acentos e selecao permitem consultar/exportar zero presencas; totais respeitam filtros. Periodo: primeiro `created_at`/`checked_in_at` do snapshot completo ate hoje, no fuso local; preserva datas manuais. `Desde o primeiro registro` restaura o periodo; troca de sessao limpa o estado. Testes: `tests/log-attendance.spec.js`, `tests/checkin.spec.js`.
 - Arquivos do Log: `app.js`, `log-center.js`, `supabase/patch_log_data_center.sql`, `docs/LOG_DATA_CENTER.md`; restauracao: `scripts/restore-log-backup.cjs`. Backups incluem contas/MFA e arquivos com SHA-256, nao infraestrutura. Respostas atrasadas/Excel recusam sessao alterada. `PLAYWRIGHT_BASE_URL` testa frontend publicado com fixtures.
-- Compartilhamento Excel: `log-center.js` guarda a planilha exportada em memoria e compartilha um File XLSX pelo seletor nativo (usuario escolhe WhatsApp e confirma). Se ainda nao gerou, prepara e pede novo clique. Sem suporte, oferece download para anexar como Documento. Nunca substitui Excel por texto. Filtros/sessao/permissoes invalidam o cache; logout limpa arquivo/dialogo. CSV/JSON conservam texto; backups nao sao compartilhados.
-- Validacao: 330 testes locais desktop/mobile e 32 de compartilhamento no frontend publicado passaram. XLSX real e bytes identicos entre download/anexo; ativacao, cancelamento, fallback e sessao/filtros conferidos. API nativa simulada; nenhum envio a contatos. Cloudflare Pages confirmou `a595f45` em `https://dnms-checkin.pages.dev`; HTML/app/log-center/SW publicados iguais ao checkout, cache v203. Excel: vinculo na coluna B da aba Mudancas/Criancas; Resumo separa totais.
+- Excel: `log-center.js` guarda XLSX em memoria e compartilha pelo seletor nativo. Sem arquivo pronto, prepara e pede novo clique; sem suporte, oferece download para anexar como Documento. Filtros/sessao/permissoes invalidam o cache; logout limpa arquivo/dialogo. CSV/JSON conservam texto; backups nao sao compartilhados.
+- Validacao local: 246 testes desktop/mobile passaram (assiduidade, Log, Excel real, check-in, dashboard e cache), alem de sintaxe JS e `git diff --check`. Fixtures Supabase; nenhum envio a contatos. Cache v204 ainda sem publicacao. Ultima publicacao validada: `a595f45` em `https://dnms-checkin.pages.dev`, cache v203.
 
 - Dashboard: cards Presentes agora (ultimo estado por crianca/sala hoje, sem checkout), Visitantes do dia (`is_visitor`, check-in hoje, incluindo saidas), Criancas com observacao (presentes com `notes`) e Salas abertas (filtro). Listas compactas abrem cadastro; texto escapado, limpeza ao trocar sessao; somente admin/equipe. Selecao em lote respeita salas visiveis. Mobile 2x2 e temas claro/escuro; regras de salas teste preservadas.
 - Print Service: Chromium continua persistente/pre-aquecido; impressao usa modo rapido apos aceite no spooler (`PRINT_FAST_SPOOLER_MODE=true`) e cache curto do status da Brother (`PRINTER_STATUS_CACHE_TTL_MS=3000`); instalador portable cria atalho de inicializacao do Windows.
@@ -53,5 +54,6 @@ Bootstrap curto para novas sessoes. Nunca registrar secrets, tokens, Service Rol
 
 ## Pendencias reais
 
-1. Print Service: retencao/limpeza do SQLite.
-2. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.
+1. Publicar a correcao de assiduidade/cache v204 e validar o frontend publicado. Sem migracao de banco.
+2. Print Service: retencao/limpeza do SQLite.
+3. Print Service: gerar novo ZIP/exe e validar no notebook real com Brother, incluindo check-in, reimpressao, tempo ate inicio fisico e inicializacao com Windows.

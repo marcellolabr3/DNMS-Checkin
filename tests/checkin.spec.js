@@ -1643,7 +1643,7 @@ test("exportacao do log usa formato legivel para planilhas", async ({ page }) =>
   expect(csv).not.toContain("Data,Relatorio,Acao");
 });
 
-test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
+test("log sem historico anterior abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   await openApp(page);
   await loginAs(page, "admin@dnms.test");
   await openStudentsPanel(page);
@@ -1656,11 +1656,11 @@ test("log abre com periodo de hoje e mostra assiduidade", async ({ page }) => {
   await expect(page.locator("#logEnd")).toHaveValue(todayIso());
   await expect(page.locator("#logSelectedStudentsSummary")).toBeEmpty();
   await expect(page.locator("#logSummary")).toContainText("Frequencia");
-  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 check-in(s).");
+  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 presenca(s).");
   await expect(page.locator("#logSummary")).not.toContainText("Total geral");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s)");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 presenca(s)");
   const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
-  await expect(kidsGroup.locator("summary")).toContainText("1 crianca(s) | 1 check-in(s)");
+  await expect(kidsGroup.locator("summary")).toContainText("1 crianca(s) | 1 presenca(s)");
   await expect(kidsGroup.getByText("Ana Kids")).not.toBeVisible();
   await kidsGroup.locator("summary").click();
   await expect(kidsGroup.getByText("Ana Kids")).toBeVisible();
@@ -1923,7 +1923,7 @@ test("sadmin extrai criancas selecionadas usando busca por endereco do cadastro"
   await expect(page.locator("#studentExtractionSummary")).toContainText("1 de 1 crianca(s) selecionada(s)");
 });
 
-test("log de frequencia mostra presenca atual pelo ultimo estado da crianca", async ({ page }) => {
+test("log de frequencia preserva presencas apos checkout e deduplica reentradas", async ({ page }) => {
   await openApp(page);
   await page.evaluate((today) => {
     window.__mockDnmsDb.checkins.push(
@@ -1981,10 +1981,11 @@ test("log de frequencia mostra presenca atual pelo ultimo estado da crianca", as
   await loginAs(page, "admin@dnms.test");
   await page.click("#btnLogPanel");
 
-  await expect(page.locator("#logSummary")).toContainText("1 crianca(s) com presenca. 1 check-in(s).");
-  await expect(page.locator("#logCounts")).toContainText("Kids: 1 check-in(s)");
+  await expect(page.locator("#logSummary")).toContainText("2 crianca(s) com presenca. 2 presenca(s).");
+  await expect(page.locator("#logCounts")).toContainText("Kids: 1 presenca(s)");
+  await expect(page.locator("#logCounts")).toContainText("Juniors: 1 presenca(s)");
   await expect(page.locator("#logList")).toContainText("Ana Kids");
-  await expect(page.locator("#logList")).not.toContainText("Bia Juniors");
+  await expect(page.locator("#logList")).toContainText("Bia Juniors");
   const kidsGroup = page.locator(".attendance-class-group").filter({ hasText: "Kids" });
   await kidsGroup.locator("summary").click();
   await expect(kidsGroup.locator(".list-item")).toHaveCount(1);

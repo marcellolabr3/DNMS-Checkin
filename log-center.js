@@ -179,6 +179,8 @@ async function refreshLogSnapshot() {
   data.student_guardians.forEach((link)=>{ if(!links.has(link.student_id)) links.set(link.student_id,[]); links.get(link.student_id).push(link.guardian_id); });
   applyProfileRows(data.profiles); applyStudentRows(data.students,links); applyRoomRows(data.rooms);
   applyCheckinRows(data.checkins); applyAuditRows(data.audit_logs);
+  updateLogPeriodFromSnapshot(data);
+  logCenter.error = "";
 }
 
 function renderLogCenter() {
@@ -205,6 +207,7 @@ function renderLogCenter() {
   els.btnShareWhatsapp.textContent = excel ? "Enviar Excel no WhatsApp" : "Enviar WhatsApp";
   els.btnShareWhatsapp.style.display = backup || ((data || families) && !excel) ? "none" : "";
   [els.logStart, els.logEnd].forEach((el) => { el.closest(".field").style.display = special && !data ? "none" : ""; });
+  logEl("btnLogFullPeriod").style.display = special && !data ? "none" : "";
   logEl("logCenterStatus").textContent = logCenter.busy ? "Processando; aguarde o arquivo completo..." : logCenter.error;
   if (!special) return false;
   els.logList.replaceChildren(); els.logCounts.textContent = ""; els.logSelectedStudentsSummary.textContent = "";

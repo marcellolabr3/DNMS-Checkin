@@ -70,6 +70,7 @@ const myDataContext = { name: "", email: "", phone: "", address: "", photoUrl: "
 const familyNetworkContext = { members: [], familyId: "" };
 const familyContext = { selectedProfileId: "" };
 const panelRefreshContext = { inProgress: false, pendingPanel: "" };
+const logPeriodContext = { sessionId: "", firstRecordDate: "", startEdited: false, endEdited: false };
 const bootContext = { loadingSession: Boolean(supabaseClient) };
 const passwordRecoveryContext = { detected: INITIAL_PASSWORD_RECOVERY_URL, listenerStarted: false, signalPromise: null };
 
@@ -421,10 +422,16 @@ function bindEvents() {
   els.btnExport.addEventListener("click", exportCsv);
   els.btnShareWhatsapp?.addEventListener("click", shareLogWhatsapp);
   els.logReportType?.addEventListener("change", renderLog);
-  els.logStart.addEventListener("change", renderLog);
-  els.logStart.addEventListener("input", renderLog);
-  els.logEnd.addEventListener("change", renderLog);
-  els.logEnd.addEventListener("input", renderLog);
+  ["change", "input"].forEach((event) => {
+    els.logStart.addEventListener(event, () => { logPeriodContext.startEdited = true; renderLog(); });
+    els.logEnd.addEventListener(event, () => { logPeriodContext.endEdited = true; renderLog(); });
+  });
+  document.getElementById("btnLogFullPeriod").addEventListener("click", () => {
+    logPeriodContext.startEdited = false;
+    logPeriodContext.endEdited = false;
+    ensureLogPeriodDefaults();
+    renderLog();
+  });
   els.studentExtractionMode?.addEventListener("change", () => {
     state.ui.studentExtractionSelectedIds = [];
     renderStudentExtraction();
@@ -539,6 +546,7 @@ function bindEvents() {
 }
 
 function render() {
+  syncLogPeriodSession();
   if (typeof syncLogExcelSession === "function") syncLogExcelSession();
   renderSession();
   renderRoleVisibility();
@@ -3494,25 +3502,21 @@ function renderLog() {
     return;
   }
 
-  const items = getFilteredCheckins();
-  const currentPresenceItems = getCurrentPresenceCheckins(items);
-  const availableStudents = getAvailableLogStudents(currentPresenceItems);
-  const allowedIds = new Set(availableStudents.map((student) => student.id));
-  state.ui.logSelectedStudentIds = (state.ui.logSelectedStudentIds || []).filter((id) => allowedIds.has(id));
+  const { items, rows, availableStudents } = getLogAttendanceReport();
   renderLogSelectedStudentsSummary(availableStudents);
-  const rows = buildLogFrequencyRows(currentPresenceItems);
   els.logList.innerHTML = "";
 
   const totalRows = rows.length;
+  const childrenWithAttendance = new Set(rows.filter((row) => row.checkinCount > 0).map((row) => row.studentId)).size;
   const totalCheckins = rows.reduce((acc, row) => acc + row.checkinCount, 0);
   if (!totalRows) {
     els.logSummary.textContent = "Nenhuma frequencia encontrada para o periodo selecionado.";
     els.logCounts.textContent = "";
   } else {
-    const summary = buildEventSummary(currentPresenceItems);
+    const summary = buildEventSummary(items);
     const periodLabel = getLogPeriodLabel();
-    els.logSummary.textContent = `Frequencia (${periodLabel}): ${totalRows} crianca(s) com presenca. ${totalCheckins} check-in(s).`;
-    els.logCounts.textContent = summary.byClass.map((group) => `${group.label}: ${group.total} check-in(s)`).join(" | ");
+    els.logSummary.textContent = `Frequencia (${periodLabel}): ${childrenWithAttendance} crianca(s) com presenca. ${totalCheckins} presenca(s).`;
+    els.logCounts.textContent = summary.byClass.map((group) => `${group.label}: ${group.total} presenca(s)`).join(" | ");
     appendAttendanceClassSections(rows);
   }
 
@@ -3873,7 +3877,7 @@ function appendAttendanceClassSections(rows) {
       const summary = document.createElement("summary");
       summary.innerHTML = `
         <span>${escapeHtml(className)}</span>
-        <span class="muted">${classRows.length} crianca(s) | ${totalCheckins} check-in(s)</span>
+        <span class="muted">${classRows.length} crianca(s) | ${totalCheckins} presenca(s)</span>
       `;
       details.appendChild(summary);
       const list = document.createElement("div");
@@ -3885,7 +3889,7 @@ function appendAttendanceClassSections(rows) {
           <strong>${escapeHtml(row.studentName)}</strong>
           <span class="muted">Membro/Visitante: ${escapeHtml(row.membership)}</span>
           <span class="muted">Presencas: ${row.checkinCount}</span>
-          <span class="muted">Horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
+          <span class="muted">Datas e horarios de check-in: ${escapeHtml(row.timesLabel || "-")}</span>
         `;
         list.appendChild(item);
       });
@@ -4004,12 +4008,43 @@ function toggleLogPanel() {
   setActivePanel(getActivePanel() === "log" ? "dashboard" : "log");
 }
 
+function syncLogPeriodSession() {
+  const sessionId = state.session?.id || "";
+  if (logPeriodContext.sessionId === sessionId) return;
+  Object.assign(logPeriodContext, { sessionId, firstRecordDate: "", startEdited: false, endEdited: false });
+  els.logStart.value = "";
+  els.logEnd.value = "";
+}
+
+function updateLogPeriodFromSnapshot(snapshot) {
+  syncLogPeriodSession();
+  let first = "";
+  Object.entries(snapshot).forEach(([table, rows]) => {
+    if (!Array.isArray(rows)) return;
+    rows.forEach((row) => {
+      [row.created_at, table === "checkins" ? row.checked_in_at : null].forEach((value) => {
+        if (!value) return;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return;
+        const day = formatDateIso(date);
+        if (!first || day < first) first = day;
+      });
+    });
+  });
+  logPeriodContext.firstRecordDate = first;
+  ensureLogPeriodDefaults();
+}
+
 function ensureLogPeriodDefaults() {
+  syncLogPeriodSession();
   const today = formatTodayIso();
-  if (els.logStart && !els.logStart.value) {
-    els.logStart.value = today;
+  if (!logPeriodContext.startEdited) {
+    const first = logPeriodContext.firstRecordDate
+      || state.checkins.map(getCheckinDateIso).filter(Boolean).sort()[0]
+      || today;
+    els.logStart.value = first < today ? first : today;
   }
-  if (els.logEnd && !els.logEnd.value) {
+  if (!logPeriodContext.endEdited) {
     els.logEnd.value = today;
   }
 }
@@ -9351,14 +9386,12 @@ async function exportCsv() {
     await exportAuditCsv(reportType);
     return;
   }
-  const filteredCheckins = getFilteredCheckins();
-  const currentPresenceItems = getCurrentPresenceCheckins(filteredCheckins);
-  const rows = buildLogFrequencyRows(currentPresenceItems);
+  const { items, rows } = getLogAttendanceReport();
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para exportar.");
     return;
   }
-  const summary = buildEventSummary(currentPresenceItems);
+  const summary = buildEventSummary(items);
   const summaryHeader = ["Secao", "Nome", "Total", "Criancas", "Ativos", "Check-outs", "Pendentes de impressao"];
   const detailHeader = ["Aluno", "Membro/Visitante", "Turma", "Presencas", "Horarios de check-in"];
   const csvRows = [
@@ -9701,19 +9734,18 @@ function shareLogWhatsapp() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     return;
   }
-  const currentPresenceItems = getCurrentPresenceCheckins(filteredCheckins);
-  const rows = buildLogFrequencyRows(currentPresenceItems);
+  const { items, rows } = getLogAttendanceReport();
   if (!rows.length) {
     alert("Nenhuma frequencia encontrada para compartilhar.");
     return;
   }
-  const summary = buildEventSummary(currentPresenceItems);
-  const lines = rows.map((row) => `${row.studentName} | ${row.membership} | ${row.className} | ${row.timesLabel}`);
+  const summary = buildEventSummary(items);
+  const lines = rows.map((row) => `${row.studentName} | ${row.membership} | ${row.className} | ${row.checkinCount} | ${row.timesLabel || "-"}`);
   const message = [
     ...buildEventSummaryTextLines(summary, getLogPeriodLabel()),
     "",
     `Frequencia detalhada de ${periodStart} ate ${periodEnd}`,
-    "Nome | Membro/Visitante | Turma | Horarios de check-in",
+    "Nome | Membro/Visitante | Turma | Presencas | Datas e horarios de check-in",
     ...lines
   ].join("\n");
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
@@ -10776,7 +10808,7 @@ function parseLogDateTimeLabel(value) {
 }
 
 function buildLogFrequencyRows(checkins) {
-  const filterTerm = String(els.logStudentFilter?.value || "").trim().toLowerCase();
+  const filterTerm = normalizeDuplicateText(els.logStudentFilter?.value || "");
   const selectedIds = new Set(state.ui.logSelectedStudentIds || []);
   const hasSelectedIds = selectedIds.size > 0;
   const grouped = new Map();
@@ -10785,16 +10817,32 @@ function buildLogFrequencyRows(checkins) {
       continue;
     }
     const student = state.students.find((item) => item.id === checkin.studentId);
-    const studentName = student?.name || "Visitante";
-    if (filterTerm && !studentName.toLowerCase().includes(filterTerm)) {
+    const studentName = student?.name || "Crianca sem cadastro";
+    if (filterTerm && !normalizeDuplicateText(studentName).includes(filterTerm)) {
       continue;
     }
     const className = checkin.className || student?.className || "Visitante";
     const key = `${checkin.studentId || studentName}|${className}`;
     if (!grouped.has(key)) {
-      grouped.set(key, { studentName, membership: getStudentMembershipLabel(student), className, checkinTimes: [] });
+      grouped.set(key, { studentId: checkin.studentId, studentName, membership: getStudentMembershipLabel(student), className, checkinTimes: [] });
     }
     grouped.get(key).checkinTimes.push(checkin.dateTime || "");
+  }
+  if (hasSelectedIds || filterTerm) {
+    const presentIds = new Set([...grouped.values()].map((row) => row.studentId));
+    state.students.forEach((student) => {
+      if (presentIds.has(student.id) || (hasSelectedIds && !selectedIds.has(student.id))
+        || (filterTerm && !normalizeDuplicateText(student.name || "").includes(filterTerm))) {
+        return;
+      }
+      const className = getEffectiveClassForStudentToday(student);
+      const classFilter = els.logClassFilter?.value || "all";
+      if (classFilter !== "all" && className !== classFilter) return;
+      grouped.set(`${student.id}|${className}`, {
+        studentId: student.id, studentName: student.name,
+        membership: getStudentMembershipLabel(student), className, checkinTimes: []
+      });
+    });
   }
   return Array.from(grouped.values())
     .map((item) => {
@@ -10809,6 +10857,7 @@ function buildLogFrequencyRows(checkins) {
           return da.getTime() - db.getTime();
         });
       return {
+        studentId: item.studentId,
         studentName: item.studentName,
         membership: item.membership,
         className: item.className,
@@ -10838,6 +10887,29 @@ function getCurrentPresenceCheckins(checkins) {
     }
   });
   return Array.from(latestByRoomAndStudent.values()).filter((checkin) => !checkin.checkedOutAt);
+}
+
+function getAttendanceCheckins(checkins) {
+  const attendance = new Map();
+  checkins.forEach((checkin) => {
+    // Checkout and re-entry do not erase or multiply attendance at the same event/day.
+    const key = `${checkin.studentId || checkin.id}|${checkin.roomId || checkin.id}|${getCheckinDateIso(checkin)}`;
+    const current = attendance.get(key);
+    if (!current || getCheckinTimeValue(checkin) >= getCheckinTimeValue(current)) {
+      attendance.set(key, checkin);
+    }
+  });
+  return [...attendance.values()];
+}
+
+function getLogAttendanceReport() {
+  const candidates = getAttendanceCheckins(getFilteredCheckins());
+  const availableStudents = getAvailableLogStudents(candidates);
+  const allowed = new Set(availableStudents.map((student) => student.id));
+  state.ui.logSelectedStudentIds = (state.ui.logSelectedStudentIds || []).filter((id) => allowed.has(id));
+  const rows = buildLogFrequencyRows(candidates);
+  const included = new Set(rows.map((row) => row.studentId));
+  return { rows, items: candidates.filter((checkin) => included.has(checkin.studentId)), availableStudents };
 }
 
 function compareFrequencyRowsForExport(a, b) {
@@ -10950,9 +11022,16 @@ function getAvailableLogStudents(checkins) {
     }
     map.set(id, {
       id,
-      name: student?.name || "Visitante",
+      name: student?.name || "Crianca sem cadastro",
       className: checkin.className || student?.className || "Visitante"
     });
+  });
+  const classFilter = els.logClassFilter?.value || "all";
+  state.students.forEach((student) => {
+    const className = getEffectiveClassForStudentToday(student);
+    if (!map.has(student.id) && (classFilter === "all" || className === classFilter)) {
+      map.set(student.id, { id: student.id, name: student.name, className });
+    }
   });
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -10986,7 +11065,7 @@ function openLogStudentsDialog() {
   if (!els.logStudentsDialog || !els.logStudentsList) {
     return;
   }
-  const students = getAvailableLogStudents(getCurrentPresenceCheckins(getFilteredCheckins()));
+  const students = getAvailableLogStudents(getAttendanceCheckins(getFilteredCheckins()));
   els.logStudentsList.innerHTML = "";
   if (!students.length) {
     els.logStudentsList.innerHTML = `<div class="summary">Nenhuma crianca disponivel para o filtro atual.</div>`;
@@ -11040,16 +11119,8 @@ function renderLogStudentFilterOptions() {
   if (!datalist) {
     return;
   }
-  const names = Array.from(
-    new Set(
-      getFilteredCheckins()
-        .map((checkin) => {
-          const student = state.students.find((item) => item.id === checkin.studentId);
-          return student?.name || "Visitante";
-        })
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
+  const names = [...new Set(getAvailableLogStudents(getAttendanceCheckins(getFilteredCheckins())).map((student) => student.name).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
   datalist.innerHTML = "";
   names.forEach((name) => {
     const option = document.createElement("option");
